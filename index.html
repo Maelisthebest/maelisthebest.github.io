@@ -5,8 +5,9 @@
   <title>Mael Homepage</title>
   <style>
     body { font-family: Arial; max-width: 800px; margin: auto; text-align: center; }
-    input { padding: 5px; margin: 5px; }
+    input { padding: 5px; margin: 5px; width: 200px; }
     button { padding: 5px; margin: 5px; }
+    .container { border: 1px solid #ccc; padding: 15px; margin: 10px; display: inline-block; }
     a { display: block; margin: 20px; font-size: 1.2em; color: #0077cc; text-decoration: none; }
     a:hover { text-decoration: underline; }
   </style>
@@ -15,10 +16,19 @@
 <h1>Willkommen auf Mael's Homepage!</h1>
 
 <div id="auth">
-  <h2>Login / Account erstellen</h2>
-  <input type="text" id="username" placeholder="Benutzername" />
-  <input type="password" id="pass" placeholder="Passwort" />
-  <button onclick="login()">Einloggen / Registrieren</button>
+  <div class="container">
+    <h2>Login</h2>
+    <input type="text" id="loginUser" placeholder="Benutzername" /><br/>
+    <input type="password" id="loginPass" placeholder="Passwort" /><br/>
+    <button onclick="login()">Einloggen</button>
+  </div>
+
+  <div class="container">
+    <h2>Sign Up / Registrieren</h2>
+    <input type="text" id="signUser" placeholder="Neuer Benutzername" /><br/>
+    <input type="password" id="signPass" placeholder="Passwort" /><br/>
+    <button onclick="signUp()">Account erstellen</button>
+  </div>
 </div>
 
 <div id="main" style="display:none;">
@@ -53,27 +63,42 @@ async function hashPassword(pass) {
   return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+// Login Funktion
 async function login() {
-  const name = document.getElementById('username').value.trim();
-  const pass = document.getElementById('pass').value;
+  const name = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
   if(!name || !pass) return alert("Bitte Benutzername und Passwort eingeben!");
 
-  const passHash = await hashPassword(pass);
+  const hash = await hashPassword(pass);
 
   usersRef.child(name).get().then(snapshot => {
     if(snapshot.exists()) {
-      // Name existiert → Passwort prüfen
       const data = snapshot.val();
-      if(data.password === passHash) {
-        // korrekt → einloggen
+      if(data.password === hash) {
         localStorage.setItem('loggedUser', name);
         showMain(name);
       } else {
         alert("Falsches Passwort!");
       }
     } else {
-      // Neuer Name → registrieren
-      usersRef.child(name).set({ password: passHash, timestamp: Date.now() });
+      alert("Benutzername existiert nicht. Bitte registriere dich zuerst.");
+    }
+  });
+}
+
+// Sign Up Funktion
+async function signUp() {
+  const name = document.getElementById('signUser').value.trim();
+  const pass = document.getElementById('signPass').value;
+  if(!name || !pass) return alert("Bitte Benutzername und Passwort eingeben!");
+
+  const hash = await hashPassword(pass);
+
+  usersRef.child(name).get().then(snapshot => {
+    if(snapshot.exists()) {
+      alert("Dieser Benutzername ist bereits vergeben!");
+    } else {
+      usersRef.child(name).set({ password: hash, timestamp: Date.now() });
       localStorage.setItem('loggedUser', name);
       showMain(name);
     }
