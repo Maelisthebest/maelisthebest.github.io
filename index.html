@@ -65,7 +65,6 @@ async function hashPassword(pass) {
   return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-// Login Funktion
 async function login() {
   const name = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value;
@@ -74,24 +73,20 @@ async function login() {
   const hash = await hashPassword(pass);
 
   usersRef.child(name).get().then(snapshot => {
-    if(snapshot.exists()) {
-      const data = snapshot.val();
-      if(data.password === hash) {
-        // prüfen, ob bereits aktiv
-        activeRef.child(name).get().then(activeSnap => {
-          if(activeSnap.exists()) {
-            alert("Dieser Benutzer ist bereits eingeloggt!");
-          } else {
-            activeRef.child(name).set({ timestamp: Date.now() });
-            localStorage.setItem('loggedUser', name);
-            showMain(name);
-          }
-        });
-      } else {
-        alert("Falsches Passwort!");
-      }
+    if(snapshot.exists() && snapshot.val().password === hash) {
+      // Prüfen, ob bereits auf einem anderen Gerät aktiv
+      activeRef.child(name).get().then(activeSnap => {
+        if(activeSnap.exists()) {
+          alert("Dieser Benutzer ist bereits auf einem anderen Gerät eingeloggt!");
+        } else {
+          // Eintragen als aktiv
+          activeRef.child(name).set({ timestamp: Date.now() });
+          localStorage.setItem('loggedUser', name);
+          showMain(name);
+        }
+      });
     } else {
-      alert("Benutzername existiert nicht. Bitte registriere dich zuerst.");
+      alert("Falsches Passwort oder Benutzer existiert nicht!");
     }
   });
 }
