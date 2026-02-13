@@ -5,7 +5,6 @@
   <title>Mael Chat</title>
   <style>
     body { font-family: Arial; max-width: 800px; margin: auto; }
-    h1, h2 { text-align: center; }
     #messages, #privmessages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
     .private { background: #f9f9f9; padding: 5px; margin: 2px 0; }
     .public { background: #e0f7fa; padding: 5px; margin: 2px 0; }
@@ -37,59 +36,66 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
-    authDomain: "maelist-chat.firebaseapp.com",
-    databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
-    projectId: "maelist-chat",
-    storageBucket: "maelist-chat.firebasestorage.app",
-    messagingSenderId: "87392900284",
-    appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
-    measurementId: "G-GK0KNPV152"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+const firebaseConfig = {
+  apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+  authDomain: "maelist-chat.firebaseapp.com",
+  databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+  projectId: "maelist-chat",
+  storageBucket: "maelist-chat.firebasestorage.app",
+  messagingSenderId: "87392900284",
+  appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
+  measurementId: "G-GK0KNPV152"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-  const publicRef = db.ref('public');
-  const privateRef = db.ref('private');
-  const messagesDiv = document.getElementById('messages');
-  const privDiv = document.getElementById('privmessages');
+const publicRef = db.ref('public');
+const privateRef = db.ref('private');
+const messagesDiv = document.getElementById('messages');
+const privDiv = document.getElementById('privmessages');
 
-  // Nachrichten laden
-  publicRef.on('child_added', snap => {
-    const div = document.createElement('div');
-    div.className = 'public';
-    div.textContent = snap.val();
-    messagesDiv.appendChild(div);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  });
-  privateRef.on('child_added', snap => {
-    const div = document.createElement('div');
-    div.className = 'private';
-    div.textContent = snap.val();
-    privDiv.appendChild(div);
-    privDiv.scrollTop = privDiv.scrollHeight;
-  });
+// Nachrichten laden
+publicRef.on('child_added', snap => {
+  const div = document.createElement('div');
+  div.className = 'public';
+  div.textContent = snap.val();
+  messagesDiv.appendChild(div);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+});
+privateRef.on('child_added', snap => {
+  const div = document.createElement('div');
+  div.className = 'private';
+  div.textContent = snap.val();
+  privDiv.appendChild(div);
+  privDiv.scrollTop = privDiv.scrollHeight;
+});
 
-  // Nachrichten senden
-  function sendMessage() {
-    const t = document.getElementById('msg').value;
-    if(t){ publicRef.push(t); document.getElementById('msg').value=''; }
-  }
-  function sendPrivate() {
-    const t = document.getElementById('privmsg').value;
-    if(t){ privateRef.push(t); document.getElementById('privmsg').value=''; }
-  }
+// Nachrichten senden
+function sendMessage() {
+  const t = document.getElementById('msg').value;
+  if(t){ publicRef.push(t); document.getElementById('msg').value=''; }
+}
+function sendPrivate() {
+  const t = document.getElementById('privmsg').value;
+  if(t){ privateRef.push(t); document.getElementById('privmsg').value=''; }
+}
 
-  // Prüfen, ob eingeloggter Nutzer vorhanden
-  const user = localStorage.getItem('loggedUser');
-  if(user) document.getElementById('private').style.display = 'block';
-  else window.location.href = "index.html"; // nicht eingeloggt → zurück
-
-  function logout() {
-    localStorage.removeItem('loggedUser');
+// Prüfen Passwort beim Laden
+const storedHash = "03ac674216f3e15c761ee1a5e255f067953623c8f966f2d6c0f4c7f0a8d8f2f6";
+window.addEventListener('load', () => {
+  const hash = localStorage.getItem('loggedPass');
+  if(hash && hash === storedHash) {
+    document.getElementById('private').style.display = 'block';
+  } else {
     window.location.href = "index.html";
   }
+});
+
+// Logout
+function logout() {
+  localStorage.removeItem('loggedPass');
+  window.location.href = "index.html";
+}
 </script>
 </body>
 </html>
