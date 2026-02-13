@@ -15,54 +15,72 @@
 <h1>Willkommen auf Mael's Homepage!</h1>
 
 <div id="auth">
-  <h2>Login für privaten Bereich</h2>
-  <input type="password" id="pass" placeholder="Passwort" />
-  <button onclick="unlockPrivate()">Einloggen</button>
+  <h2>Login / Benutzername</h2>
+  <input type="text" id="username" placeholder="Benutzername" />
+  <button onclick="login()">Einloggen</button>
 </div>
 
 <div id="main" style="display:none;">
-  <p>Privater Bereich freigeschaltet ✅</p>
+  <p>Du bist eingeloggt als <span id="currentUser"></span> ✅</p>
   <a href="chat.html">💬 Zum Chat</a>
   <button onclick="logout()">Abmelden</button>
 </div>
 
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
-const storedHash = "03ac674216f3e15c761ee1a5e255f067953623c8f966f2d6c0f4c7f0a8d8f2f6"; // SHA-256 von "1234"
+const firebaseConfig = {
+  apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+  authDomain: "maelist-chat.firebaseapp.com",
+  databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+  projectId: "maelist-chat",
+  storageBucket: "maelist-chat.firebasestorage.app",
+  messagingSenderId: "87392900284",
+  appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
+  measurementId: "G-GK0KNPV152"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const usersRef = db.ref('activeUsers');
 
-// Prüfen beim Laden
-async function checkLogin() {
-  const hash = localStorage.getItem('loggedPass');
-  if(hash && hash === storedHash) {
-    document.getElementById('auth').style.display = 'none';
-    document.getElementById('main').style.display = 'block';
-  }
+function login() {
+  const name = document.getElementById('username').value.trim();
+  if(!name) return alert("Bitte Benutzernamen eingeben!");
+
+  // Prüfen, ob der Name schon existiert
+  usersRef.child(name).get().then(snapshot => {
+    if(snapshot.exists()) {
+      alert("Dieser Benutzername ist bereits vergeben! Bitte wähle einen anderen.");
+    } else {
+      // Benutzer registrieren
+      localStorage.setItem('loggedUser', name);
+      usersRef.child(name).set({ timestamp: Date.now() });
+      showMain(name);
+    }
+  });
 }
 
-// Passwort-Login
-async function unlockPrivate() {
-  const passInput = document.getElementById('pass').value;
-  const enc = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(passInput));
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
-
-  if(hashHex === storedHash) {
-    localStorage.setItem('loggedPass', hashHex);
-    document.getElementById('auth').style.display = 'none';
-    document.getElementById('main').style.display = 'block';
-  } else {
-    alert("Falsches Passwort!");
-  }
+function showMain(name) {
+  document.getElementById('auth').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+  document.getElementById('currentUser').textContent = name;
 }
 
-// Logout
 function logout() {
-  localStorage.removeItem('loggedPass');
+  const user = localStorage.getItem('loggedUser');
+  if(user) usersRef.child(user).remove(); // aus aktiven Benutzern entfernen
+  localStorage.removeItem('loggedUser');
   document.getElementById('auth').style.display = 'block';
   document.getElementById('main').style.display = 'none';
 }
 
-window.addEventListener('load', checkLogin);
+// Prüfen, ob schon eingeloggt
+window.addEventListener('load', () => {
+  const user = localStorage.getItem('loggedUser');
+  if(user) showMain(user);
+});
 </script>
 </body>
 </html>
