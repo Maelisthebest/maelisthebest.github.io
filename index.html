@@ -15,9 +15,10 @@
 <h1>Willkommen auf Mael's Homepage!</h1>
 
 <div id="auth">
-  <h2>Login / Benutzername</h2>
+  <h2>Login / Account erstellen</h2>
   <input type="text" id="username" placeholder="Benutzername" />
-  <button onclick="login()">Einloggen</button>
+  <input type="password" id="pass" placeholder="Passwort" />
+  <button onclick="login()">Einloggen / Registrieren</button>
 </div>
 
 <div id="main" style="display:none;">
@@ -45,18 +46,35 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const usersRef = db.ref('activeUsers');
 
-function login() {
-  const name = document.getElementById('username').value.trim();
-  if(!name) return alert("Bitte Benutzernamen eingeben!");
+// SHA-256 Hash Funktion
+async function hashPassword(pass) {
+  const enc = new TextEncoder();
+  const buffer = await crypto.subtle.digest('SHA-256', enc.encode(pass));
+  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
 
-  // Prüfen, ob der Name schon existiert
+async function login() {
+  const name = document.getElementById('username').value.trim();
+  const pass = document.getElementById('pass').value;
+  if(!name || !pass) return alert("Bitte Benutzername und Passwort eingeben!");
+
+  const passHash = await hashPassword(pass);
+
   usersRef.child(name).get().then(snapshot => {
     if(snapshot.exists()) {
-      alert("Dieser Benutzername ist bereits vergeben! Bitte wähle einen anderen.");
+      // Name existiert → Passwort prüfen
+      const data = snapshot.val();
+      if(data.password === passHash) {
+        // korrekt → einloggen
+        localStorage.setItem('loggedUser', name);
+        showMain(name);
+      } else {
+        alert("Falsches Passwort!");
+      }
     } else {
-      // Benutzer registrieren
+      // Neuer Name → registrieren
+      usersRef.child(name).set({ password: passHash, timestamp: Date.now() });
       localStorage.setItem('loggedUser', name);
-      usersRef.child(name).set({ timestamp: Date.now() });
       showMain(name);
     }
   });
@@ -70,7 +88,7 @@ function showMain(name) {
 
 function logout() {
   const user = localStorage.getItem('loggedUser');
-  if(user) usersRef.child(user).remove(); // aus aktiven Benutzern entfernen
+  if(user) usersRef.child(user).remove();
   localStorage.removeItem('loggedUser');
   document.getElementById('auth').style.display = 'block';
   document.getElementById('main').style.display = 'none';
