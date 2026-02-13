@@ -42,6 +42,7 @@ const db = firebase.database();
 
 const messagesDiv = document.getElementById('messages');
 const publicRef = db.ref('public');
+const usersRef = db.ref('activeUsers');
 
 // Nachrichten laden
 publicRef.on('child_added', snap => {
@@ -63,20 +64,35 @@ function sendMessage() {
   }
 }
 
+// Prüfen, ob eingeloggter Nutzer vorhanden
+window.addEventListener('load', () => {
+  let user = localStorage.getItem('loggedUser');
+  if(!user) {
+    const name = prompt("Gib bitte deinen Benutzernamen ein:");
+    if(name) {
+      // Prüfen, ob der Name schon aktiv ist
+      usersRef.child(name).get().then(snapshot => {
+        if(snapshot.exists()) {
+          alert("Dieser Benutzername ist bereits vergeben! Du wirst als 'Gast' eingeloggt.");
+          localStorage.setItem('loggedUser', 'Gast');
+        } else {
+          localStorage.setItem('loggedUser', name);
+          usersRef.child(name).set({ timestamp: Date.now() });
+        }
+      });
+    } else {
+      localStorage.setItem('loggedUser', 'Gast');
+    }
+  }
+});
+
 // Logout
 function logout() {
+  const user = localStorage.getItem('loggedUser');
+  if(user) usersRef.child(user).remove();
   localStorage.removeItem('loggedUser');
   window.location.href = "index.html";
 }
-
-// Prüfen, ob eingeloggter Nutzer vorhanden
-window.addEventListener('load', () => {
-  if(!localStorage.getItem('loggedUser')) {
-    const name = prompt("Gib bitte deinen Benutzernamen ein:");
-    if(name) localStorage.setItem('loggedUser', name);
-    else localStorage.setItem('loggedUser', 'Gast');
-  }
-});
 </script>
 </body>
 </html>
