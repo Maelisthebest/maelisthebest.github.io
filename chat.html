@@ -1,86 +1,92 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Mael Chat</title>
-  <style>
-    body { font-family: Arial; max-width: 800px; margin: auto; }
-    #messages { border: 1px solid #ccc; padding: 10px; height: 400px; overflow-y: scroll; margin-bottom: 10px; }
-    .message { background: #e0f7fa; padding: 5px; margin: 2px 0; }
-    input { padding: 5px; width: calc(100% - 90px); margin-bottom: 5px; }
-    button { padding: 5px; }
-    a { display: block; margin-top: 10px; text-align: center; color: #0077cc; text-decoration: none; }
-  </style>
-</head>
-<body>
-<h1>Mael Chat</h1>
+<div id="chatSelect">
+  <h3>Wähle einen Benutzer für neuen Chat:</h3>
+  <input type="text" id="chatWith" placeholder="Benutzername" />
+  <button onclick="createChat()">Chat erstellen</button>
+</div>
 
-<a href="index.html">🏠 Zurück zur Hauptseite</a>
-<button onclick="logout()">Abmelden</button>
-
-<div id="messages"></div>
-<input type="text" id="msg" placeholder="Nachricht" />
-<button onclick="sendMessage()">Senden</button>
-
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<div id="chatWindow" style="display:none;">
+  <h3>Chat mit <span id="chatPartner"></span></h3>
+  <div id="messages" style="border:1px solid #ccc; height:200px; overflow:auto;"></div>
+  <input type="text" id="msgInput" placeholder="Nachricht..." />
+  <button onclick="sendMessage()">Senden</button>
+  <button onclick="closeChat()">Schließen</button>
+</div>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
-  authDomain: "maelist-chat.firebaseapp.com",
-  databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
-  projectId: "maelist-chat",
-  storageBucket: "maelist-chat.firebasestorage.app",
-  messagingSenderId: "87392900284",
-  appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
-  measurementId: "G-GK0KNPV152"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// Firebase Referenzen
+const chatsRef = firebase.database().ref('chats');
+const usersRef = firebase.database().ref('users');
+const activeRef = firebase.database().ref('activeUsers');
 
-const messagesDiv = document.getElementById('messages');
-const publicRef = db.ref('public');
-const usersRef = db.ref('activeUsers');
+let currentUser = localStorage.getItem('loggedUser');
+let currentChatId = null;
+let chatPartner = null;
+
+// Chat erstellen / öffnen
+function createChat() {
+  const otherUser = document.getElementById('chatWith').value.trim();
+  if(!otherUser || otherUser === currentUser) return alert("Ungültiger Benutzer");
+
+  usersRef.child(otherUser).get().then(snap => {
+    if(!snap.exists()) return alert("Benutzer existiert nicht");
+
+    // Eindeutige Chat-ID: alphabetisch sortierte Usernamen
+    const ids = [currentUser, otherUser].sort();
+    const chatId = ids.join('_');
+
+    chatsRef.child(chatId).get().then(chatSnap => {
+      if(!chatSnap.exists()) {
+        chatsRef.child(chatId).set({ users: ids, messages: {} });
+      }
+      currentChatId = chatId;
+      chatPartner = otherUser;
+      openChat();
+    });
+  });
+}
+
+// Chat öffnen
+function openChat() {
+  document.getElementById('chatSelect').style.display = 'none';
+  document.getElementById('chatWindow').style.display = 'block';
+  document.getElementById('chatPartner').textContent = chatPartner;
+  loadMessages();
+}
 
 // Nachrichten laden
-publicRef.on('child_added', snap => {
-  const msg = snap.val();
-  const div = document.createElement('div');
-  div.className = 'message';
-  div.textContent = msg.user + ": " + msg.text;
-  messagesDiv.appendChild(div);
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-});
+function loadMessages() {
+  if(!currentChatId) return;
+  const msgDiv = document.getElementById('messages');
+  msgDiv.innerHTML = '';
+
+  chatsRef.child(currentChatId).child('messages').on('child_added', snap => {
+    const m = snap.val();
+    const line = document.createElement('div');
+    line.textContent = `${m.from}: ${m.text}`;
+    msgDiv.appendChild(line);
+    msgDiv.scrollTop = msgDiv.scrollHeight;
+  });
+}
 
 // Nachricht senden
 function sendMessage() {
-  const text = document.getElementById('msg').value;
-  const user = localStorage.getItem('loggedUser');
-  if(!user) return alert("Bitte zuerst einloggen!");
-  if(text) {
-    publicRef.push({ user: user, text: text });
-    document.getElementById('msg').value = '';
-  }
+  const text = document.getElementById('msgInput').value.trim();
+  if(!text || !currentChatId) return;
+  const msgId = Date.now(); // einfache eindeutige ID
+  chatsRef.child(currentChatId).child('messages').child(msgId).set({
+    from: currentUser,
+    text: text,
+    timestamp: msgId
+  });
+  document.getElementById('msgInput').value = '';
 }
 
-// Prüfen, ob eingeloggter Nutzer vorhanden
-window.addEventListener('load', () => {
-  const user = localStorage.getItem('loggedUser');
-  if(!user) {
-    alert("Du bist nicht eingeloggt! Bitte erst auf der Hauptseite anmelden.");
-    window.location.href = "index.html";
-  }
-});
-
-// Logout
-function logout() {
-  const user = localStorage.getItem('loggedUser');
-  if(user) usersRef.child(user).remove();
-  localStorage.removeItem('loggedUser');
-  window.location.href = "index.html";
+// Chat schließen
+function closeChat() {
+  currentChatId = null;
+  chatPartner = null;
+  document.getElementById('chatWindow').style.display = 'none';
+  document.getElementById('chatSelect').style.display = 'block';
+  document.getElementById('messages').innerHTML = '';
 }
 </script>
-</body>
-</html>
