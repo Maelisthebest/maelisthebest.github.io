@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mael Chat</title>
+  <style>
+    body { font-family: Arial; max-width: 800px; margin: auto; }
+    h1, h2 { text-align: center; }
+    #messages, #privmessages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; }
+    .private { background: #f9f9f9; padding: 5px; margin: 2px 0; }
+    .public { background: #e0f7fa; padding: 5px; margin: 2px 0; }
+    input { padding: 5px; width: calc(100% - 80px); margin-bottom: 5px; }
+    button { padding: 5px; }
+    a { display: block; margin-top: 10px; text-align: center; color: #0077cc; text-decoration: none; }
+  </style>
+</head>
+<body>
+<h1>Mael Chat</h1>
+
+<!-- Link zurück zur Hauptseite -->
+<a href="index.html">🏠 Zurück zur Hauptseite</a>
+
+<!-- Passwort für privaten Bereich -->
+<input type="password" id="pass" placeholder="Admin Passwort" />
+<button onclick="unlockPrivate()">Login</button>
+
+<h2>Öffentlicher Chat</h2>
+<div id="messages"></div>
+<input type="text" id="msg" placeholder="Nachricht" />
+<button onclick="sendMessage()">Senden</button>
+
+<h2>Privater Bereich</h2>
+<div id="private" style="display:none;">
+  <input type="text" id="privmsg" placeholder="Private Nachricht" />
+  <button onclick="sendPrivate()">Senden</button>
+  <div id="privmessages"></div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  // ===========================
+  // Firebase-Konfiguration
+  // ===========================
+  const firebaseConfig = {
+    apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+    authDomain: "maelist-chat.firebaseapp.com",
+    databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+    projectId: "maelist-chat",
+    storageBucket: "maelist-chat.firebasestorage.app",
+    messagingSenderId: "87392900284",
+    appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
+    measurementId: "G-GK0KNPV152"
+  };
+
+  // Firebase initialisieren
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const publicRef = db.ref('public');
+  const privateRef = db.ref('private');
+
+  const messagesDiv = document.getElementById('messages');
+  const privDiv = document.getElementById('privmessages');
+
+  // ===========================
+  // Nachrichten anzeigen
+  // ===========================
+  publicRef.on('child_added', snapshot => {
+    const msg = snapshot.val();
+    const div = document.createElement('div');
+    div.className = 'public';
+    div.textContent = msg;
+    messagesDiv.appendChild(div);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  });
+
+  privateRef.on('child_added', snapshot => {
+    const msg = snapshot.val();
+    const div = document.createElement('div');
+    div.className = 'private';
+    div.textContent = msg;
+    privDiv.appendChild(div);
+    privDiv.scrollTop = privDiv.scrollHeight;
+  });
+
+  // ===========================
+  // Nachrichten senden
+  // ===========================
+  function sendMessage() {
+    const text = document.getElementById('msg').value;
+    if(text) {
+      publicRef.push(text);
+      document.getElementById('msg').value = '';
+    }
+  }
+
+  function sendPrivate() {
+    const text = document.getElementById('privmsg').value;
+    if(text) {
+      privateRef.push(text);
+      document.getElementById('privmsg').value = '';
+    }
+  }
+
+  // ===========================
+  // Privater Bereich Passwort
+  // ===========================
+  const storedHash = "0848d433e247b598319d62df5cadce0e0cf40aa9716e14601a63b765b518055e"; // SHA-256 "1234"
+
+  async function unlockPrivate() {
+    const pass = document.getElementById('pass').value;
+    const enc = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(pass));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    if(hashHex === storedHash) {
+      document.getElementById('private').style.display = 'block';
+      alert("Privater Bereich freigeschaltet");
+    } else {
+      alert("Falsches Passwort");
+    }
+  }
+</script>
+</body>
+</html>
