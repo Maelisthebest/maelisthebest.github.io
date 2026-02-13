@@ -5,17 +5,99 @@
   <title>Mael Homepage</title>
   <style>
     body { font-family: Arial; max-width: 800px; margin: auto; text-align: center; }
+    input { padding: 5px; margin: 5px; }
+    button { padding: 5px; margin: 5px; }
     a { display: block; margin: 20px; font-size: 1.2em; color: #0077cc; text-decoration: none; }
     a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <h1>Willkommen auf Mael's Homepage!</h1>
-  <p>Hier kannst du alles entdecken:</p>
-  
-  <!-- Link zum Chat -->
+<h1>Willkommen auf Mael's Homepage!</h1>
+
+<div id="auth">
+  <h2>Registrierung</h2>
+  <input type="text" id="regUser" placeholder="Benutzername" />
+  <input type="password" id="regPass" placeholder="Passwort" />
+  <button onclick="register()">Registrieren</button>
+
+  <h2>Login</h2>
+  <input type="text" id="loginUser" placeholder="Benutzername" />
+  <input type="password" id="loginPass" placeholder="Passwort" />
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="main" style="display:none;">
+  <p>Du bist eingeloggt als <span id="currentUser"></span> ✅</p>
   <a href="chat.html">💬 Zum Chat</a>
-  
-  <p>Weitere Unterseiten können hier verlinkt werden.</p>
+  <button onclick="logout()">Abmelden</button>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+    authDomain: "maelist-chat.firebaseapp.com",
+    databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+    projectId: "maelist-chat",
+    storageBucket: "maelist-chat.firebasestorage.app",
+    messagingSenderId: "87392900284",
+    appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
+    measurementId: "G-GK0KNPV152"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  async function hashPassword(pass) {
+    const enc = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(pass));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function register() {
+    const user = document.getElementById('regUser').value;
+    const pass = document.getElementById('regPass').value;
+    if(!user || !pass) return alert("Felder ausfüllen!");
+    const hashed = await hashPassword(pass);
+    await db.ref('users/' + user).set({password: hashed});
+    alert("Registrierung erfolgreich!");
+  }
+
+  async function login() {
+    const user = document.getElementById('loginUser').value;
+    const pass = document.getElementById('loginPass').value;
+    if(!user || !pass) return alert("Felder ausfüllen!");
+    const hashed = await hashPassword(pass);
+    const snap = await db.ref('users/' + user).once('value');
+    if(snap.exists() && snap.val().password === hashed) {
+      localStorage.setItem('loggedUser', user);
+      showMain(user);
+      alert("Login erfolgreich!");
+    } else {
+      alert("Falscher Benutzername oder Passwort");
+    }
+  }
+
+  function showMain(user) {
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('main').style.display = 'block';
+    document.getElementById('currentUser').textContent = user;
+  }
+
+  function logout() {
+    localStorage.removeItem('loggedUser');
+    document.getElementById('auth').style.display = 'block';
+    document.getElementById('main').style.display = 'none';
+  }
+
+  // Prüfen, ob schon eingeloggt
+  window.addEventListener('load', () => {
+    const user = localStorage.getItem('loggedUser');
+    if(user) showMain(user);
+  });
+</script>
 </body>
 </html>
