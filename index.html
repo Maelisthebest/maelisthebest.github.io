@@ -129,13 +129,29 @@ function logout() {
   if(user) activeRef.child(user).remove(); // nur aus activeUsers entfernen
   localStorage.removeItem('loggedUser');
   document.getElementById('main').style.display = 'none';
-  document.getElementById('auth').style.display = 'block'; // Login/SignUp Bereich wieder sichtbar
+  document.getElementById('auth').style.display = 'block';
 }
 
-// Prüfen, ob schon eingeloggt
+// Prüfen beim Laden, ob User wirklich aktiv ist
 window.addEventListener('load', () => {
   const user = localStorage.getItem('loggedUser');
-  if(user) showMain(user);
+  if(!user) return; // kein eingeloggter Benutzer → Login/SignUp sichtbar
+
+  activeRef.child(user).get().then(snapshot => {
+    if(snapshot.exists()) {
+      showMain(user); // Benutzer ist wirklich aktiv
+    } else {
+      localStorage.removeItem('loggedUser');
+      alert("Bitte erst einloggen!");
+      document.getElementById('auth').style.display = 'block';
+      document.getElementById('main').style.display = 'none';
+    }
+  }).catch(err => {
+    console.error("Fehler beim Prüfen des aktiven Benutzers:", err);
+    localStorage.removeItem('loggedUser');
+    document.getElementById('auth').style.display = 'block';
+    document.getElementById('main').style.display = 'none';
+  });
 });
 </script>
 </body>
