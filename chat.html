@@ -57,7 +57,8 @@ publicRef.on('child_added', snap => {
 // Nachricht senden
 function sendMessage() {
   const text = document.getElementById('msg').value;
-  const user = localStorage.getItem('loggedUser') || 'Gast';
+  const user = localStorage.getItem('loggedUser');
+  if(!user) return alert("Bitte zuerst einloggen!");
   if(text) {
     publicRef.push({ user: user, text: text });
     document.getElementById('msg').value = '';
@@ -66,23 +67,10 @@ function sendMessage() {
 
 // Prüfen, ob eingeloggter Nutzer vorhanden
 window.addEventListener('load', () => {
-  let user = localStorage.getItem('loggedUser');
+  const user = localStorage.getItem('loggedUser');
   if(!user) {
-    const name = prompt("Gib bitte deinen Benutzernamen ein:");
-    if(name) {
-      // Prüfen, ob der Name schon aktiv ist
-      usersRef.child(name).get().then(snapshot => {
-        if(snapshot.exists()) {
-          alert("Dieser Benutzername ist bereits vergeben! Du wirst als 'Gast' eingeloggt.");
-          localStorage.setItem('loggedUser', 'Gast');
-        } else {
-          localStorage.setItem('loggedUser', name);
-          usersRef.child(name).set({ timestamp: Date.now() });
-        }
-      });
-    } else {
-      localStorage.setItem('loggedUser', 'Gast');
-    }
+    alert("Du bist nicht eingeloggt! Bitte erst auf der Hauptseite anmelden.");
+    window.location.href = "index.html";
   }
 });
 
