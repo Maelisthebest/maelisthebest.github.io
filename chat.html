@@ -1,26 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Mael Chat</title>
+<style>
+  body { font-family: Arial; max-width: 800px; margin: auto; text-align: center; }
+  input { padding: 5px; margin: 5px; width: 200px; }
+  button { padding: 5px; margin: 5px; }
+  #messages { border: 1px solid #ccc; height: 300px; overflow-y: auto; margin: 10px 0; text-align: left; padding: 5px;}
+  #chatSelect, #chatWindow { border: 1px solid #ccc; padding: 10px; margin: 10px; display: inline-block; vertical-align: top; }
+</style>
+</head>
+<body>
+<h1>💬 Chat</h1>
+<p>Eingeloggt als <span id="currentUser"></span></p>
+<button onclick="logout()">Abmelden</button>
+
 <div id="chatSelect">
-  <h3>Wähle einen Benutzer für neuen Chat:</h3>
+  <h3>Neuen Chat erstellen:</h3>
   <input type="text" id="chatWith" placeholder="Benutzername" />
   <button onclick="createChat()">Chat erstellen</button>
 </div>
 
 <div id="chatWindow" style="display:none;">
   <h3>Chat mit <span id="chatPartner"></span></h3>
-  <div id="messages" style="border:1px solid #ccc; height:200px; overflow:auto;"></div>
+  <div id="messages"></div>
   <input type="text" id="msgInput" placeholder="Nachricht..." />
   <button onclick="sendMessage()">Senden</button>
   <button onclick="closeChat()">Schließen</button>
 </div>
 
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script>
-// Firebase Referenzen
-const chatsRef = firebase.database().ref('chats');
-const usersRef = firebase.database().ref('users');
-const activeRef = firebase.database().ref('activeUsers');
+// Firebase Konfiguration
+const firebaseConfig = {
+  apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+  authDomain: "maelist-chat.firebaseapp.com",
+  databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+  projectId: "maelist-chat",
+  storageBucket: "maelist-chat.firebasestorage.app",
+  messagingSenderId: "87392900284",
+  appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
+  measurementId: "G-GK0KNPV152"
+};
+firebase.initializeApp(firebaseConfig);
+
+const db = firebase.database();
+const usersRef = db.ref('users');
+const activeRef = db.ref('activeUsers');
+const chatsRef = db.ref('chats');
 
 let currentUser = localStorage.getItem('loggedUser');
 let currentChatId = null;
 let chatPartner = null;
+
+// Prüfen, ob Benutzer eingeloggt ist
+if(!currentUser) {
+  alert("Bitte zuerst einloggen!");
+  window.location.href = "index.html";
+} else {
+  activeRef.child(currentUser).get().then(snap => {
+    if(!snap.exists()) {
+      alert("Du bist auf diesem Gerät nicht aktiv. Bitte einloggen.");
+      localStorage.removeItem('loggedUser');
+      window.location.href = "index.html";
+    } else {
+      document.getElementById('currentUser').textContent = currentUser;
+    }
+  });
+}
 
 // Chat erstellen / öffnen
 function createChat() {
@@ -89,4 +140,13 @@ function closeChat() {
   document.getElementById('chatSelect').style.display = 'block';
   document.getElementById('messages').innerHTML = '';
 }
+
+// Logout
+function logout() {
+  if(currentUser) activeRef.child(currentUser).remove();
+  localStorage.removeItem('loggedUser');
+  window.location.href = "index.html";
+}
 </script>
+</body>
+</html>
