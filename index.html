@@ -1,48 +1,31 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Mael Homepage</title>
-  <style>
-    body { font-family: Arial; max-width: 800px; margin: auto; text-align: center; }
-    input { padding: 5px; margin: 5px; width: 200px; }
-    button { padding: 5px; margin: 5px; }
-    .container { border: 1px solid #ccc; padding: 15px; margin: 10px; display: inline-block; vertical-align: top; }
-    a { display: block; margin: 20px; font-size: 1.2em; color: #0077cc; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-  </style>
+<meta charset="UTF-8">
+<title>Login / Registrierung</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+body { font-family: Arial; text-align:center; margin-top:50px; }
+input, button { padding:8px; margin:5px; width:250px; }
+</style>
 </head>
 <body>
-<h1>Willkommen auf Mael's Homepage!</h1>
 
-<div id="auth">
-  <div class="container">
-    <h2>Login</h2>
-    <input type="text" id="loginUser" placeholder="Benutzername" /><br/>
-    <input type="password" id="loginPass" placeholder="Passwort" /><br/>
-    <button onclick="login()">Einloggen</button>
-  </div>
+<h2>🔐 Login / Registrierung</h2>
 
-  <div class="container">
-    <h2>Sign Up / Registrieren</h2>
-    <input type="text" id="signUser" placeholder="Neuer Benutzername" /><br/>
-    <input type="password" id="signPass" placeholder="Passwort" /><br/>
-    <button onclick="signUp()">Account erstellen</button>
-  </div>
-</div>
+<input type="email" id="email" placeholder="Email"><br>
+<input type="password" id="password" placeholder="Passwort"><br>
+<input type="text" id="username" placeholder="Benutzername (nur Registrierung)"><br>
 
-<div id="main" style="display:none;">
-  <p>Du bist eingeloggt als <span id="currentUser"></span> ✅</p>
-  <a href="chat.html">💬 Zum Chat</a>
-  <button onclick="logout()">Abmelden</button>
-</div>
+<button onclick="register()">Registrieren</button><br>
+<button onclick="login()">Login</button><br>
 
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<p id="message" style="color:red"></p>
 
 <script>
-// Firebase Konfiguration
+// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
   authDomain: "maelist-chat.firebaseapp.com",
@@ -53,100 +36,40 @@ const firebaseConfig = {
   appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
   measurementId: "G-GK0KNPV152"
 };
+
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 const db = firebase.database();
-const usersRef = db.ref('users');           // dauerhaft gespeicherte Accounts
-const activeRef = db.ref('activeUsers');    // aktuell eingeloggte Benutzer
 
-// SHA-256 Hash Funktion
-async function hashPassword(pass) {
-  const enc = new TextEncoder();
-  const buffer = await crypto.subtle.digest('SHA-256', enc.encode(pass));
-  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2,'0')).join('');
+// Registrierung
+function register() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const username = document.getElementById('username').value;
+  if(!email || !password || !username){ alert("Alle Felder ausfüllen"); return; }
+
+  auth.createUserWithEmailAndPassword(email, password)
+    .then(cred => {
+      // Benutzername speichern
+      db.ref('users/' + cred.user.uid).set({ username: username });
+      window.location.href = "chat.html";
+    })
+    .catch(err => document.getElementById('message').textContent = err.message);
 }
 
-async function login() {
-  const name = document.getElementById('loginUser').value.trim();
-  const pass = document.getElementById('loginPass').value;
-  if(!name || !pass) return alert("Bitte Benutzername und Passwort eingeben!");
-
-  const hash = await hashPassword(pass);
-
-  usersRef.child(name).get().then(snapshot => {
-    if(snapshot.exists() && snapshot.val().password === hash) {
-      // Prüfen, ob bereits auf einem anderen Gerät aktiv
-      activeRef.child(name).get().then(activeSnap => {
-        if(activeSnap.exists()) {
-          alert("Dieser Benutzer ist bereits auf einem anderen Gerät eingeloggt!");
-        } else {
-          // Eintragen als aktiv
-          activeRef.child(name).set({ timestamp: Date.now() });
-          localStorage.setItem('loggedUser', name);
-          showMain(name);
-        }
-      });
-    } else {
-      alert("Falsches Passwort oder Benutzer existiert nicht!");
-    }
-  });
+// Login
+function login() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  auth.signInWithEmailAndPassword(email, password)
+    .then(() => window.location.href = "chat.html")
+    .catch(err => document.getElementById('message').textContent = err.message);
 }
 
-// Sign Up Funktion
-async function signUp() {
-  const name = document.getElementById('signUser').value.trim();
-  const pass = document.getElementById('signPass').value;
-  if(!name || !pass) return alert("Bitte Benutzername und Passwort eingeben!");
-
-  const hash = await hashPassword(pass);
-
-  usersRef.child(name).get().then(snapshot => {
-    if(snapshot.exists()) {
-      alert("Dieser Benutzername ist bereits registriert!");
-    } else {
-      // Account dauerhaft speichern
-      usersRef.child(name).set({ password: hash, created: Date.now() });
-      // Benutzer direkt als aktiv markieren
-      activeRef.child(name).set({ timestamp: Date.now() });
-      localStorage.setItem('loggedUser', name);
-      showMain(name);
-    }
-  });
-}
-
-function showMain(name) {
-  document.getElementById('auth').style.display = 'none';
-  document.getElementById('main').style.display = 'block';
-  document.getElementById('currentUser').textContent = name;
-}
-
-function logout() {
-  const user = localStorage.getItem('loggedUser');
-  if(user) activeRef.child(user).remove(); // nur aus activeUsers entfernen
-  localStorage.removeItem('loggedUser');
-  document.getElementById('main').style.display = 'none';
-  document.getElementById('auth').style.display = 'block';
-}
-
-// Prüfen beim Laden, ob User wirklich aktiv ist
-window.addEventListener('load', () => {
-  const user = localStorage.getItem('loggedUser');
-  if(!user) return; // kein eingeloggter Benutzer → Login/SignUp sichtbar
-
-  activeRef.child(user).get().then(snapshot => {
-    if(snapshot.exists()) {
-      showMain(user); // Benutzer ist wirklich aktiv
-    } else {
-      localStorage.removeItem('loggedUser');
-      alert("Bitte erst einloggen!");
-      document.getElementById('auth').style.display = 'block';
-      document.getElementById('main').style.display = 'none';
-    }
-  }).catch(err => {
-    console.error("Fehler beim Prüfen des aktiven Benutzers:", err);
-    localStorage.removeItem('loggedUser');
-    document.getElementById('auth').style.display = 'block';
-    document.getElementById('main').style.display = 'none';
-  });
+// Prüfen, ob schon eingeloggt
+auth.onAuthStateChanged(user => {
+  if(user) window.location.href = "chat.html";
 });
 </script>
 </body>
