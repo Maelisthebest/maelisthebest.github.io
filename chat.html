@@ -162,16 +162,25 @@
                 msgBox.scrollTop = msgBox.scrollHeight;
             });
         }
-
         window.sendMessage = function() {
             const input = document.getElementById("msg");
-            if (!input.value.trim()) return;
-            push(ref(db, `chats/${currentChat}/messages`), {
+            const text = input.value.trim();
+            
+            if (!text || !currentChat) return;
+        
+            // Wir nutzen push(), um eine neue ID für jede Nachricht zu erzeugen
+            const messagesRef = ref(db, `chats/${currentChat}/messages`);
+            
+            push(messagesRef, {
                 from: username,
-                text: input.value,
+                text: text,
                 timestamp: Date.now()
+            }).then(() => {
+                input.value = ""; // Eingabefeld leeren
+            }).catch((err) => {
+                console.error("Sende-Fehler:", err);
+                alert("Nachricht konnte nicht gesendet werden: " + err.message);
             });
-            input.value = "";
         }
 
         document.getElementById("btnLogout").onclick = () => signOut(auth);
