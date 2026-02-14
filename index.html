@@ -4,21 +4,22 @@
     <meta charset="UTF-8">
     <title>Login / Registrierung</title>
 </head>
-<body style="font-family: Arial; padding: 20px;">
+<body style="font-family: Arial; padding: 20px; background: #f0f2f5;">
+    <div style="max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h2>Registrierung</h2>
+        <input type="text" id="regUsername" placeholder="Username" style="width: 90%; padding: 8px; margin-bottom: 10px;">
+        <input type="password" id="regPassword" placeholder="Passwort" style="width: 90%; padding: 8px; margin-bottom: 10px;">
+        <button id="btnRegister" style="width: 95%; padding: 10px; background: #007bff; color: white; border: none; cursor: pointer;">Registrieren</button>
+        <p id="regMessage" style="color: red; font-size: 14px;"></p>
 
-    <h2>Registrierung</h2>
-    <input type="text" id="regUsername" placeholder="Username">
-    <input type="password" id="regPassword" placeholder="Passwort">
-    <button id="btnRegister">Registrieren</button>
-    <p id="regMessage" style="color: red;"></p>
+        <hr style="margin: 20px 0;">
 
-    <hr>
-
-    <h2>Login</h2>
-    <input type="text" id="loginUsername" placeholder="Username">
-    <input type="password" id="loginPassword" placeholder="Passwort">
-    <button id="btnLogin">Login</button>
-    <p id="loginMessage" style="color: red;"></p>
+        <h2>Login</h2>
+        <input type="text" id="loginUsername" placeholder="Username" style="width: 90%; padding: 8px; margin-bottom: 10px;">
+        <input type="password" id="loginPassword" placeholder="Passwort" style="width: 90%; padding: 8px; margin-bottom: 10px;">
+        <button id="btnLogin" style="width: 95%; padding: 10px; background: #28a745; color: white; border: none; cursor: pointer;">Login</button>
+        <p id="loginMessage" style="color: red; font-size: 14px;"></p>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -39,61 +40,28 @@
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // REGISTRIERUNG
         document.getElementById('btnRegister').onclick = async () => {
             const username = document.getElementById('regUsername').value.trim();
             const password = document.getElementById('regPassword').value;
-            
-            if(!username || !password) {
-                alert("Bitte Username und Passwort eingeben");
-                return;
-            }
-
-            // Wir erstellen eine interne Email-Adresse aus dem Usernamen
-            const email = username.toLowerCase() + "@local.fake";
+            if(!username || password.length < 6) return alert("Username nötig & Passwort mind. 6 Zeichen");
 
             try {
-                // 1. Prüfen, ob der Username in der Database schon existiert
-                const userCheckRef = ref(db, 'usernames/' + username);
-                const snap = await get(userCheckRef);
-                if(snap.exists()) {
-                    document.getElementById('regMessage').textContent = "Username bereits vergeben!";
-                    return;
-                }
-
-                // 2. Neuen Account in Firebase Auth erstellen
-                const cred = await createUserWithEmailAndPassword(auth, email, password);
-                const userUid = cred.user.uid;
-
-                // 3. Den "Ordner" (User-Daten) in der Database anlegen
-                await set(ref(db, 'users/' + userUid), {
-                    username: username,
-                    createdAt: Date.now()
-                });
-
-                // 4. Den Usernamen reservieren
-                await set(ref(db, 'usernames/' + username), userUid);
-
-                console.log("Registrierung erfolgreich!");
+                const cred = await createUserWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
+                await Promise.all([
+                    set(ref(db, 'users/' + cred.user.uid), { username: username }),
+                    set(ref(db, 'usernames/' + username), cred.user.uid)
+                ]);
                 window.location.href = "chat.html";
-
-            } catch(err) {
-                document.getElementById('regMessage').textContent = "Fehler: " + err.message;
-            }
+            } catch(err) { document.getElementById('regMessage').textContent = err.message; }
         };
 
-        // LOGIN
         document.getElementById('btnLogin').onclick = async () => {
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
-            const email = username.toLowerCase() + "@local.fake";
-
             try {
-                await signInWithEmailAndPassword(auth, email, password);
+                await signInWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
                 window.location.href = "chat.html";
-            } catch(err) {
-                document.getElementById('loginMessage').textContent = "Login fehlgeschlagen!";
-            }
+            } catch(err) { document.getElementById('loginMessage').textContent = "Login fehlgeschlagen!"; }
         };
     </script>
 </body>
