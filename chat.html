@@ -48,8 +48,13 @@ auth.onAuthStateChanged(user => {
     window.location.href = "index.html";
   } else {
     uid = user.uid;
+    // Username sicher laden
     db.ref('users/' + uid).once('value').then(snap => {
-      username = snap.val().username;
+      if(snap.exists() && snap.val().username){
+        username = snap.val().username;
+      } else {
+        username = "Unbekannt"; // Fallback
+      }
       document.getElementById('username').textContent = username;
       loadPublicChat();
     });
