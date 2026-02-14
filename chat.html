@@ -98,7 +98,7 @@
       openChat(chatId);
     }
 
-    async function openChat(chatId) {
+    window.openChat = function(chatId) {
       currentChat = chatId;
       document.getElementById("messages").innerHTML = "";
 
