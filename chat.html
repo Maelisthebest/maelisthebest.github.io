@@ -26,8 +26,6 @@
 
 <h3>Privater Chat</h3>
 <div id="privateChat" class="chatBox"></div>
-<input type="password" id="privatePassword" placeholder="Passwort zum Freischalten">
-<button onclick="unlockPrivate()">Freischalten</button>
 <input type="text" id="privateMsg" placeholder="Nachricht" disabled>
 <button id="privateSend" disabled onclick="sendPrivate()">Senden</button>
 
@@ -49,14 +47,6 @@ const db = firebase.database();
 let username = null;
 let uid = null;
 let privateTargetUid = null;
-let privateUnlocked = false;
-
-// SHA256 Hash
-async function hashPassword(password){
-  const msgUint8 = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
 
 // Auth prüfen & Username laden
 auth.onAuthStateChanged(async user => {
@@ -69,7 +59,6 @@ auth.onAuthStateChanged(async user => {
 
   // öffentlicher Chat aktivieren
   document.getElementById('publicMsg').disabled = false;
-  document.getElementById('publicMsg').placeholder = "Nachricht";
 
   // öffentliche Nachrichten laden
   db.ref('chats/public').on('child_added', s=>{
@@ -104,46 +93,36 @@ async function loadUserList(){
   });
 }
 
-function selectUser(targetUid, uname){
+// Private Chat öffnen / erstellen
+async function selectUser(targetUid, uname){
   privateTargetUid = targetUid;
   document.getElementById('privateChat').innerHTML = "";
-  privateUnlocked = false;
-  document.getElementById('privateMsg').disabled = true;
-  document.getElementById('privateSend').disabled = true;
-  document.getElementById('privatePassword').value = "";
-  alert("Privaten Chat mit " + uname + " auswählen und Passwort eingeben.");
-}
+  document.getElementById('privateMsg').disabled = false;
+  document.getElementById('privateSend').disabled = false;
 
-// Private Chat freischalten
-async function unlockPrivate(){
-  if(!privateTargetUid){ alert("Wähle zuerst einen User"); return; }
-  const pw = document.getElementById('privatePassword').value;
-  if(!pw) return alert("Passwort eingeben!");
-  const snap = await db.ref('users/' + uid).get();
-  const hash = await hashPassword(pw);
-  if(hash === snap.val().passwordHash){
-    privateUnlocked = true;
-    document.getElementById('privateMsg').disabled = false;
-    document.getElementById('privateSend').disabled = false;
-
-    // private Nachrichten laden
-    const chatRef = db.ref(`users/${uid}/chats/${privateTargetUid}`);
-    chatRef.off(); // sicherstellen, dass Listener nicht doppelt
-    chatRef.on('child_added', s=>{
-      const m = s.val();
-      const div = document.getElementById('privateChat');
-      div.innerHTML += `<p><b>${m.from}:</b> ${m.text}</p>`;
-      div.scrollTop = div.scrollHeight;
-    });
-    alert("Privater Chat freigeschaltet!");
-  } else {
-    alert("Falsches Passwort!");
+  // Chat existiert prüfen, sonst erstellen
+  const chatRef = db.ref(`users/${uid}/chats/${privateTargetUid}`);
+  const snap = await chatRef.get();
+  if(!snap.exists()){
+    await chatRef.set({}); // leeren Chat anlegen
+    await db.ref(`users/${privateTargetUid}/chats/${uid}`).set({}); // auch bei anderem Nutzer
   }
+
+  // private Nachrichten laden
+  chatRef.off(); // sicherstellen, dass Listener nicht doppelt
+  chatRef.on('child_added', s=>{
+    const m = s.val();
+    const div = document.getElementById('privateChat');
+    div.innerHTML += `<p><b>${m.from}:</b> ${m.text}</p>`;
+    div.scrollTop = div.scrollHeight;
+  });
+
+  alert("Privater Chat mit " + uname + " geöffnet!");
 }
 
 // Private Nachricht senden
 function sendPrivate(){
-  if(!privateUnlocked || !privateTargetUid) return alert("Chat nicht freigeschaltet!");
+  if(!privateTargetUid) return alert("Kein User ausgewählt!");
   const text = document.getElementById('privateMsg').value;
   if(!text) return;
   const msg = { from: username, text: text, timestamp: Date.now() };
