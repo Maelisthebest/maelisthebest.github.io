@@ -9,9 +9,20 @@
 </head>
 <body>
 
-<p>Willkommen, <span id="username">Lade...</span>!</p>
-<input type="text" id="msgInput" placeholder="Nachricht..." disabled>
-<button id="sendBtn" disabled onclick="sendMessage()">Senden</button>
+<h2>Willkommen, <span id="username">Lade...</span>!</h2>
+<button onclick="logout()">Abmelden</button>
+
+<h3>Öffentlicher Chat</h3>
+<div id="publicChat" style="border:1px solid black; height:200px; overflow:auto"></div>
+<input type="text" id="publicMsg" disabled>
+<button id="publicSend" disabled onclick="sendPublic()">Senden</button>
+
+<h3>Privater Chat</h3>
+<div id="privateChat" style="border:1px solid black; height:200px; overflow:auto"></div>
+<input type="password" id="privatePassword" placeholder="Passwort zum Freischalten">
+<button onclick="unlockPrivate()">Freischalten</button>
+<input type="text" id="privateMsg" disabled>
+<button id="privateSend" disabled onclick="sendPrivate()">Senden</button>
 
 <script>
 const firebaseConfig = {
@@ -28,52 +39,93 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
+
 let username = null;
 let uid = null;
+let privateUnlocked = false;
 
-// WICHTIG: auth.onAuthStateChanged muss warten, bis Auth geladen ist
-auth.onAuthStateChanged(user => {
-  if(!user){
-    window.location.href = "index.html";
-    return;
-  }
+// Hash
+async function hashPassword(password){
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// Auth prüfen und Username laden
+auth.onAuthStateChanged(async user => {
+  if(!user){ window.location.href="index.html"; return; }
   uid = user.uid;
+  const snap = await db.ref('users/' + uid).get();
+  if(!snap.exists()){ alert("User nicht gefunden!"); auth.signOut(); return; }
+  username = snap.val().username;
+  document.getElementById('username').textContent = username;
 
-  // Username einmalig aus DB laden
-  db.ref('users/' + uid).once('value')
-    .then(snap => {
-      const data = snap.val();
-      if(data && data.username){
-        username = data.username;
-        document.getElementById('username').textContent = username;
+  // öffentlicher Chat aktivieren
+  document.getElementById('publicMsg').disabled = false;
+  document.getElementById('publicSend').disabled = false;
 
-        // Jetzt Nachrichteneingabe freischalten
-        document.getElementById('msgInput').disabled = false;
-        document.getElementById('sendBtn').disabled = false;
-
-      } else {
-        alert("Fehler: Username nicht gefunden!");
-      }
-    })
-    .catch(err => {
-      console.error("DB Fehler:", err);
-      alert("Fehler beim Laden des Usernames!");
-    });
+  // öffentliche Nachrichten live laden
+  db.ref('chats/public').on('child_added', s=>{
+    const m = s.val();
+    const div = document.getElementById('publicChat');
+    div.innerHTML += `<p><b>${m.from}:</b> ${m.text}</p>`;
+    div.scrollTop = div.scrollHeight;
+  });
 });
 
-// Nachricht senden
-function sendMessage(){
-  if(!username) return alert("Username wird noch geladen!");
-  const text = document.getElementById('msgInput').value;
-  if(!text) return;
+// Abmelden
+function logout(){
+  auth.signOut().then(()=>window.location.href="index.html");
+}
 
-  db.ref('chats/public/messages').push().set({
+// Öffentlicher Chat
+function sendPublic(){
+  const text = document.getElementById('publicMsg').value;
+  if(!text) return;
+  db.ref('chats/public').push().set({
     from: username,
     text: text,
     timestamp: Date.now()
   });
+  document.getElementById('publicMsg').value = "";
+}
 
-  document.getElementById('msgInput').value = "";
+// Privater Chat freischalten
+async function unlockPrivate(){
+  const pw = document.getElementById('privatePassword').value;
+  if(!pw) return alert("Passwort eingeben!");
+  const snap = await db.ref('users/' + uid).get();
+  const hash = await hashPassword(pw);
+  if(hash === snap.val().passwordHash){
+    privateUnlocked = true;
+    document.getElementById('privateMsg').disabled = false;
+    document.getElementById('privateSend').disabled = false;
+
+    // private Chat live laden
+    db.ref('users/' + uid + '/chats').on('child_added', s=>{
+      const m = s.val();
+      const div = document.getElementById('privateChat');
+      div.innerHTML += `<p><b>${m.from}:</b> ${m.text}</p>`;
+      div.scrollTop = div.scrollHeight;
+    });
+
+    alert("Privater Chat freigeschaltet!");
+  } else {
+    alert("Falsches Passwort!");
+  }
+}
+
+// private Nachricht senden
+function sendPrivate(){
+  if(!privateUnlocked) return alert("Chat nicht freigeschaltet!");
+  const text = document.getElementById('privateMsg').value;
+  if(!text) return;
+  db.ref('users/' + uid + '/chats').push().set({
+    from: username,
+    text: text,
+    timestamp: Date.now()
+  });
+  document.getElementById('privateMsg').value = "";
 }
 </script>
 </body>
