@@ -56,12 +56,13 @@ function register() {
     } else {
       auth.createUserWithEmailAndPassword(email, password)
         .then(cred => {
-          // Zuerst speichern, dann redirect
-          db.ref('users/' + cred.user.uid).set({ username: username })
-            .then(() => {
-              db.ref('usernames/' + username).set(cred.user.uid);
-              window.location.href = "chat.html";
-            });
+          // Zuerst Username speichern
+          return db.ref('users/' + cred.user.uid).set({ username: username })
+            .then(() => db.ref('usernames/' + username).set(cred.user.uid));
+        })
+        .then(() => {
+          // Erst nachdem alles gespeichert ist, weiterleiten
+          window.location.href = "chat.html";
         })
         .catch(err => document.getElementById('message').textContent = err.message);
     }
@@ -77,7 +78,17 @@ function login() {
   const email = username + "@local.fake";
 
   auth.signInWithEmailAndPassword(email, password)
-    .then(() => window.location.href = "chat.html")
+    .then(cred => {
+      // Prüfen, ob Username in DB existiert, sonst speichern (sicher)
+      db.ref('users/' + cred.user.uid).get().then(snap => {
+        if(!snap.exists() || !snap.val().username){
+          // Username neu speichern, falls fehlt
+          db.ref('users/' + cred.user.uid).set({ username: username });
+          db.ref('usernames/' + username).set(cred.user.uid);
+        }
+        window.location.href = "chat.html";
+      });
+    })
     .catch(err => document.getElementById('message').textContent = err.message);
 }
 
