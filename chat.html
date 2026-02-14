@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Chat</title>
+<title>Chat Home</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -45,7 +45,7 @@ let username = "";
 // Prüfen ob eingeloggter User
 auth.onAuthStateChanged(user => {
   if(!user){
-    window.location.href = "index.html"; // nicht eingeloggt → zurück
+    window.location.href = "index.html";
   } else {
     uid = user.uid;
     db.ref('users/' + uid).once('value').then(snap => {
@@ -72,8 +72,11 @@ function loadPublicChat(){
 function sendMessage(){
   const text = document.getElementById('msgInput').value;
   if(!text) return;
-  const msgRef = db.ref('chats/public/messages').push();
-  msgRef.set({ from: username, text: text, timestamp: Date.now() });
+  db.ref('chats/public/messages').push().set({
+    from: username,
+    text: text,
+    timestamp: Date.now()
+  });
   document.getElementById('msgInput').value = "";
 }
 
