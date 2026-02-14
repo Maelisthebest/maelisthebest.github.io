@@ -7,9 +7,11 @@
 <body style="display: flex; height: 100vh; font-family: 'Segoe UI', Arial; margin: 0; background: #e5ddd5;">
 
     <div style="width: 300px; border-right: 1px solid #ccc; background: white; display: flex; flex-direction: column;">
-        <div style="padding: 20px; background: #075e54; color: white; font-weight: bold; font-size: 18px;">Chats</div>
-        <div id="users" style="flex: 1; overflow-y: auto;"></div>
-        <div style="padding: 10px; background: #f0f0f0;">
+        <div style="padding: 20px; background: #075e54; color: white; font-weight: bold; font-size: 18px;">Kontakte</div>
+        <div id="users" style="flex: 1; overflow-y: auto; background: #fff;">
+            <div style="padding: 20px; color: gray;">Lade Nutzer...</div>
+        </div>
+        <div style="padding: 10px; background: #f0f0f0; border-top: 1px solid #ddd;">
             <button onclick="openChat('public')" style="width: 100%; padding: 10px; background: #25d366; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 5px;">🌍 Globaler Chat</button>
             <button id="btnLogout" style="width: 100%; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;">Abmelden</button>
         </div>
@@ -17,7 +19,7 @@
 
     <div style="flex: 1; display: flex; flex-direction: column;">
         <div id="chatHeader" style="padding: 15px; background: #ededed; border-bottom: 1px solid #ccc; font-weight: bold;">Wähle einen Chat aus...</div>
-        <div id="messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column;"></div>
+        <div id="messages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');"></div>
         <div id="inputArea" style="padding: 15px; background: #f0f0f0; display: flex; align-items: center;">
             <input id="msg" style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none;" placeholder="Nachricht schreiben..." onkeypress="if(event.key==='Enter') sendMessage()">
             <button onclick="sendMessage()" style="margin-left: 10px; padding: 10px 20px; background: #075e54; color: white; border: none; border-radius: 50px; cursor: pointer;">Senden</button>
@@ -48,55 +50,86 @@
         onAuthStateChanged(auth, async (user) => {
             if (!user) { window.location.href = "index.html"; return; }
             uid = user.uid;
-            const userSnap = await get(ref(db, "users/" + uid));
-            username = userSnap.val()?.username || "Anonym";
+            
+            try {
+                const userSnap = await get(ref(db, "users/" + uid));
+                username = userSnap.val()?.username || "Anonym";
 
-            const onlineRef = ref(db, "online/" + uid);
-            set(onlineRef, true);
-            onDisconnect(onlineRef).remove();
+                // Online-Status
+                const onlineRef = ref(db, "online/" + uid);
+                set(onlineRef, true);
+                onDisconnect(onlineRef).remove();
 
-            loadUsers();
-            openChat("public");
+                loadUsers();
+                openChat("public");
+            } catch (err) {
+                console.error("Fehler beim Laden des eigenen Profils:", err);
+            }
         });
 
         function loadUsers() {
-            // Wir hören auf alle User (Basis der Liste)
-            onValue(ref(db, "users"), (uSnap) => {
-                // Wir hören auf Online-Daten (nur für die Farbe)
-                onValue(ref(db, "online"), (oSnap) => {
-                    const list = document.getElementById("users");
-                    list.innerHTML = "";
-                    const onlineData = oSnap.val() || {};
+            const usersRef = ref(db, "users");
+            console.log("Versuche Nutzerliste zu laden...");
 
-                    uSnap.forEach(child => {
-                        if (child.key === uid) return;
-                        const other = child.val();
-                        const isOnline = onlineData[child.key] === true;
+            // Hier hören wir auf alle User
+            onValue(usersRef, (uSnap) => {
+                const list = document.getElementById("users");
+                list.innerHTML = "";
+                
+                if (!uSnap.exists()) {
+                    console.log("Keine User in DB gefunden.");
+                    list.innerHTML = "<div style='padding:20px; color:gray;'>Keine anderen Nutzer registriert.</div>";
+                    return;
+                }
 
-                        const div = document.createElement("div");
-                        div.style = "padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; align-items: center; background: white;";
-                        div.innerHTML = `
-                            <div style="width: 10px; height: 10px; border-radius: 50%; background: ${isOnline ? '#25d366' : '#bbb'}; margin-right: 15px;"></div>
-                            <div style="font-weight: 500;">${other.username}</div>
-                        `;
-                        // Klick startet Chat, egal ob online oder offline
-                        div.onclick = () => startPrivateChat(child.key, other.username);
-                        list.appendChild(div);
-                    });
+                uSnap.forEach(child => {
+                    const otherUid = child.key;
+                    const otherData = child.val();
+
+                    // Sich selbst nicht anzeigen
+                    if (otherUid === uid) return;
+
+                    const div = document.createElement("div");
+                    div.style = "padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; background: white; transition: 0.2s;";
+                    div.onmouseover = () => div.style.background = "#f5f5f5";
+                    div.onmouseout = () => div.style.background = "white";
+                    
+                    div.innerHTML = `
+                        <div style="display:flex; align-items:center;">
+                            <div style="width:40px; height:40px; background:#ccc; border-radius:50%; margin-right:12px; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">
+                                ${otherData.username ? otherData.username.charAt(0).toUpperCase() : '?'}
+                            </div>
+                            <div style="font-weight: 500; color: #333;">${otherData.username || "Unbekannt"}</div>
+                        </div>
+                    `;
+                    
+                    div.onclick = () => startPrivateChat(otherUid, otherData.username);
+                    list.appendChild(div);
                 });
+
+                if(list.innerHTML === "") {
+                    list.innerHTML = "<div style='padding:20px; color:gray;'>Keine anderen Nutzer verfügbar.</div>";
+                }
+            }, (error) => {
+                console.error("Fehler beim Abrufen der Nutzerliste (Rules?):", error);
+                document.getElementById("users").innerHTML = "<div style='color:red; padding:20px;'>Zugriff verweigert!</div>";
             });
         }
 
         async function startPrivateChat(otherUid, otherName) {
             const chatId = [uid, otherUid].sort().join("_");
             const chatRef = ref(db, "chats/" + chatId);
-            const snap = await get(chatRef);
             
-            if (!snap.exists()) {
-                // Mitglieder eintragen, damit beide Zugriff haben (Rules)
-                await set(chatRef, { members: { [uid]: true, [otherUid]: true } });
+            try {
+                const snap = await get(chatRef);
+                if (!snap.exists()) {
+                    await set(chatRef, { members: { [uid]: true, [otherUid]: true } });
+                }
+                openChat(chatId, otherName);
+            } catch (err) {
+                console.error("Fehler beim Starten des Chats:", err);
+                alert("Du hast keine Berechtigung für diesen Chat.");
             }
-            openChat(chatId, otherName);
         }
 
         window.openChat = function(chatId, displayName = "🌍 Globaler Chat") {
@@ -113,9 +146,9 @@
                 const m = snapshot.val();
                 const isMe = m.from === username;
                 const div = document.createElement("div");
-                div.style = `padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; max-width: 70%; font-size: 14.5px; 
-                            ${isMe ? 'align-self: flex-end; background: #dcf8c6;' : 'align-self: flex-start; background: white; border: 1px solid #ddd;'}`;
-                div.innerHTML = `<small style="color: #888; display: block;">${m.from}</small>${m.text}`;
+                div.style = `padding: 8px 12px; margin-bottom: 8px; border-radius: 8px; max-width: 70%; font-size: 14.5px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                            ${isMe ? 'align-self: flex-end; background: #dcf8c6;' : 'align-self: flex-start; background: white;'}`;
+                div.innerHTML = `<small style="color: #075e54; font-weight:bold; display: block;">${m.from}</small>${m.text}`;
                 msgBox.appendChild(div);
                 msgBox.scrollTop = msgBox.scrollHeight;
             });
