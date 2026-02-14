@@ -47,7 +47,7 @@ function register() {
   const password = document.getElementById('password').value;
   if(!username || !password){ alert("Alle Felder ausfüllen"); return; }
 
-  const email = username + "@local.fake"; // Fake Email für Firebase Auth
+  const email = username + "@local.fake";
 
   // Prüfen, ob Username schon existiert
   db.ref('usernames/' + username).get().then(snap => {
@@ -56,9 +56,12 @@ function register() {
     } else {
       auth.createUserWithEmailAndPassword(email, password)
         .then(cred => {
-          db.ref('users/' + cred.user.uid).set({ username: username });
-          db.ref('usernames/' + username).set(cred.user.uid);
-          window.location.href = "chat.html";
+          // Zuerst speichern, dann redirect
+          db.ref('users/' + cred.user.uid).set({ username: username })
+            .then(() => {
+              db.ref('usernames/' + username).set(cred.user.uid);
+              window.location.href = "chat.html";
+            });
         })
         .catch(err => document.getElementById('message').textContent = err.message);
     }
