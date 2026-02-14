@@ -43,16 +43,39 @@
         document.getElementById('btnRegister').onclick = async () => {
             const username = document.getElementById('regUsername').value.trim();
             const password = document.getElementById('regPassword').value;
-            if(!username || password.length < 6) return alert("Username nötig & Passwort mind. 6 Zeichen");
-
+            
+            if(!username || password.length < 6) {
+                alert("Username eingeben & Passwort mind. 6 Zeichen!");
+                return;
+            }
+        
+            const email = username.toLowerCase() + "@local.fake";
+        
             try {
-                const cred = await createUserWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
-                await Promise.all([
-                    set(ref(db, 'users/' + cred.user.uid), { username: username }),
-                    set(ref(db, 'usernames/' + username), cred.user.uid)
-                ]);
+                // 1. Prüfen, ob Name frei ist (Dank Rule .read:true jetzt erlaubt)
+                const snap = await get(ref(db, 'usernames/' + username));
+                if(snap.exists()) {
+                    document.getElementById('regMessage').textContent = "Name schon vergeben!";
+                    return;
+                }
+        
+                // 2. Auth Account erstellen
+                const cred = await createUserWithEmailAndPassword(auth, email, password);
+                const userUid = cred.user.uid;
+        
+                // 3. Kurz warten (100ms), damit Firebase den Login registriert
+                await new Promise(res => setTimeout(res, 100));
+        
+                // 4. In Database schreiben
+                await set(ref(db, 'users/' + userUid), { username: username });
+                await set(ref(db, 'usernames/' + username), userUid);
+        
                 window.location.href = "chat.html";
-            } catch(err) { document.getElementById('regMessage').textContent = err.message; }
+        
+            } catch(err) {
+                console.error("Fehler Details:", err);
+                document.getElementById('regMessage').textContent = "Fehler: " + err.code;
+            }
         };
 
         document.getElementById('btnLogin').onclick = async () => {
