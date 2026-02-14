@@ -121,14 +121,23 @@
             const chatRef = ref(db, "chats/" + chatId);
             
             try {
-                const snap = await get(chatRef);
+                // Wir versuchen direkt die members zu setzen, falls sie nicht da sind.
+                // Die Rule ".write": "!data.exists()" erlaubt das.
+                const snap = await get(chatRef); 
+                
                 if (!snap.exists()) {
-                    await set(chatRef, { members: { [uid]: true, [otherUid]: true } });
+                    await set(chatRef, { 
+                        members: { 
+                            [uid]: true, 
+                            [otherUid]: true 
+                        } 
+                    });
                 }
                 openChat(chatId, otherName);
             } catch (err) {
-                console.error("Fehler beim Starten des Chats:", err);
-                alert("Du hast keine Berechtigung für diesen Chat.");
+                // Falls der Chat schon existiert, kommen wir hier rein, 
+                // wenn wir ihn trotzdem öffnen wollen:
+                openChat(chatId, otherName);
             }
         }
 
