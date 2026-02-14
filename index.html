@@ -1,97 +1,79 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<title>Login / Registrierung</title>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <meta charset="UTF-8">
+    <title>Login / Registrierung</title>
 </head>
-<body>
+<body style="font-family: Arial; padding: 20px;">
 
-<h2>Registrierung</h2>
-<input type="text" id="regUsername" placeholder="Username">
-<input type="password" id="regPassword" placeholder="Passwort">
-<button onclick="register()">Registrieren</button>
-<p id="regMessage"></p>
+    <h2>Registrierung</h2>
+    <input type="text" id="regUsername" placeholder="Username">
+    <input type="password" id="regPassword" placeholder="Passwort">
+    <button id="btnRegister">Registrieren</button>
+    <p id="regMessage" style="color: red;"></p>
 
-<h2>Login</h2>
-<input type="text" id="loginUsername" placeholder="Username">
-<input type="password" id="loginPassword" placeholder="Passwort">
-<button onclick="login()">Login</button>
-<p id="loginMessage"></p>
+    <hr>
 
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
-  authDomain: "maelist-chat.firebaseapp.com",
-  databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
-  projectId: "maelist-chat",
-  storageBucket: "maelist-chat.firebasestorage.app",
-  messagingSenderId: "87392900284",
-  appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
-  measurementId: "G-GK0KNPV152"
-};
+    <h2>Login</h2>
+    <input type="text" id="loginUsername" placeholder="Username">
+    <input type="password" id="loginPassword" placeholder="Passwort">
+    <button id="btnLogin">Login</button>
+    <p id="loginMessage" style="color: red;"></p>
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.database();
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// Hash-Funktion
-async function hashPassword(password){
-  const msgUint8 = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+        const firebaseConfig = {
+            apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+            authDomain: "maelist-chat.firebaseapp.com",
+            databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+            projectId: "maelist-chat",
+            storageBucket: "maelist-chat.firebasestorage.app",
+            messagingSenderId: "87392900284",
+            appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+        };
 
-// Registrierung
-async function register(){
-  const username = document.getElementById('regUsername').value.trim();
-  const password = document.getElementById('regPassword').value;
-  if(!username || !password){ alert("Alle Felder ausfüllen"); return; }
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
 
-  const email = username + "@local.fake";
+        // Registrierung
+        document.getElementById('btnRegister').onclick = async () => {
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            if(!username || !password) return alert("Felder ausfüllen");
 
-  // prüfen, ob Username existiert
-  const snap = await db.ref('usernames/' + username).get();
-  if(snap.exists()){ document.getElementById('regMessage').textContent = "Username existiert bereits"; return; }
+            const email = username.toLowerCase() + "@local.fake";
+            const userRef = ref(db, 'usernames/' + username);
 
-  try {
-    const cred = await auth.createUserWithEmailAndPassword(email, password);
-    const passwordHash = await hashPassword(password);
-    await db.ref('users/' + cred.user.uid).set({ username, passwordHash, chats: {} });
-    await db.ref('usernames/' + username).set(cred.user.uid);
-    window.location.href = "chat.html";
-  } catch(err){
-    document.getElementById('regMessage').textContent = err.message;
-  }
-}
+            try {
+                const snap = await get(userRef);
+                if(snap.exists()) throw new Error("Username vergeben");
 
-// Login
-async function login(){
-  const username = document.getElementById('loginUsername').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  if(!username || !password){ alert("Alle Felder ausfüllen"); return; }
+                const cred = await createUserWithEmailAndPassword(auth, email, password);
+                await set(ref(db, 'users/' + cred.user.uid), { username: username });
+                await set(userRef, cred.user.uid);
+                window.location.href = "chat.html";
+            } catch(err) {
+                document.getElementById('regMessage').textContent = err.message;
+            }
+        };
 
-  const email = username + "@local.fake";
+        // Login
+        document.getElementById('btnLogin').onclick = async () => {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const email = username.toLowerCase() + "@local.fake";
 
-  try {
-    const cred = await auth.signInWithEmailAndPassword(email, password);
-    const uid = cred.user.uid;
-    const snap = await db.ref('users/' + uid).get();
-    const data = snap.val();
-    const passwordHash = await hashPassword(password);
-
-    if(data && data.passwordHash === passwordHash){
-      window.location.href = "chat.html";
-    } else {
-      document.getElementById('loginMessage').textContent = "Passwort stimmt nicht!";
-      auth.signOut();
-    }
-  } catch(err){
-    document.getElementById('loginMessage').textContent = err.message;
-  }
-}
-</script>
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                window.location.href = "chat.html";
+            } catch(err) {
+                document.getElementById('loginMessage').textContent = "Login fehlgeschlagen: " + err.message;
+            }
+        };
+    </script>
 </body>
 </html>
