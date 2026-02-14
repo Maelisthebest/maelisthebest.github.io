@@ -2,26 +2,33 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<title>Chat</title>
+<title>Multi-User Chat</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+#userList button { margin: 2px; }
+.chatBox { border:1px solid black; height:200px; overflow:auto; margin-bottom:5px; padding:5px;}
+</style>
 </head>
 <body>
 
 <h2>Willkommen, <span id="username">Lade...</span>!</h2>
 <button onclick="logout()">Abmelden</button>
 
+<h3>Benutzerliste</h3>
+<div id="userList"></div>
+
 <h3>Öffentlicher Chat</h3>
-<div id="publicChat" style="border:1px solid black; height:200px; overflow:auto"></div>
-<input type="text" id="publicMsg" disabled>
-<button id="publicSend" disabled onclick="sendPublic()">Senden</button>
+<div id="publicChat" class="chatBox"></div>
+<input type="text" id="publicMsg" placeholder="Nachricht">
+<button onclick="sendPublic()">Senden</button>
 
 <h3>Privater Chat</h3>
-<div id="privateChat" style="border:1px solid black; height:200px; overflow:auto"></div>
+<div id="privateChat" class="chatBox"></div>
 <input type="password" id="privatePassword" placeholder="Passwort zum Freischalten">
 <button onclick="unlockPrivate()">Freischalten</button>
-<input type="text" id="privateMsg" disabled>
+<input type="text" id="privateMsg" placeholder="Nachricht" disabled>
 <button id="privateSend" disabled onclick="sendPrivate()">Senden</button>
 
 <script>
@@ -35,25 +42,25 @@ const firebaseConfig = {
   appId: "1:87392900284:web:fd39fe7161bfa828976cb9",
   measurementId: "G-GK0KNPV152"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 
 let username = null;
 let uid = null;
+let privateTargetUid = null;
 let privateUnlocked = false;
 
-// Hash
+// SHA256 Hash
 async function hashPassword(password){
   const msgUint8 = new TextEncoder().encode(password);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
   return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-// Auth prüfen und Username laden
+// Auth prüfen & Username laden
 auth.onAuthStateChanged(async user => {
-  if(!user){ window.location.href="index.html"; return; }
+  if(!user) { window.location.href = "index.html"; return; }
   uid = user.uid;
   const snap = await db.ref('users/' + uid).get();
   if(!snap.exists()){ alert("User nicht gefunden!"); auth.signOut(); return; }
@@ -62,15 +69,17 @@ auth.onAuthStateChanged(async user => {
 
   // öffentlicher Chat aktivieren
   document.getElementById('publicMsg').disabled = false;
-  document.getElementById('publicSend').disabled = false;
+  document.getElementById('publicMsg').placeholder = "Nachricht";
 
-  // öffentliche Nachrichten live laden
+  // öffentliche Nachrichten laden
   db.ref('chats/public').on('child_added', s=>{
     const m = s.val();
     const div = document.getElementById('publicChat');
     div.innerHTML += `<p><b>${m.from}:</b> ${m.text}</p>`;
     div.scrollTop = div.scrollHeight;
   });
+
+  loadUserList();
 });
 
 // Abmelden
@@ -78,20 +87,36 @@ function logout(){
   auth.signOut().then(()=>window.location.href="index.html");
 }
 
-// Öffentlicher Chat
-function sendPublic(){
-  const text = document.getElementById('publicMsg').value;
-  if(!text) return;
-  db.ref('chats/public').push().set({
-    from: username,
-    text: text,
-    timestamp: Date.now()
+// Liste aller User
+async function loadUserList(){
+  const snap = await db.ref('usernames').get();
+  const listDiv = document.getElementById('userList');
+  listDiv.innerHTML = "";
+  snap.forEach(child => {
+    const uname = child.key;
+    const targetUid = child.val();
+    if(uname !== username){ // nicht sich selbst
+      const btn = document.createElement('button');
+      btn.textContent = uname;
+      btn.onclick = ()=>selectUser(targetUid, uname);
+      listDiv.appendChild(btn);
+    }
   });
-  document.getElementById('publicMsg').value = "";
 }
 
-// Privater Chat freischalten
+function selectUser(targetUid, uname){
+  privateTargetUid = targetUid;
+  document.getElementById('privateChat').innerHTML = "";
+  privateUnlocked = false;
+  document.getElementById('privateMsg').disabled = true;
+  document.getElementById('privateSend').disabled = true;
+  document.getElementById('privatePassword').value = "";
+  alert("Privaten Chat mit " + uname + " auswählen und Passwort eingeben.");
+}
+
+// Private Chat freischalten
 async function unlockPrivate(){
+  if(!privateTargetUid){ alert("Wähle zuerst einen User"); return; }
   const pw = document.getElementById('privatePassword').value;
   if(!pw) return alert("Passwort eingeben!");
   const snap = await db.ref('users/' + uid).get();
@@ -101,31 +126,41 @@ async function unlockPrivate(){
     document.getElementById('privateMsg').disabled = false;
     document.getElementById('privateSend').disabled = false;
 
-    // private Chat live laden
-    db.ref('users/' + uid + '/chats').on('child_added', s=>{
+    // private Nachrichten laden
+    const chatRef = db.ref(`users/${uid}/chats/${privateTargetUid}`);
+    chatRef.off(); // sicherstellen, dass Listener nicht doppelt
+    chatRef.on('child_added', s=>{
       const m = s.val();
       const div = document.getElementById('privateChat');
       div.innerHTML += `<p><b>${m.from}:</b> ${m.text}</p>`;
       div.scrollTop = div.scrollHeight;
     });
-
     alert("Privater Chat freigeschaltet!");
   } else {
     alert("Falsches Passwort!");
   }
 }
 
-// private Nachricht senden
+// Private Nachricht senden
 function sendPrivate(){
-  if(!privateUnlocked) return alert("Chat nicht freigeschaltet!");
+  if(!privateUnlocked || !privateTargetUid) return alert("Chat nicht freigeschaltet!");
   const text = document.getElementById('privateMsg').value;
   if(!text) return;
-  db.ref('users/' + uid + '/chats').push().set({
-    from: username,
-    text: text,
-    timestamp: Date.now()
-  });
+  const msg = { from: username, text: text, timestamp: Date.now() };
+
+  // Nachricht bei beiden Nutzern speichern
+  db.ref(`users/${uid}/chats/${privateTargetUid}`).push().set(msg);
+  db.ref(`users/${privateTargetUid}/chats/${uid}`).push(msg);
+
   document.getElementById('privateMsg').value = "";
+}
+
+// Öffentliche Nachricht
+function sendPublic(){
+  const text = document.getElementById('publicMsg').value;
+  if(!text) return;
+  db.ref('chats/public').push().set({ from: username, text, timestamp: Date.now() });
+  document.getElementById('publicMsg').value = "";
 }
 </script>
 </body>
