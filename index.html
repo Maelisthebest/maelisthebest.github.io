@@ -4,21 +4,22 @@
     <meta charset="UTF-8">
     <title>Login / Registrierung</title>
 </head>
-<body style="font-family: Arial; padding: 20px; background: #f0f2f5;">
-    <div style="max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-        <h2>Registrierung</h2>
-        <input type="text" id="regUsername" placeholder="Username" style="width: 90%; padding: 8px; margin-bottom: 10px;">
-        <input type="password" id="regPassword" placeholder="Passwort" style="width: 90%; padding: 8px; margin-bottom: 10px;">
-        <button id="btnRegister" style="width: 95%; padding: 10px; background: #007bff; color: white; border: none; cursor: pointer;">Registrieren</button>
-        <p id="regMessage" style="color: red; font-size: 14px;"></p>
+<body style="font-family: Arial; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
 
-        <hr style="margin: 20px 0;">
+    <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px;">
+        <h2 style="text-align: center; color: #333;">Registrierung</h2>
+        <input type="text" id="regUsername" placeholder="Wunsch-Username" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        <input type="password" id="regPassword" placeholder="Passwort (min. 6 Zeichen)" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        <button id="btnRegister" style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Konto erstellen</button>
+        <p id="regMessage" style="color: red; font-size: 13px; text-align: center;"></p>
 
-        <h2>Login</h2>
-        <input type="text" id="loginUsername" placeholder="Username" style="width: 90%; padding: 8px; margin-bottom: 10px;">
-        <input type="password" id="loginPassword" placeholder="Passwort" style="width: 90%; padding: 8px; margin-bottom: 10px;">
-        <button id="btnLogin" style="width: 95%; padding: 10px; background: #28a745; color: white; border: none; cursor: pointer;">Login</button>
-        <p id="loginMessage" style="color: red; font-size: 14px;"></p>
+        <hr style="margin: 25px 0; border: 0; border-top: 1px solid #eee;">
+
+        <h2 style="text-align: center; color: #333;">Login</h2>
+        <input type="text" id="loginUsername" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        <input type="password" id="loginPassword" placeholder="Passwort" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+        <button id="btnLogin" style="width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Anmelden</button>
+        <p id="loginMessage" style="color: red; font-size: 13px; text-align: center;"></p>
     </div>
 
     <script type="module">
@@ -43,38 +44,22 @@
         document.getElementById('btnRegister').onclick = async () => {
             const username = document.getElementById('regUsername').value.trim();
             const password = document.getElementById('regPassword').value;
-            
-            if(!username || password.length < 6) {
-                alert("Username eingeben & Passwort mind. 6 Zeichen!");
-                return;
-            }
-        
-            const email = username.toLowerCase() + "@local.fake";
-        
+            if(!username || password.length < 6) return alert("Daten unvollständig!");
+
             try {
-                // 1. Prüfen, ob Name frei ist (Dank Rule .read:true jetzt erlaubt)
-                const snap = await get(ref(db, 'usernames/' + username));
-                if(snap.exists()) {
-                    document.getElementById('regMessage').textContent = "Name schon vergeben!";
-                    return;
-                }
-        
-                // 2. Auth Account erstellen
-                const cred = await createUserWithEmailAndPassword(auth, email, password);
-                const userUid = cred.user.uid;
-        
-                // 3. Kurz warten (100ms), damit Firebase den Login registriert
-                await new Promise(res => setTimeout(res, 100));
-        
-                // 4. In Database schreiben
-                await set(ref(db, 'users/' + userUid), { username: username });
-                await set(ref(db, 'usernames/' + username), userUid);
-        
+                // 1. Erst Auth erstellen
+                const cred = await createUserWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
+                const uid = cred.user.uid;
+
+                // 2. In Database schreiben (Ordner und Username-Reservierung)
+                await Promise.all([
+                    set(ref(db, 'users/' + uid), { username: username }),
+                    set(ref(db, 'usernames/' + username), uid)
+                ]);
+
                 window.location.href = "chat.html";
-        
             } catch(err) {
-                console.error("Fehler Details:", err);
-                document.getElementById('regMessage').textContent = "Fehler: " + err.code;
+                document.getElementById('regMessage').textContent = "Fehler: " + err.message;
             }
         };
 
@@ -84,7 +69,9 @@
             try {
                 await signInWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
                 window.location.href = "chat.html";
-            } catch(err) { document.getElementById('loginMessage').textContent = "Login fehlgeschlagen!"; }
+            } catch(err) {
+                document.getElementById('loginMessage').textContent = "Login fehlgeschlagen!";
+            }
         };
     </script>
 </body>
