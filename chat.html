@@ -5,7 +5,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getDatabase, ref, set, get, push, onChildAdded, onValue, onDisconnect, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
@@ -23,10 +23,6 @@
 
         let uid, username, currentChat = "public", currentListenRef = null;
 
-        function getChatId(uid1, uid2) {
-            return [uid1, uid2].sort().join("_");
-        }
-
         onAuthStateChanged(auth, async (user) => {
             if (!user) { window.location.href = "index.html"; return; }
             uid = user.uid;
@@ -42,30 +38,28 @@
         });
 
         function loadUsers() {
-            onValue(ref(db, "users"), async (snapshot) => {
+            onValue(ref(db, "users"), (snapshot) => {
                 const list = document.getElementById("users");
                 list.innerHTML = "";
-                const onlineSnap = await get(ref(db, "online"));
-                const onlineUsers = onlineSnap.val() || {};
-
-                snapshot.forEach(child => {
-                    if (child.key === uid) return;
-                    const isOnline = onlineUsers[child.key];
-                    const div = document.createElement("div");
-                    div.style.padding = "5px";
-                    div.style.cursor = "pointer";
-                    div.innerHTML = `<span style="color:${isOnline ? "lime" : "gray"}">●</span> ${child.val().username}`;
-                    div.onclick = () => startPrivateChat(child.key);
-                    list.appendChild(div);
+                onValue(ref(db, "online"), (onlineSnap) => {
+                    const onlineUsers = onlineSnap.val() || {};
+                    list.innerHTML = "";
+                    snapshot.forEach(child => {
+                        if (child.key === uid) return;
+                        const div = document.createElement("div");
+                        div.style = "padding:8px; cursor:pointer; border-bottom:1px solid #eee;";
+                        div.innerHTML = `<span style="color:${onlineUsers[child.key] ? 'lime' : 'gray'}">●</span> ${child.val().username}`;
+                        div.onclick = () => startPrivateChat(child.key);
+                        list.appendChild(div);
+                    });
                 });
             });
         }
 
         async function startPrivateChat(otherUid) {
-            const chatId = getChatId(uid, otherUid);
+            const chatId = [uid, otherUid].sort().join("_");
             const chatRef = ref(db, "chats/" + chatId);
             const snap = await get(chatRef);
-
             if (!snap.exists()) {
                 await set(chatRef, { members: { [uid]: true, [otherUid]: true } });
             }
@@ -75,17 +69,18 @@
         window.openChat = function(chatId) {
             if (currentListenRef) off(currentListenRef);
             currentChat = chatId;
-            document.getElementById("messages").innerHTML = `<b>Chat: ${chatId}</b><br>`;
+            const msgBox = document.getElementById("messages");
+            msgBox.innerHTML = `<div style="text-align:center; color:gray;">--- Chat: ${chatId === 'public' ? 'Global' : 'Privat'} ---</div>`;
 
             const messagesRef = ref(db, `chats/${chatId}/messages`);
             currentListenRef = messagesRef;
-
             onChildAdded(messagesRef, (snapshot) => {
                 const m = snapshot.val();
                 const div = document.createElement("div");
-                div.innerHTML = `<strong>${m.from}:</strong> ${m.text}`;
-                document.getElementById("messages").appendChild(div);
-                document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+                div.style = "margin-bottom:10px;";
+                div.innerHTML = `<b style="color:#007bff">${m.from}:</b> ${m.text}`;
+                msgBox.appendChild(div);
+                msgBox.scrollTop = msgBox.scrollHeight;
             });
         }
 
@@ -99,20 +94,22 @@
             });
             input.value = "";
         }
+
+        window.logout = () => signOut(auth);
     </script>
 </head>
-<body style="display:flex; height:100vh; font-family:Arial; margin:0;">
-    <div style="width:200px; border-right:1px solid #ccc; padding:10px; background:#f4f4f4;">
-        <h3>Nutzer</h3>
-        <div id="users"></div>
-        <hr>
-        <button onclick="openChat('public')" style="width:100%">🌍 Public Chat</button>
+<body style="display:flex; height:100vh; font-family:Arial; margin:0; background:#f0f2f5;">
+    <div style="width:250px; border-right:1px solid #ccc; background:white; display:flex; flex-direction:column;">
+        <div style="padding:15px; background:#007bff; color:white; font-weight:bold;">Nutzer</div>
+        <div id="users" style="flex:1; overflow:auto;"></div>
+        <button onclick="openChat('public')" style="padding:15px; background:#e9ecef; border:none; cursor:pointer;">🌍 Globaler Chat</button>
+        <button onclick="logout()" style="padding:10px; background:#dc3545; color:white; border:none; cursor:pointer;">Abmelden</button>
     </div>
     <div style="flex:1; display:flex; flex-direction:column;">
-        <div id="messages" style="flex:1; overflow:auto; padding:20px; background:#fff;"></div>
-        <div style="padding:10px; border-top:1px solid #ccc; display:flex;">
-            <input id="msg" style="flex:1; padding:10px;" placeholder="Nachricht..." onkeypress="if(event.key==='Enter') sendMessage()">
-            <button onclick="sendMessage()" style="padding:10px 20px;">Senden</button>
+        <div id="messages" style="flex:1; overflow:auto; padding:20px;"></div>
+        <div style="padding:15px; background:white; border-top:1px solid #ccc; display:flex;">
+            <input id="msg" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:4px;" placeholder="Nachricht schreiben..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()" style="margin-left:10px; padding:10px 20px; background:#007bff; color:white; border:none; border-radius:4px; cursor:pointer;">Senden</button>
         </div>
     </div>
 </body>
