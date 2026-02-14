@@ -6,25 +6,22 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<style>
-body { font-family: Arial; text-align:center; margin-top:50px; }
-input, button { padding:8px; margin:5px; width:250px; }
-</style>
 </head>
 <body>
 
-<h2>🔐 Login / Registrierung</h2>
+<h2>Registrierung</h2>
+<input type="text" id="regUsername" placeholder="Username">
+<input type="password" id="regPassword" placeholder="Passwort">
+<button onclick="register()">Registrieren</button>
+<p id="regMessage"></p>
 
-<input type="text" id="username" placeholder="Benutzername"><br>
-<input type="password" id="password" placeholder="Passwort"><br>
-
-<button onclick="register()">Registrieren</button><br>
-<button onclick="login()">Login</button><br>
-
-<p id="message" style="color:red"></p>
+<h2>Login</h2>
+<input type="text" id="loginUsername" placeholder="Username">
+<input type="password" id="loginPassword" placeholder="Passwort">
+<button onclick="login()">Login</button>
+<p id="loginMessage"></p>
 
 <script>
-// Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
   authDomain: "maelist-chat.firebaseapp.com",
@@ -36,66 +33,65 @@ const firebaseConfig = {
   measurementId: "G-GK0KNPV152"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
 
+// Hash-Funktion
+async function hashPassword(password){
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 // Registrierung
-function register() {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
+async function register(){
+  const username = document.getElementById('regUsername').value.trim();
+  const password = document.getElementById('regPassword').value;
   if(!username || !password){ alert("Alle Felder ausfüllen"); return; }
 
   const email = username + "@local.fake";
 
-  // Prüfen, ob Username schon existiert
-  db.ref('usernames/' + username).get().then(snap => {
-    if(snap.exists()){
-      document.getElementById('message').textContent = "Username existiert bereits";
-    } else {
-      auth.createUserWithEmailAndPassword(email, password)
-        .then(cred => {
-          // Zuerst Username speichern
-          return db.ref('users/' + cred.user.uid).set({ username: username })
-            .then(() => db.ref('usernames/' + username).set(cred.user.uid));
-        })
-        .then(() => {
-          // Erst nachdem alles gespeichert ist, weiterleiten
-          window.location.href = "chat.html";
-        })
-        .catch(err => document.getElementById('message').textContent = err.message);
-    }
-  });
+  // prüfen, ob Username existiert
+  const snap = await db.ref('usernames/' + username).get();
+  if(snap.exists()){ document.getElementById('regMessage').textContent = "Username existiert bereits"; return; }
+
+  try {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    const passwordHash = await hashPassword(password);
+    await db.ref('users/' + cred.user.uid).set({ username, passwordHash, chats: {} });
+    await db.ref('usernames/' + username).set(cred.user.uid);
+    window.location.href = "chat.html";
+  } catch(err){
+    document.getElementById('regMessage').textContent = err.message;
+  }
 }
 
 // Login
-function login() {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value;
+async function login(){
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
   if(!username || !password){ alert("Alle Felder ausfüllen"); return; }
 
   const email = username + "@local.fake";
 
-  auth.signInWithEmailAndPassword(email, password)
-    .then(cred => {
-      // Prüfen, ob Username in DB existiert, sonst speichern (sicher)
-      db.ref('users/' + cred.user.uid).get().then(snap => {
-        if(!snap.exists() || !snap.val().username){
-          // Username neu speichern, falls fehlt
-          db.ref('users/' + cred.user.uid).set({ username: username });
-          db.ref('usernames/' + username).set(cred.user.uid);
-        }
-        window.location.href = "chat.html";
-      });
-    })
-    .catch(err => document.getElementById('message').textContent = err.message);
-}
+  try {
+    const cred = await auth.signInWithEmailAndPassword(email, password);
+    const uid = cred.user.uid;
+    const snap = await db.ref('users/' + uid).get();
+    const data = snap.val();
+    const passwordHash = await hashPassword(password);
 
-// Prüfen, ob schon eingeloggt
-auth.onAuthStateChanged(user => {
-  if(user) window.location.href = "chat.html";
-});
+    if(data && data.passwordHash === passwordHash){
+      window.location.href = "chat.html";
+    } else {
+      document.getElementById('loginMessage').textContent = "Passwort stimmt nicht!";
+      auth.signOut();
+    }
+  } catch(err){
+    document.getElementById('loginMessage').textContent = err.message;
+  }
+}
 </script>
 </body>
 </html>
