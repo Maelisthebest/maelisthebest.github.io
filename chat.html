@@ -1,29 +1,11 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Login / Registrierung</title>
-</head>
-<body style="font-family: Arial; padding: 20px;">
-
-    <h2>Registrierung</h2>
-    <input type="text" id="regUsername" placeholder="Username">
-    <input type="password" id="regPassword" placeholder="Passwort">
-    <button id="btnRegister">Registrieren</button>
-    <p id="regMessage" style="color: red;"></p>
-
-    <hr>
-
-    <h2>Login</h2>
-    <input type="text" id="loginUsername" placeholder="Username">
-    <input type="password" id="loginPassword" placeholder="Passwort">
-    <button id="btnLogin">Login</button>
-    <p id="loginMessage" style="color: red;"></p>
-
+    <title>Chat</title>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+        import { getDatabase, ref, set, get, push, onChildAdded, onValue, onDisconnect, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
@@ -36,44 +18,102 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getDatabase(app);
+        const auth = getAuth(app);
 
-        // Registrierung
-        document.getElementById('btnRegister').onclick = async () => {
-            const username = document.getElementById('regUsername').value.trim();
-            const password = document.getElementById('regPassword').value;
-            if(!username || !password) return alert("Felder ausfüllen");
+        let uid, username, currentChat = "public", currentListenRef = null;
 
-            const email = username.toLowerCase() + "@local.fake";
-            const userRef = ref(db, 'usernames/' + username);
+        function getChatId(uid1, uid2) {
+            return [uid1, uid2].sort().join("_");
+        }
 
-            try {
-                const snap = await get(userRef);
-                if(snap.exists()) throw new Error("Username vergeben");
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) { window.location.href = "index.html"; return; }
+            uid = user.uid;
+            const userSnap = await get(ref(db, "users/" + uid));
+            username = userSnap.val()?.username || "Anonym";
 
-                const cred = await createUserWithEmailAndPassword(auth, email, password);
-                await set(ref(db, 'users/' + cred.user.uid), { username: username });
-                await set(userRef, cred.user.uid);
-                window.location.href = "chat.html";
-            } catch(err) {
-                document.getElementById('regMessage').textContent = err.message;
+            const onlineRef = ref(db, "online/" + uid);
+            set(onlineRef, true);
+            onDisconnect(onlineRef).remove();
+
+            loadUsers();
+            openChat("public");
+        });
+
+        function loadUsers() {
+            onValue(ref(db, "users"), async (snapshot) => {
+                const list = document.getElementById("users");
+                list.innerHTML = "";
+                const onlineSnap = await get(ref(db, "online"));
+                const onlineUsers = onlineSnap.val() || {};
+
+                snapshot.forEach(child => {
+                    if (child.key === uid) return;
+                    const isOnline = onlineUsers[child.key];
+                    const div = document.createElement("div");
+                    div.style.padding = "5px";
+                    div.style.cursor = "pointer";
+                    div.innerHTML = `<span style="color:${isOnline ? "lime" : "gray"}">●</span> ${child.val().username}`;
+                    div.onclick = () => startPrivateChat(child.key);
+                    list.appendChild(div);
+                });
+            });
+        }
+
+        async function startPrivateChat(otherUid) {
+            const chatId = getChatId(uid, otherUid);
+            const chatRef = ref(db, "chats/" + chatId);
+            const snap = await get(chatRef);
+
+            if (!snap.exists()) {
+                await set(chatRef, { members: { [uid]: true, [otherUid]: true } });
             }
-        };
+            openChat(chatId);
+        }
 
-        // Login
-        document.getElementById('btnLogin').onclick = async () => {
-            const username = document.getElementById('loginUsername').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            const email = username.toLowerCase() + "@local.fake";
+        window.openChat = function(chatId) {
+            if (currentListenRef) off(currentListenRef);
+            currentChat = chatId;
+            document.getElementById("messages").innerHTML = `<b>Chat: ${chatId}</b><br>`;
 
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                window.location.href = "chat.html";
-            } catch(err) {
-                document.getElementById('loginMessage').textContent = "Login fehlgeschlagen: " + err.message;
-            }
-        };
+            const messagesRef = ref(db, `chats/${chatId}/messages`);
+            currentListenRef = messagesRef;
+
+            onChildAdded(messagesRef, (snapshot) => {
+                const m = snapshot.val();
+                const div = document.createElement("div");
+                div.innerHTML = `<strong>${m.from}:</strong> ${m.text}`;
+                document.getElementById("messages").appendChild(div);
+                document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+            });
+        }
+
+        window.sendMessage = function() {
+            const input = document.getElementById("msg");
+            if (!input.value) return;
+            push(ref(db, `chats/${currentChat}/messages`), {
+                from: username,
+                text: input.value,
+                timestamp: Date.now()
+            });
+            input.value = "";
+        }
     </script>
+</head>
+<body style="display:flex; height:100vh; font-family:Arial; margin:0;">
+    <div style="width:200px; border-right:1px solid #ccc; padding:10px; background:#f4f4f4;">
+        <h3>Nutzer</h3>
+        <div id="users"></div>
+        <hr>
+        <button onclick="openChat('public')" style="width:100%">🌍 Public Chat</button>
+    </div>
+    <div style="flex:1; display:flex; flex-direction:column;">
+        <div id="messages" style="flex:1; overflow:auto; padding:20px; background:#fff;"></div>
+        <div style="padding:10px; border-top:1px solid #ccc; display:flex;">
+            <input id="msg" style="flex:1; padding:10px;" placeholder="Nachricht..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()" style="padding:10px 20px;">Senden</button>
+        </div>
+    </div>
 </body>
 </html>
