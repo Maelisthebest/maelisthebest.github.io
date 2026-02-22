@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Maelist - Vault Login</title>
+    <title>Maelist - Zero Knowledge Login</title>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f0f2f5; }
         .login-card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; text-align: center; }
@@ -17,8 +17,8 @@
         <h2>Maelist</h2>
         <input type="text" id="username" placeholder="Nutzername">
         <input type="password" id="pass" placeholder="Passwort">
-        <button class="btn-login" onclick="authAction('login')">Login</button>
-        <button class="btn-reg" onclick="authAction('reg')">Registrieren</button>
+        <button class="btn-login" id="loginBtn">Login</button>
+        <button class="btn-reg" id="regBtn">Registrieren</button>
         <p id="status" style="color:red; font-size:12px;"></p>
     </div>
 
@@ -41,41 +41,59 @@
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        window.authAction = async (type) => {
+        // Der Schutz gegen Rainbow Tables
+        async function securePreHash(password, username) {
+            const encoder = new TextEncoder();
+            const pwKey = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
+            const salt = encoder.encode(username + "_salt_for_firebase");
+            const bits = await crypto.subtle.deriveBits({name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256"}, pwKey, 256);
+            return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function handleAuth(type) {
             const user = document.getElementById("username").value.trim().toLowerCase();
             const pass = document.getElementById("pass").value;
-            if(!user || pass.length < 6) { alert("Passwort zu kurz!"); return; }
+            if(!user || pass.length < 6) return alert("Nutzername fehlt oder PW zu kurz");
+
+            document.getElementById("status").innerText = "Sicherheitsschlüssel werden berechnet...";
+            const localHash = await securePreHash(pass, user);
             const fakeEmail = `${user}@local.fake`;
 
             try {
                 if (type === 'reg') {
-                    const res = await createUserWithEmailAndPassword(auth, fakeEmail, pass);
+                    const res = await createUserWithEmailAndPassword(auth, fakeEmail, localHash);
+                    
+                    // Schlüssel-Setup (Nutzt das ECHTE Passwort für maximale lokale Sicherheit)
                     const salt = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
                     const keyPair = await crypto.subtle.generateKey({name: "ECDH", namedCurve: "P-256"}, true, ["deriveKey"]);
-                    const pubKeyRaw = await crypto.subtle.exportKey("spki", keyPair.publicKey);
-                    const privKeyRaw = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+                    const pubK = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+                    const privK = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
 
-                    // Privaten Schlüssel mit PW verschlüsseln
+                    // Verschlüsselung des Private Keys mit echtem PW
                     const saltArr = Uint8Array.from(atob(salt), c => c.charCodeAt(0));
                     const baseK = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
                     const aesK = await crypto.subtle.deriveKey({name: "PBKDF2", salt: saltArr, iterations: 100000, hash: "SHA-256"}, baseK, {name: "AES-GCM", length: 256}, false, ["encrypt"]);
                     const iv = crypto.getRandomValues(new Uint8Array(12));
-                    const encPriv = await crypto.subtle.encrypt({name: "AES-GCM", iv}, aesK, privKeyRaw);
-
-                    const encObj = { iv: btoa(String.fromCharCode(...iv)), data: btoa(String.fromCharCode(...new Uint8Array(encPriv))) };
+                    const encPriv = await crypto.subtle.encrypt({name: "AES-GCM", iv}, aesK, privK);
 
                     await set(ref(db, `users/${res.user.uid}`), { username: user });
                     await set(ref(db, `security/salts/${res.user.uid}`), salt);
-                    await set(ref(db, `security/publicKeys/${res.user.uid}`), btoa(String.fromCharCode(...new Uint8Array(pubKeyRaw))));
-                    await set(ref(db, `security/privateKeys/${res.user.uid}`), encObj);
-                    alert("Konto bereit!");
+                    await set(ref(db, `security/publicKeys/${res.user.uid}`), btoa(String.fromCharCode(...new Uint8Array(pubK))));
+                    await set(ref(db, `security/privateKeys/${res.user.uid}`), {
+                        iv: btoa(String.fromCharCode(...iv)),
+                        data: btoa(String.fromCharCode(...new Uint8Array(encPriv)))
+                    });
+                    alert("Konto erstellt!");
                 } else {
-                    await signInWithEmailAndPassword(auth, fakeEmail, pass);
-                    sessionStorage.setItem("vault_pass", pass);
+                    await signInWithEmailAndPassword(auth, fakeEmail, localHash);
+                    sessionStorage.setItem("vault_pass", pass); // Echtes PW für Chat.html
                     window.location.href = "chat.html";
                 }
             } catch (e) { document.getElementById("status").innerText = e.message; }
-        };
+        }
+
+        document.getElementById("loginBtn").onclick = () => handleAuth('login');
+        document.getElementById("regBtn").onclick = () => handleAuth('reg');
     </script>
 </body>
 </html>
