@@ -10,40 +10,36 @@
         #header { background: #ededed; padding: 15px; font-weight: bold; border-bottom: 1px solid #ccc; }
         #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
         .msg { padding: 8px 12px; margin: 5px; border-radius: 8px; max-width: 65%; font-size: 14px; }
-        .me { align-self: flex-end; background: #dcf8c6; border: 1px solid #c0e0a0; }
-        .other { align-self: flex-start; background: white; border: 1px solid #ddd; }
+        .me { align-self: flex-end; background: #dcf8c6; }
+        .other { align-self: flex-start; background: white; }
         #input-area { padding: 15px; background: #f0f0f0; display: flex; }
         #mInput { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
         .user-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; }
-        .user-item:hover { background: #f9f9f9; }
-        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
-<div id="overlay">
-    <h2>Tresor öffnen...</h2>
-    <p>Berechne kryptografischen Schlüssel (0,5s)</p>
-</div>
+<div id="overlay"><h3>Tresor wird entschlüsselt...</h3></div>
 
 <div id="sidebar">
     <div id="header">Kontakte</div>
-    <div id="userList" style="flex:1; overflow-y:auto;"></div>
-    <button onclick="location.href='index.html'" style="padding:10px; border:none; background:#eee; cursor:pointer;">Logout</button>
+    <div id="userList" style="flex:1;"></div>
+    <button onclick="location.href='index.html'" style="padding:10px;">Logout</button>
 </div>
 
 <div id="chat">
     <div id="header">Chat: <span id="activeTarget">-</span></div>
     <div id="messages"></div>
     <div id="input-area">
-        <input type="text" id="mInput" placeholder="Nachricht...">
-        <button onclick="sendMsg()" style="margin-left:10px; border:none; background:transparent; font-size:20px; cursor:pointer;">➤</button>
+        <input type="text" id="mInput" placeholder="Sichere Nachricht...">
+        <button onclick="sendMsg()">➤</button>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, get, push, query, orderByChild, equalTo, onChildAdded, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, get, push, query, orderByChild, equalTo, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -60,17 +56,24 @@
     const db = getDatabase(app);
     const auth = getAuth(app);
 
-    let myUid, myUsername, myPrivateKey, activeOtherUid, activeChatId, currentSharedKey;
-    let messageListener = null;
+    let myUid, myUsername, myPrivateKey, currentSharedKey, activeChatId;
 
     onAuthStateChanged(auth, async (user) => {
-        if (!user) { window.location.href = "index.html"; return; }
+        if (!user) return window.location.href = "index.html";
         myUid = user.uid;
         const pass = sessionStorage.getItem("vault_pass");
         
         const saltSnap = await get(ref(db, `security/salts/${myUid}`));
-        // Trick: Wir nutzen PBKDF2 um aus Passwort einen Seed für das Keypair zu machen
-        myPrivateKey = await derivePrivateKey(pass, saltSnap.val());
+        const privSnap = await get(ref(db, `security/privateKeys/${myUid}`));
+        
+        // Private Key entschlüsseln
+        const salt = Uint8Array.from(atob(saltSnap.val()), c => c.charCodeAt(0));
+        const encObj = privSnap.val();
+        const baseK = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+        const aesK = await crypto.subtle.deriveKey({name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256"}, baseK, {name: "AES-GCM", length: 256}, false, ["decrypt"]);
+        const rawPriv = await crypto.subtle.decrypt({name: "AES-GCM", iv: Uint8Array.from(atob(encObj.iv), c => c.charCodeAt(0))}, aesK, Uint8Array.from(atob(encObj.data), c => c.charCodeAt(0)));
+        
+        myPrivateKey = await crypto.subtle.importKey("pkcs8", rawPriv, {name: "ECDH", namedCurve: "P-256"}, false, ["deriveKey"]);
         
         document.getElementById("overlay").style.display = "none";
         const meSnap = await get(ref(db, `users/${myUid}`));
@@ -78,83 +81,61 @@
         loadUsers();
     });
 
-    async function derivePrivateKey(p, sB64) {
-        // Hinweis: Für 100% deterministische Keys nutzt man normalerweise Libs wie elliptic.js
-        // Hier simulieren wir den Schutz durch die 600k Iterationen PBKDF2
-        const s = Uint8Array.from(atob(sB64), c => c.charCodeAt(0));
-        const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(p), "PBKDF2", false, ["deriveKey"]);
-        return await crypto.subtle.deriveKey(
-            { name: "PBKDF2", salt: s, iterations: 600000, hash: "SHA-256" },
-            base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
-        );
-    }
-
     async function loadUsers() {
         const snap = await get(ref(db, "users"));
         const list = document.getElementById("userList");
         list.innerHTML = "";
-        snap.forEach(child => {
-            if (child.key === myUid) return;
+        snap.forEach(c => {
+            if (c.key === myUid) return;
             const div = document.createElement("div");
             div.className = "user-item";
-            div.innerText = child.val().username;
-            div.onclick = () => openChat(child.key, child.val().username);
+            div.innerText = c.val().username;
+            div.onclick = () => openChat(c.key, c.val().username);
             list.appendChild(div);
         });
     }
 
     window.openChat = async (otherUid, name) => {
-        if (messageListener) off(ref(db, "messages"));
-        activeOtherUid = otherUid;
         activeChatId = [myUid, otherUid].sort().join("_");
         document.getElementById("activeTarget").innerText = name;
         document.getElementById("messages").innerHTML = "";
         
-        // BlindToken berechnen
+        const pubSnap = await get(ref(db, `security/publicKeys/${otherUid}`));
+        const otherPubKey = await crypto.subtle.importKey("spki", Uint8Array.from(atob(pubSnap.val()), c => c.charCodeAt(0)), {name: "ECDH", namedCurve: "P-256"}, false, []);
+
+        currentSharedKey = await crypto.subtle.deriveKey({name: "ECDH", public: otherPubKey}, myPrivateKey, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+
         const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(activeChatId));
         const token = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-        const q = query(ref(db, "messages"), orderByChild("blindToken"), equalTo(token));
-        onChildAdded(q, async (s) => {
-            const d = s.val();
-            // Wir entschlüsseln hier mit dem myPrivateKey (vereinfacht für diese Struktur)
-            const dec = await decrypt(d.data, d.iv, myPrivateKey);
-            if (dec && dec.chatId === activeChatId) renderMsg(dec);
+        onChildAdded(query(ref(db, "messages"), orderByChild("blindToken"), equalTo(token)), async (s) => {
+            try {
+                const d = s.val();
+                const dec = await crypto.subtle.decrypt({name: "AES-GCM", iv: Uint8Array.from(atob(d.iv), c => c.charCodeAt(0))}, currentSharedKey, Uint8Array.from(atob(d.data), c => c.charCodeAt(0)));
+                renderMsg(JSON.parse(new TextDecoder().decode(dec)));
+            } catch(e) {}
         });
     };
 
     window.sendMsg = async () => {
         const text = document.getElementById("mInput").value;
-        if (!text || !activeChatId) return;
+        if (!text || !currentSharedKey) return;
         document.getElementById("mInput").value = "";
-
         const iv = crypto.getRandomValues(new Uint8Array(12));
+        const enc = await crypto.subtle.encrypt({name: "AES-GCM", iv}, currentSharedKey, new TextEncoder().encode(JSON.stringify({text, from: myUsername})));
         const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(activeChatId));
-        const token = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
-
-        const payload = JSON.stringify({ text, from: myUsername, chatId: activeChatId });
-        const enc = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, myPrivateKey, new TextEncoder().encode(payload));
-
         await push(ref(db, "messages"), {
-            blindToken: token,
+            blindToken: Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join(''),
             iv: btoa(String.fromCharCode(...iv)),
             data: btoa(String.fromCharCode(...new Uint8Array(enc)))
         });
     };
 
-    async function decrypt(data, ivB64, key) {
-        try {
-            const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
-            const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, Uint8Array.from(atob(data), c => c.charCodeAt(0)));
-            return JSON.parse(new TextDecoder().decode(dec));
-        } catch (e) { return null; }
-    }
-
     function renderMsg(m) {
         const box = document.getElementById("messages");
         const d = document.createElement("div");
         d.className = "msg " + (m.from === myUsername ? "me" : "other");
-        d.innerHTML = `<small style="color:#888">${m.from}</small><br>${m.text}`;
+        d.innerHTML = `<b>${m.from}:</b> ${m.text}`;
         box.appendChild(d);
         box.scrollTop = box.scrollHeight;
     }
