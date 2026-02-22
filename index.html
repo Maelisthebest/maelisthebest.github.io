@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Maelist - Login</title>
+    <title>Maelist - Vault Login</title>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f0f2f5; }
         .login-card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; text-align: center; }
@@ -44,22 +44,31 @@
         window.authAction = async (type) => {
             const user = document.getElementById("username").value.trim().toLowerCase();
             const pass = document.getElementById("pass").value;
-            if(!user || !pass) return;
+            if(!user || pass.length < 6) { alert("Passwort zu kurz!"); return; }
             const fakeEmail = `${user}@local.fake`;
 
             try {
                 if (type === 'reg') {
                     const res = await createUserWithEmailAndPassword(auth, fakeEmail, pass);
                     const salt = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
-                    
-                    // Schlüsselpaar für E2EE erzeugen
-                    const keyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
-                    const pubExport = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+                    const keyPair = await crypto.subtle.generateKey({name: "ECDH", namedCurve: "P-256"}, true, ["deriveKey"]);
+                    const pubKeyRaw = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+                    const privKeyRaw = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+
+                    // Privaten Schlüssel mit PW verschlüsseln
+                    const saltArr = Uint8Array.from(atob(salt), c => c.charCodeAt(0));
+                    const baseK = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+                    const aesK = await crypto.subtle.deriveKey({name: "PBKDF2", salt: saltArr, iterations: 100000, hash: "SHA-256"}, baseK, {name: "AES-GCM", length: 256}, false, ["encrypt"]);
+                    const iv = crypto.getRandomValues(new Uint8Array(12));
+                    const encPriv = await crypto.subtle.encrypt({name: "AES-GCM", iv}, aesK, privKeyRaw);
+
+                    const encObj = { iv: btoa(String.fromCharCode(...iv)), data: btoa(String.fromCharCode(...new Uint8Array(encPriv))) };
 
                     await set(ref(db, `users/${res.user.uid}`), { username: user });
                     await set(ref(db, `security/salts/${res.user.uid}`), salt);
-                    await set(ref(db, `security/publicKeys/${res.user.uid}`), btoa(String.fromCharCode(...new Uint8Array(pubExport))));
-                    alert("Konto erstellt!");
+                    await set(ref(db, `security/publicKeys/${res.user.uid}`), btoa(String.fromCharCode(...new Uint8Array(pubKeyRaw))));
+                    await set(ref(db, `security/privateKeys/${res.user.uid}`), encObj);
+                    alert("Konto bereit!");
                 } else {
                     await signInWithEmailAndPassword(auth, fakeEmail, pass);
                     sessionStorage.setItem("vault_pass", pass);
