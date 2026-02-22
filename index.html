@@ -2,76 +2,60 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Login / Registrierung</title>
+    <title>Maelist - Secure Entry</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #121212; color: white; }
+        .box { background: #1e1e1e; padding: 30px; border-radius: 12px; width: 320px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #333; background: #2c2c2c; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #075e54; border: none; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; }
+    </style>
 </head>
-<body style="font-family: Arial; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-
-    <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 350px;">
-        <h2 style="text-align: center; color: #333;">Registrierung</h2>
-        <input type="text" id="regUsername" placeholder="Wunsch-Username" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
-        <input type="password" id="regPassword" placeholder="Passwort (min. 6 Zeichen)" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
-        <button id="btnRegister" style="width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Konto erstellen</button>
-        <p id="regMessage" style="color: red; font-size: 13px; text-align: center;"></p>
-
-        <hr style="margin: 25px 0; border: 0; border-top: 1px solid #eee;">
-
-        <h2 style="text-align: center; color: #333;">Login</h2>
-        <input type="text" id="loginUsername" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
-        <input type="password" id="loginPassword" placeholder="Passwort" style="width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
-        <button id="btnLogin" style="width: 100%; padding: 12px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Anmelden</button>
-        <p id="loginMessage" style="color: red; font-size: 13px; text-align: center;"></p>
+<body>
+    <div class="box">
+        <h2>Maelist Vault</h2>
+        <input type="email" id="email" placeholder="E-Mail">
+        <input type="password" id="pass" placeholder="Passwort">
+        <input type="text" id="username" placeholder="Nutzername">
+        <button onclick="handleAuth('login')">Einloggen</button>
+        <button onclick="handleAuth('reg')" style="background: #25d366; margin-top: 8px;">Konto erstellen</button>
+        <p id="status"></p>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
-            authDomain: "maelist-chat.firebaseapp.com",
-            databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
-            projectId: "maelist-chat",
-            storageBucket: "maelist-chat.firebasestorage.app",
-            messagingSenderId: "87392900284",
-            appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
-        };
-
+        const firebaseConfig = { };
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        document.getElementById('btnRegister').onclick = async () => {
-            const username = document.getElementById('regUsername').value.trim();
-            const password = document.getElementById('regPassword').value;
-            if(!username || password.length < 6) return alert("Daten unvollständig!");
+        window.handleAuth = async (type) => {
+            const email = document.getElementById("email").value;
+            const pass = document.getElementById("pass").value;
+            const user = document.getElementById("username").value;
 
             try {
-                // 1. Erst Auth erstellen
-                const cred = await createUserWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
-                const uid = cred.user.uid;
+                if (type === 'reg') {
+                    const res = await createUserWithEmailAndPassword(auth, email, pass);
+                    const salt = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+                    
+                    // Wir generieren einen Public Key für andere Nutzer
+                    // (Echte deterministische EC-Keys benötigen oft Libs, hier vereinfachtes Prinzip)
+                    const keyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
+                    const pubExport = await crypto.subtle.exportKey("spki", keyPair.publicKey);
 
-                // 2. In Database schreiben (Ordner und Username-Reservierung)
-                await Promise.all([
-                    set(ref(db, 'users/' + uid), { username: username }),
-                    set(ref(db, 'usernames/' + username), uid)
-                ]);
-
-                window.location.href = "chat.html";
-            } catch(err) {
-                document.getElementById('regMessage').textContent = "Fehler: " + err.message;
-            }
-        };
-
-        document.getElementById('btnLogin').onclick = async () => {
-            const username = document.getElementById('loginUsername').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            try {
-                await signInWithEmailAndPassword(auth, username.toLowerCase() + "@local.fake", password);
-                window.location.href = "chat.html";
-            } catch(err) {
-                document.getElementById('loginMessage').textContent = "Login fehlgeschlagen!";
-            }
+                    await set(ref(db, `users/${res.user.uid}`), { username: user });
+                    await set(ref(db, `security/salts/${res.user.uid}`), salt);
+                    await set(ref(db, `security/publicKeys/${res.user.uid}`), btoa(String.fromCharCode(...new Uint8Array(pubExport))));
+                    alert("Account erstellt!");
+                } else {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                    sessionStorage.setItem("vault_pass", pass);
+                    window.location.href = "chat.html";
+                }
+            } catch (e) { document.getElementById("status").innerText = e.message; }
         };
     </script>
 </body>
