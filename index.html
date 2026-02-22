@@ -51,6 +51,8 @@
                 if (type === 'reg') {
                     const res = await createUserWithEmailAndPassword(auth, fakeEmail, pass);
                     const salt = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+                    
+                    // Schlüsselpaar für E2EE erzeugen
                     const keyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
                     const pubExport = await crypto.subtle.exportKey("spki", keyPair.publicKey);
 
