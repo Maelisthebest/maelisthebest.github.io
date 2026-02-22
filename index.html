@@ -1,24 +1,25 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Maelist - Secure Entry</title>
+    <title>Maelist - Login</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #121212; color: white; }
-        .box { background: #1e1e1e; padding: 30px; border-radius: 12px; width: 320px; text-align: center; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #333; background: #2c2c2c; color: white; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #075e54; border: none; color: white; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f0f2f5; }
+        .login-card { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px; }
+        .btn-login { background: #075e54; color: white; }
+        .btn-reg { background: #25d366; color: white; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h2>Maelist Vault</h2>
-        <input type="email" id="email" placeholder="E-Mail">
-        <input type="password" id="pass" placeholder="Passwort">
+    <div class="login-card">
+        <h2>Maelist</h2>
         <input type="text" id="username" placeholder="Nutzername">
-        <button onclick="handleAuth('login')">Einloggen</button>
-        <button onclick="handleAuth('reg')" style="background: #25d366; margin-top: 8px;">Konto erstellen</button>
-        <p id="status"></p>
+        <input type="password" id="pass" placeholder="Passwort">
+        <button class="btn-login" onclick="authAction('login')">Login</button>
+        <button class="btn-reg" onclick="authAction('reg')">Registrieren</button>
+        <p id="status" style="color:red; font-size:12px;"></p>
     </div>
 
     <script type="module">
@@ -26,7 +27,7 @@
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-        const firebaseConfig = { 
+        const firebaseConfig = {
             apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
             authDomain: "maelist-chat.firebaseapp.com",
             databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
@@ -35,31 +36,30 @@
             messagingSenderId: "87392900284",
             appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
         };
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        window.handleAuth = async (type) => {
-            const email = document.getElementById("email").value;
+        window.authAction = async (type) => {
+            const user = document.getElementById("username").value.trim().toLowerCase();
             const pass = document.getElementById("pass").value;
-            const user = document.getElementById("username").value;
+            if(!user || !pass) return;
+            const fakeEmail = `${user}@local.fake`;
 
             try {
                 if (type === 'reg') {
-                    const res = await createUserWithEmailAndPassword(auth, email, pass);
+                    const res = await createUserWithEmailAndPassword(auth, fakeEmail, pass);
                     const salt = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
-                    
-                    // Wir generieren einen Public Key für andere Nutzer
-                    // (Echte deterministische EC-Keys benötigen oft Libs, hier vereinfachtes Prinzip)
                     const keyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey"]);
                     const pubExport = await crypto.subtle.exportKey("spki", keyPair.publicKey);
 
                     await set(ref(db, `users/${res.user.uid}`), { username: user });
                     await set(ref(db, `security/salts/${res.user.uid}`), salt);
                     await set(ref(db, `security/publicKeys/${res.user.uid}`), btoa(String.fromCharCode(...new Uint8Array(pubExport))));
-                    alert("Account erstellt!");
+                    alert("Konto erstellt!");
                 } else {
-                    await signInWithEmailAndPassword(auth, email, pass);
+                    await signInWithEmailAndPassword(auth, fakeEmail, pass);
                     sessionStorage.setItem("vault_pass", pass);
                     window.location.href = "chat.html";
                 }
