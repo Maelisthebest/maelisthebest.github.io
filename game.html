@@ -48,6 +48,9 @@
         <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
         <button class="btn btn-danger" onclick="guessEnemyWord()">Wort erraten!</button>
     </div>
+    <div id="debug-bar" style="background: #333; color: #0f0; font-family: monospace; font-size: 12px; padding: 5px 10px; position: sticky; top: 0; z-index: 9999; text-align: left; border-bottom: 2px solid #0f0;">
+    DEBUG-MODE: <span id="debug-user">Warte auf Auth...</span> | ID: <span id="debug-id">---</span>
+    </div>
 </div>
 
 <script type="module">
@@ -81,12 +84,37 @@
         ["Zelt", "Wohnwagen"], ["Bibliothek", "Buchhandlung"]
     ];
 
-    onAuthStateChanged(auth, async (user) => {
-        if (!user) return window.location.href = "index.html";
+onAuthStateChanged(auth, async (user) => {
+    const userDisplay = document.getElementById("debug-user");
+    const idDisplay = document.getElementById("debug-id");
+
+    if (user) {
         myUid = user.uid;
-        const snap = await get(ref(db, `users/${myUid}/username`));
-        myName = snap.val() || "Unbekannt";
-    });
+        
+        // Name aus DB holen
+        const nameSnap = await get(ref(db, `users/${myUid}/username`));
+        myName = nameSnap.val() || "Unbekannt";
+
+        // DEBUG-ANZEIGE FÜLLEN
+        userDisplay.innerText = "Eingeloggt als: " + myName;
+        userDisplay.style.color = "#0f0";
+        idDisplay.innerText = myUid.substring(0, 8) + "..."; // Nur der Anfang der ID zur Übersicht
+
+        console.log("✅ Authentifiziert als:", myName, "UID:", myUid);
+        
+        document.getElementById("setup-section").classList.add("active");
+    } else {
+        userDisplay.innerText = "NICHT EINGELOGGT";
+        userDisplay.style.color = "#f00";
+        
+        // Timeout wie besprochen, falls der Login hakt
+        setTimeout(() => {
+            if (!auth.currentUser) {
+                window.location.href = "index.html";
+            }
+        }, 2000);
+    }
+});
 
     window.createLobby = async () => {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
