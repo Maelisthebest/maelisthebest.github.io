@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maelist - Mystery Word Game</title>
+    <style>
+        :root { --primary: #3498db; --danger: #e74c3c; --success: #2ecc71; --dark: #2c3e50; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f7f6; display: flex; justify-content: center; padding: 20px; color: var(--dark); }
+        .container { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .section { display: none; }
+        .active { display: block; }
+        input { width: 90%; padding: 12px; margin: 10px 0; border: 2px solid #eee; border-radius: 10px; font-size: 18px; text-align: center; text-transform: uppercase; }
+        .btn { padding: 12px 20px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.2s; margin: 5px; width: 100%; max-width: 180px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-ghost { background: #eee; color: var(--dark); }
+        #word-box { background: #e8f4fd; border: 2px dashed var(--primary); padding: 20px; font-size: 24px; margin: 20px 0; border-radius: 12px; font-weight: bold; }
+        .player-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #f0f0f0; }
+        .out { opacity: 0.4; background: #fafafa; }
+        .status-msg { margin: 15px 0; padding: 10px; border-radius: 8px; background: #fff3cd; color: #856404; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 id="room-title">🕵️ Mystery Word</h2>
+
+    <div id="setup-section" class="section active">
+        <button class="btn btn-primary" onclick="createLobby()">Lobby Erstellen</button>
+        <p style="margin: 15px 0; color: #999;">— ODER —</p>
+        <input type="text" id="join-code" placeholder="Code eingeben" maxlength="6">
+        <button class="btn btn-success" onclick="joinLobby()">Beitreten</button>
+    </div>
+
+    <div id="lobby-section" class="section">
+        <h3 id="display-code" style="letter-spacing: 2px; color: var(--primary);">CODE: ------</h3>
+        <div id="lobby-list" style="text-align: left; margin: 20px 0;"></div>
+        <button id="start-btn" class="btn btn-success" style="display:none;" onclick="startGame()">Spiel Starten</button>
+        <p style="font-size: 12px; color: #666;">Warte auf mindestens 3 Spieler...</p>
+    </div>
+
+    <div id="game-section" class="section">
+        <div id="word-box">Dein Ort: <br><span id="my-word" style="color:var(--primary)">...</span></div>
+        <div id="game-status" class="status-msg">Das Spiel beginnt!</div>
+        <div id="player-game-list" style="text-align: left;"></div>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        <button class="btn btn-danger" onclick="guessEnemyWord()">Wort erraten!</button>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // --- DEINE CONFIG HIER EINTRAGEN ---
+    const firebaseConfig = {
+        apiKey: "DEIN_API_KEY",
+        authDomain: "DEIN_PROJEKT.firebaseapp.com",
+        databaseURL: "https://DEIN_PROJEKT.firebaseio.com",
+        projectId: "DEIN_PROJEKT",
+        storageBucket: "DEIN_PROJEKT.appspot.com",
+        messagingSenderId: "...",
+        appId: "..."
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let myUid, myName, currentRoom = null, isHost = false, myRole = "";
+
+    const wortPaare = [
+        ["Paris", "London"], ["Wald", "Dschungel"], ["Schule", "Universität"],
+        ["Küche", "Badezimmer"], ["Zoo", "Bauernhof"], ["Kino", "Theater"],
+        ["Flugzeug", "Zug"], ["Supermarkt", "Bäckerei"], ["Strand", "Schwimmbad"],
+        ["Fitnessstudio", "Sportplatz"], ["Arztpraxis", "Krankenhaus"], ["Mond", "Mars"],
+        ["Wüste", "Nordpol"], ["Pizzeria", "Dönerladen"], ["Büro", "Homeoffice"],
+        ["Garten", "Park"], ["Baustelle", "Werkstatt"], ["Garage", "Keller"],
+        ["Zelt", "Wohnwagen"], ["Bibliothek", "Buchhandlung"]
+    ];
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) return window.location.href = "index.html";
+        myUid = user.uid;
+        const snap = await get(ref(db, `users/${myUid}/username`));
+        myName = snap.val() || "Unbekannt";
+    });
+
+    window.createLobby = async () => {
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        currentRoom = code;
+        isHost = true;
+        await set(ref(db, `rooms/${code}`), {
+            host: myUid, status: "waiting",
+            players: { [myUid]: { name: myName, isOut: false } }
+        });
+        document.getElementById("display-code").innerText = "CODE: " + code;
+        document.getElementById("start-btn").style.display = "inline-block";
+        showSection("lobby-section");
+        listenToRoom(code);
+    };
+
+    window.joinLobby = async () => {
+        const code = document.getElementById("join-code").value.toUpperCase();
+        if (code.length < 4) return;
+        const snap = await get(ref(db, `rooms/${code}`));
+        if (!snap.exists()) return alert("Lobby nicht gefunden!");
+        currentRoom = code;
+        await update(ref(db, `rooms/${code}/players/${myUid}`), { name: myName, isOut: false });
+        document.getElementById("display-code").innerText = "CODE: " + code;
+        showSection("lobby-section");
+        listenToRoom(code);
+    };
+
+    function listenToRoom(code) {
+        onValue(ref(db, `rooms/${code}`), (snap) => {
+            const data = snap.val();
+            if (!data) return;
+
+            if (data.status === "playing") showSection("game-section");
+            
+            // Lobby-Liste
+            document.getElementById("lobby-list").innerHTML = Object.values(data.players)
+                .map(p => `<div style="padding:5px">👤 ${p.name}</div>`).join("");
+
+            // Spiel-Liste
+            const me = data.players[myUid];
+            if (me && me.word) {
+                document.getElementById("my-word").innerText = me.word;
+                myRole = me.role;
+            }
+            renderGameList(data.players, data.turn);
+            if (data.statusMessage) document.getElementById("game-status").innerText = data.statusMessage;
+        });
+    }
+
+    function renderGameList(players, turn) {
+        const list = document.getElementById("player-game-list");
+        list.innerHTML = "";
+        for (let id in players) {
+            const p = players[id];
+            const div = document.createElement("div");
+            div.className = `player-item ${p.isOut ? 'out' : ''}`;
+            div.innerHTML = `
+                <span>${p.name} ${id === turn ? "⭐" : ""}</span>
+                <div>
+                    ${(!p.isOut && id !== myUid) ? `
+                        <button class="btn-ghost" onclick="ask('${id}')">Frage</button>
+                        <button class="btn-ghost" style="color:red" onclick="accuse('${id}')">Vote</button>
+                    ` : ""}
+                </div>
+            `;
+            list.appendChild(div);
+        }
+    }
+
+   window.startGame = async () => {
+    const snap = await get(ref(db, `rooms/${currentRoom}/players`));
+    const players = snap.val();
+    const ids = Object.keys(players);
+
+    // PRÜFUNG: Mindestens 5 Spieler
+    if (ids.length < 5) {
+        return alert("Ihr braucht mindestens 5 Spieler, um zu starten! Aktuell: " + ids.length);
+    }
+
+    // Zufälliges Wortpaar aus der Liste oben wählen
+    const paar = wortPaare[Math.floor(Math.random() * wortPaare.length)];
+    const majWord = paar[0]; // Mehrheitswort (z.B. Paris)
+    const minWord = paar[1]; // Minderheitswort (z.B. London)
+    
+    // Spielerliste zufällig mischen
+    const shuffled = ids.sort(() => 0.5 - Math.random());
+
+    // BERECHNUNG DER MINDERHEIT:
+    // Bei 5-6 Spielern -> 2 Minderheit
+    // Bei 7-9 Spielern -> 3 Minderheit
+    const minCount = (ids.length >= 7) ? 3 : 2;
+
+    const updates = {};
+    shuffled.forEach((id, i) => {
+        const isMin = i < minCount; // Die ersten X in der gemischten Liste sind Minderheit
+        updates[`rooms/${currentRoom}/players/${id}/word`] = isMin ? minWord : majWord;
+        updates[`rooms/${currentRoom}/players/${id}/role`] = isMin ? "minority" : "majority";
+        updates[`rooms/${currentRoom}/players/${id}/isOut`] = false; // Sicherstellen, dass alle aktiv sind
+    });
+    
+    // Spielstatus in Firebase aktualisieren
+    updates[`rooms/${currentRoom}/status`] = "playing";
+    updates[`rooms/${currentRoom}/words`] = { majority: majWord, minority: minWord };
+    updates[`rooms/${currentRoom}/turn`] = shuffled[shuffled.length - 1]; // Letzter in der Liste fängt an
+    updates[`rooms/${currentRoom}/statusMessage`] = "Spiel gestartet! Wer ist die Minderheit?";
+    
+    await update(ref(db), updates);
+};
+
+    window.ask = (tid) => {
+        const q = prompt("Deine Frage:");
+        if (q) update(ref(db, `rooms/${currentRoom}`), { statusMessage: `${myName} fragt: ${q}`, turn: tid });
+    };
+
+    window.accuse = (tid) => {
+        if (confirm("Abstimmung starten? Wenn die Mehrheit JA sagt, fliegt der Spieler raus.")) {
+            if (confirm("Wurde die Person rausgevotet?")) {
+                update(ref(db, `rooms/${currentRoom}/players/${tid}`), { isOut: true });
+            }
+        }
+    };
+
+    window.guessEnemyWord = async () => {
+        const guess = prompt("Welches Wort haben die Gegner?");
+        if (!guess) return;
+
+        const snap = await get(ref(db, `rooms/${currentRoom}/words`));
+        const words = snap.val();
+        const target = (myRole === "majority") ? words.minority : words.majority;
+
+        if (guess.toLowerCase() === target.toLowerCase()) {
+            alert("Korrekt! Die MINDERHEIT hat gewonnen!");
+            update(ref(db, `rooms/${currentRoom}`), { statusMessage: "Minderheit hat gewonnen!", status: "ended" });
+        } else {
+            alert("Falsch! Du bist raus.");
+            update(ref(db, `rooms/${currentRoom}/players/${myUid}`), { isOut: true });
+        }
+    };
+
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+</script>
+</body>
+</html>
