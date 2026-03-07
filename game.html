@@ -160,27 +160,41 @@
             if (data.statusMessage) document.getElementById("game-status").innerText = data.statusMessage;
         });
     }
+function renderGameList(players, turn, responder) {
+    const list = document.getElementById("player-game-list");
+    list.innerHTML = "";
+    
+    // WICHTIG: Prüfen, ob ich am Zug bin UND gerade niemand antworten muss
+    const isMyTurn = (turn === myUid && (!responder || responder === ""));
 
-    function renderGameList(players, turn, responder) {
-        const list = document.getElementById("player-game-list");
-        list.innerHTML = "";
-        const isMyTurn = (turn === myUid && responder === "");
+    for (let id in players) {
+        const p = players[id];
+        if (p.hasLeft) continue;
 
-        for (let id in players) {
-            const p = players[id];
-            if (p.hasLeft) continue;
-            const div = document.createElement("div");
-            div.className = `player-item ${p.isOut ? 'out' : ''} ${id === turn ? 'my-turn' : ''} ${id === responder ? 'is-responding' : ''}`;
-            
-            let buttons = "";
-            if (!p.isOut && isMyTurn && id !== myUid) {
-                buttons = `<button class="btn-ghost" onclick="ask('${id}')">Frage</button>
-                           <button class="btn-ghost" style="color:red" onclick="accuse('${id}')">Vote</button>`;
-            }
-            div.innerHTML = `<span>${p.name} ${id === turn ? "⭐" : ""} ${id === responder ? "💬" : ""}</span><div>${buttons}</div>`;
-            list.appendChild(div);
+        const div = document.createElement("div");
+        // CSS Klassen setzen
+        div.className = "player-item";
+        if (p.isOut) div.classList.add("out");
+        if (id === turn) div.classList.add("my-turn");
+        if (id === responder) div.classList.add("is-responding");
+        
+        let buttons = "";
+        // Buttons nur zeigen, wenn: 
+        // 1. Ich am Zug bin 2. Der Zielspieler nicht ich selbst ist 3. Der Zielspieler noch im Spiel ist
+        if (isMyTurn && id !== myUid && !p.isOut) {
+            buttons = `
+                <button class="btn-ghost" onclick="ask('${id}')">Frage</button>
+                <button class="btn-ghost" style="color:var(--danger)" onclick="accuse('${id}')">Vote</button>
+            `;
         }
+
+        div.innerHTML = `
+            <span>${p.name} ${id === turn ? "⭐" : ""} ${id === responder ? "💬" : ""}</span>
+            <div>${buttons}</div>
+        `;
+        list.appendChild(div);
     }
+}
 
     window.startGame = async () => {
         const snap = await get(ref(db, `rooms/${currentRoom}/players`));
@@ -196,10 +210,9 @@
             updates[`rooms/${currentRoom}/players/${id}/isOut`] = false;
         });
         updates[`rooms/${currentRoom}/status`] = "playing";
-        updates[`rooms/${currentRoom}/words`] = { majority: paar[0], minority: paar[1] };
         updates[`rooms/${currentRoom}/turn`] = shuffled[0];
-        updates[`rooms/${currentRoom}/responder`] = "";
-        updates[`rooms/${currentRoom}/statusMessage`] = "Spiel gestartet!";
+        updates[`rooms/${currentRoom}/responder`] = ""; // Sicherstellen, dass es kein undefined ist
+        updates[`rooms/${currentRoom}/statusMessage`] = "Das Spiel beginnt!";
         await update(ref(db), updates);
     };
 
