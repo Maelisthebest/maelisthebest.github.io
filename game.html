@@ -20,12 +20,9 @@
         #word-box { background: #e8f4fd; border: 2px dashed var(--primary); padding: 20px; font-size: 22px; margin: 20px 0; border-radius: 12px; font-weight: bold; }
         .player-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; }
         .my-turn { background: #fff9e6; border-left: 5px solid #f1c40f; font-weight: bold; }
-        .is-responding { background: #e3f2fd; border-left: 5px solid #3498db; }
         .out { opacity: 0.4; background: #fafafa; text-decoration: line-through; }
         .status-msg { margin: 15px 0; padding: 12px; border-radius: 8px; background: #fff3cd; color: #856404; font-size: 14px; font-weight: 600; border: 1px solid #ffeeba; }
-        .vote-card { background: #fff; border: 2px solid var(--primary); padding: 15px; border-radius: 12px; margin: 10px 0; }
-        .vote-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ccc; margin: 2px; }
-        .vote-dot.done { background: var(--success); }
+        .vote-card { background: #fff; border: 2px solid var(--primary); padding: 15px; border-radius: 12px; margin: 10px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
         table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 13px; }
         th, td { padding: 8px; border: 1px solid #eee; text-align: left; }
     </style>
@@ -53,7 +50,6 @@
     <div id="game-section" class="section">
         <div id="game-content">
             <div id="word-box">Dein Ort: <br><span id="my-word" style="color:var(--primary)">? ? ?</span></div>
-            
             <div id="game-status" class="status-msg">Warte auf Zug...</div>
             
             <div id="vote-area" style="display:none;"></div>
@@ -71,7 +67,6 @@
         
         <div id="dead-screen" style="display:none; padding: 20px;">
             <h2 style="color: var(--danger);">Du bist raus!</h2>
-            <p>Schau den anderen beim Chatten zu.</p>
             <button class="btn btn-primary" onclick="exitToMain()">Hauptmenü</button>
         </div>
 
@@ -185,22 +180,27 @@
         area.style.display = "block";
         const hasVoted = v.votes && v.votes[myUid];
         const isTarget = v.target === myUid;
-        const progress = Object.keys(v.votes || {}).length;
-
-        let dots = "";
-        for(let i=0; i<v.votersNeeded; i++) dots += `<span class="vote-dot ${i < progress ? 'done' : ''}"></span>`;
+        
+        // Liste derer anzeigen, die schon gevotet haben
+        let voteList = "";
+        if (v.votes) {
+            voteList = Object.keys(v.votes).map(id => {
+                const choice = v.votes[id] === 'yes' ? '✅' : '❌';
+                return `<span>${data.players[id].name} ${choice}</span>`;
+            }).join(" | ");
+        }
 
         if (isTarget) {
-            area.innerHTML = `<div class="vote-card"><b>Du wirst angeklagt!</b><br>Die anderen stimmen gerade ab...<br>${dots}</div>`;
+            area.innerHTML = `<div class="vote-card"><b>Du wirst angeklagt!</b><br>Die anderen stimmen gerade ab...<br><div style="font-size:11px; margin-top:5px;">${voteList}</div></div>`;
         } else if (hasVoted) {
-            area.innerHTML = `<div class="vote-card">Deine Stimme wurde gezählt.<br>Warte auf den Rest...<br>${dots}</div>`;
+            area.innerHTML = `<div class="vote-card">Deine Stimme abgegeben.<br>Warte auf andere...<br><div style="font-size:11px; margin-top:5px;">${voteList}</div></div>`;
         } else {
             area.innerHTML = `
                 <div class="vote-card">
                     <p>Soll <b>${v.targetName}</b> eliminiert werden?</p>
                     <button class="btn btn-success" onclick="castVote('yes')">JA</button>
                     <button class="btn btn-danger" onclick="castVote('no')">NEIN</button>
-                    <br>${dots}
+                    <div style="font-size:11px; margin-top:5px;">Bereits gevotet: ${voteList}</div>
                 </div>`;
         }
     }
@@ -208,13 +208,13 @@
     function renderGameList(players, turn, responder, vote) {
         const list = document.getElementById("player-game-list");
         list.innerHTML = "";
-        const isMyTurn = (turn === myUid && !responder && (!vote || !vote.active));
+        const isMyTurn = (turn === myUid && (!responder || responder === "") && (!vote || !vote.active));
 
         for (let id in players) {
             const p = players[id];
             if (p.hasLeft) continue;
             const div = document.createElement("div");
-            div.className = `player-item ${p.isOut ? 'out' : ''} ${id === turn ? 'my-turn' : ''} ${id === responder ? 'is-responding' : ''}`;
+            div.className = `player-item ${p.isOut ? 'out' : ''} ${id === turn ? 'my-turn' : ''}`;
             
             let buttons = "";
             if (!p.isOut && isMyTurn && id !== myUid) {
@@ -268,7 +268,7 @@
             responder: "" 
         });
         document.getElementById("answer-input").value = "";
-        moveToNextTurn();
+        await moveToNextTurn();
     };
 
     window.accuse = async (tid) => {
@@ -286,50 +286,60 @@
     };
 
     window.castVote = async (choice) => {
-        const voteRef = ref(db, `rooms/${currentRoom}/currentVote`);
         await update(ref(db, `rooms/${currentRoom}/currentVote/votes`), { [myUid]: choice });
         
-        const snap = await get(voteRef);
-        const v = snap.val();
-        const votes = Object.entries(v.votes || {});
+        const snap = await get(ref(db, `rooms/${currentRoom}`));
+        const data = snap.val();
+        const v = data.currentVote;
+        const votesCount = Object.keys(v.votes || {}).length;
         
-        if (votes.length >= v.votersNeeded) {
-            const yesCount = votes.filter(e => e[1] === 'yes').length;
+        if (votesCount >= v.votersNeeded) {
+            const yesCount = Object.values(v.votes).filter(val => val === 'yes').length;
             const success = yesCount > (v.votersNeeded / 2);
-            let detail = votes.map(e => (snap.val().votes[e[0]] === 'yes' ? '✅' : '❌') + " " + data_get_name(e[0], snap.val())).join(", ");
 
             if (success) {
                 await update(ref(db, `rooms/${currentRoom}/players/${v.target}`), { isOut: true });
-                await update(ref(db, `rooms/${currentRoom}/statusMessage`), `${v.targetName} rausgewählt! (Ja: ${yesCount}/${v.votersNeeded})`);
+                await update(ref(db, `rooms/${currentRoom}/statusMessage`), `${v.targetName} wurde eliminiert.`);
             } else {
                 await update(ref(db, `rooms/${currentRoom}/statusMessage`), `Anklage gegen ${v.targetName} gescheitert.`);
             }
             await update(ref(db, `rooms/${currentRoom}/currentVote`), { active: false });
-            moveToNextTurn();
+            await moveToNextTurn();
         }
     };
 
     async function moveToNextTurn() {
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
-        const activeIds = Object.keys(data.players).filter(id => !data.players[id].isOut);
-        const nextId = activeIds[(activeIds.indexOf(data.turn) + 1) % activeIds.length];
-        await update(ref(db, `rooms/${currentRoom}/turn`), nextId);
+        if (!data || !data.players) return;
+
+        // Alphabetisch sortieren für konsistente Reihenfolge
+        const activeIds = Object.keys(data.players)
+            .filter(id => !data.players[id].isOut && !data.players[id].hasLeft)
+            .sort();
+
+        const currentIdx = activeIds.indexOf(data.turn);
+        const nextId = activeIds[(currentIdx + 1) % activeIds.length];
+
+        await update(ref(db, `rooms/${currentRoom}`), { 
+            turn: nextId, 
+            responder: "" 
+        });
         checkGameOver(data.players);
     }
 
     window.guessEnemyWord = async () => {
-        const g = prompt("Gegnerisches Wort?");
+        const g = prompt("Was ist das gegnerische Wort?");
         if (!g) return;
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
         const target = (myRole === "majority") ? data.words.minority : data.words.majority;
         if (g.toLowerCase() === target.toLowerCase()) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `${myName} hat das Wort "${target}" erraten! Sieg!` });
+            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `${myName} hat gewonnen! Wort war: ${target}` });
         } else {
-            alert("Falsch!");
+            alert("Falsch! Du bist raus.");
             await update(ref(db, `rooms/${currentRoom}/players/${myUid}/isOut`), true);
-            moveToNextTurn();
+            await moveToNextTurn();
         }
     };
 
@@ -337,8 +347,8 @@
         const active = Object.values(players).filter(p => !p.isOut);
         const maj = active.filter(p => p.role === "majority").length;
         const min = active.filter(p => p.role === "minority").length;
-        if (min === 0) await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Mehrheit gewinnt!" });
-        else if (maj <= min) await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Minderheit gewinnt!" });
+        if (min === 0) await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Die Mehrheit hat gewonnen!" });
+        else if (maj <= min) await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Die Minderheit hat gewonnen!" });
     }
 
     window.exitToMain = async () => {
@@ -360,7 +370,7 @@
             const p = data.players[id];
             html += `<tr style="background:${p.role==='minority'?'#fee':'#efe'}"><td>${p.name}</td><td>${p.role}</td><td>${p.word}</td></tr>`;
         }
-        html += `</table><button class="btn btn-danger" onclick="closeRoom()" style="margin-top:20px">Lobby löschen</button>`;
+        html += `</table><button class="btn btn-danger" onclick="closeRoom()" style="margin-top:20px">Lobby löschen & Hauptmenü</button>`;
         end.innerHTML = html;
     }
 
