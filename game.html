@@ -54,13 +54,18 @@
             <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
             <button class="btn btn-danger" onclick="guessEnemyWord()" style="width:100%; max-width:none;">Wort erraten!</button>
         </div>
+        <div id="dead-screen" style="display:none; padding: 20px;">
+            <h2 style="color: var(--danger);">Du bist raus!</h2>
+            <p>Die anderen spielen noch zu Ende...</p>
+            <button class="btn btn-primary" onclick="exitToMain()">Neue Lobby / Hauptmenü</button>
+        </div>
         <div id="end-screen" style="display:none;"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, set, get, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -102,7 +107,8 @@
         const snap = await get(ref(db, 'rooms'));
         const rooms = snap.val();
         for (let code in rooms) {
-            if (rooms[code].status !== "ended" && rooms[code].players?.[myUid]) {
+            // Re-Join nur, wenn Spiel läuft UND ich nicht manuell verlassen habe
+            if (rooms[code].status !== "ended" && rooms[code].players?.[myUid] && !rooms[code].players[myUid].hasLeft) {
                 currentRoom = code;
                 isHost = (rooms[code].host === myUid);
                 enterRoom(code);
@@ -116,7 +122,7 @@
         currentRoom = code; isHost = true;
         await set(ref(db, `rooms/${code}`), {
             host: myUid, status: "waiting",
-            players: { [myUid]: { name: myName, isOut: false, role: "none" } }
+            players: { [myUid]: { name: myName, isOut: false, role: "none", hasLeft: false } }
         });
         enterRoom(code);
     };
@@ -126,7 +132,7 @@
         const snap = await get(ref(db, `rooms/${code}`));
         if (!snap.exists()) return alert("Lobby existiert nicht!");
         currentRoom = code;
-        await update(ref(db, `rooms/${code}/players/${myUid}`), { name: myName, isOut: false, role: "none" });
+        await update(ref(db, `rooms/${code}/players/${myUid}`), { name: myName, isOut: false, role: "none", hasLeft: false });
         enterRoom(code);
     };
 
@@ -136,9 +142,17 @@
         onValue(ref(db, `rooms/${code}`), (snap) => {
             const data = snap.val();
             if (!data) return;
+
             if (data.status === "playing") {
                 showSection("game-section");
-                document.getElementById("game-content").style.display = "block";
+                const me = data.players[myUid];
+                if (me && me.isOut) {
+                    document.getElementById("game-content").style.display = "none";
+                    document.getElementById("dead-screen").style.display = "block";
+                } else {
+                    document.getElementById("game-content").style.display = "block";
+                    document.getElementById("dead-screen").style.display = "none";
+                }
                 document.getElementById("end-screen").style.display = "none";
             } else if (data.status === "waiting") {
                 showSection("lobby-section");
@@ -163,6 +177,7 @@
         const isMyTurn = (turn === myUid);
         for (let id in players) {
             const p = players[id];
+            if (p.hasLeft) continue;
             const div = document.createElement("div");
             div.className = `player-item ${p.isOut ? 'out' : ''} ${id === turn ? 'my-turn' : ''}`;
             let buttons = "";
@@ -217,9 +232,6 @@
     window.accuse = async (tid) => {
         if (confirm("Wurde " + tid + " mit Mehrheit rausgewählt?")) {
             await update(ref(db, `rooms/${currentRoom}/players/${tid}/isOut`), true);
-            await update(ref(db, `rooms/${currentRoom}/statusMessage`), tid + " wurde rausgewählt.");
-        } else {
-            await update(ref(db, `rooms/${currentRoom}/statusMessage`), "Anklage gegen " + tid + " abgelehnt.");
         }
         await moveToNextTurn();
     };
@@ -244,14 +256,27 @@
         const majRemaining = active.filter(p => p.role === "majority").length;
         const minRemaining = active.filter(p => p.role === "minority").length;
         if (minRemaining === 0) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Mehrheit gewinnt! Alle Minderheiten raus." });
+            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Mehrheit gewinnt!" });
         } else if (majRemaining <= minRemaining) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Minderheit gewinnt! Mehrheit ist in der Unterzahl." });
+            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Minderheit gewinnt!" });
         }
     }
 
+    window.exitToMain = async () => {
+        // Nur als verlassen markieren, damit man nicht per Re-Join reinkommt
+        await update(ref(db, `rooms/${currentRoom}/players/${myUid}`), { hasLeft: true });
+        location.reload();
+    };
+
+    window.closeRoom = async () => {
+        // Raum komplett löschen
+        await remove(ref(db, `rooms/${currentRoom}`));
+        location.reload();
+    };
+
     function showEndScreen(data) {
         document.getElementById("game-content").style.display = "none";
+        document.getElementById("dead-screen").style.display = "none";
         const end = document.getElementById("end-screen");
         end.style.display = "block";
         let html = `<h3>Spiel Beendet</h3><p>${data.statusMessage}</p><table><tr><th>Name</th><th>Rolle</th><th>Wort</th></tr>`;
@@ -259,7 +284,9 @@
             const p = data.players[id];
             html += `<tr style="background:${p.role==='minority'?'#fee':'#efe'}"><td>${p.name}</td><td>${p.role}</td><td>${p.word}</td></tr>`;
         }
-        html += `</table><button class="btn btn-primary" onclick="location.reload()" style="margin-top:20px">Menü</button>`;
+        html += `</table>`;
+        // Nur der Host kann den Raum für alle löschen, oder wir machen einen "Beenden" Button für jeden
+        html += `<button class="btn btn-danger" onclick="closeRoom()" style="margin-top:20px">Raum löschen & Menü</button>`;
         end.innerHTML = html;
     }
 
