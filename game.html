@@ -285,28 +285,47 @@
         });
     };
 
-    window.castVote = async (choice) => {
-        await update(ref(db, `rooms/${currentRoom}/currentVote/votes`), { [myUid]: choice });
-        
-        const snap = await get(ref(db, `rooms/${currentRoom}`));
-        const data = snap.val();
-        const v = data.currentVote;
-        const votesCount = Object.keys(v.votes || {}).length;
-        
-        if (votesCount >= v.votersNeeded) {
-            const yesCount = Object.values(v.votes).filter(val => val === 'yes').length;
-            const success = yesCount > (v.votersNeeded / 2);
+window.castVote = async (choice) => {
+    const voteRef = ref(db, `rooms/${currentRoom}/currentVote`);
+    
+    // 1. Stimme speichern und warten, bis Firebase bestätigt (await)
+    await update(ref(db, `rooms/${currentRoom}/currentVote/votes`), { [myUid]: choice });
+    
+    // 2. Jetzt die FRISCHEN Daten vom Server holen
+    const roomSnap = await get(ref(db, `rooms/${currentRoom}`));
+    const data = roomSnap.val();
+    const v = data.currentVote;
+    
+    if (!v || !v.active) return;
 
-            if (success) {
-                await update(ref(db, `rooms/${currentRoom}/players/${v.target}`), { isOut: true });
-                await update(ref(db, `rooms/${currentRoom}/statusMessage`), `${v.targetName} wurde eliminiert.`);
-            } else {
-                await update(ref(db, `rooms/${currentRoom}/statusMessage`), `Anklage gegen ${v.targetName} gescheitert.`);
-            }
-            await update(ref(db, `rooms/${currentRoom}/currentVote`), { active: false });
-            await moveToNextTurn();
+    const votesReceived = Object.keys(v.votes || {}).length;
+
+    // 3. Prüfen, ob wir alle Stimmen haben
+    if (votesReceived >= v.votersNeeded) {
+        const yesCount = Object.values(v.votes).filter(val => val === 'yes').length;
+        const success = yesCount > (v.votersNeeded / 2);
+
+        // Ergebnis-Nachricht vorbereiten
+        let finalMsg = success ? 
+            `${v.targetName} wurde mit ${yesCount} Stimmen eliminiert!` : 
+            `Anklage gegen ${v.targetName} abgelehnt (${yesCount} Ja-Stimmen).`;
+
+        // 4. Updates gesammelt an die DB senden
+        const finalUpdates = {};
+        if (success) {
+            finalUpdates[`rooms/${currentRoom}/players/${v.target}/isOut`] = true;
         }
-    };
+        finalUpdates[`rooms/${currentRoom}/currentVote/active`] = false;
+        finalUpdates[`rooms/${currentRoom}/statusMessage`] = finalMsg;
+        
+        await update(ref(db), finalUpdates);
+
+        // 5. Wichtig: Den Zug erst weiterschalten, wenn der Vote deaktiviert ist
+        setTimeout(async () => {
+            await moveToNextTurn();
+        }, 500); 
+    }
+};
 
     async function moveToNextTurn() {
         const snap = await get(ref(db, `rooms/${currentRoom}`));
