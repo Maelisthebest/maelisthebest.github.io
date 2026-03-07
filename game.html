@@ -16,10 +16,11 @@
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-danger { background: var(--danger); color: white; }
-        .btn-ghost { background: #eee; color: var(--dark); padding: 5px 10px; font-size: 13px; width: auto; border-radius: 5px; }
+        .btn-ghost { background: #eee; color: var(--dark); padding: 5px 10px; font-size: 13px; width: auto; border-radius: 5px; border: 1px solid #ccc; }
         #word-box { background: #e8f4fd; border: 2px dashed var(--primary); padding: 20px; font-size: 22px; margin: 20px 0; border-radius: 12px; font-weight: bold; }
         .player-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; }
         .my-turn { background: #fff9e6; border-left: 5px solid #f1c40f; font-weight: bold; }
+        .is-responding { background: #e3f2fd; border-left: 5px solid #3498db; }
         .out { opacity: 0.4; background: #fafafa; text-decoration: line-through; }
         .status-msg { margin: 15px 0; padding: 12px; border-radius: 8px; background: #fff3cd; color: #856404; font-size: 14px; font-weight: 600; }
         table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 14px; }
@@ -49,15 +50,21 @@
     <div id="game-section" class="section">
         <div id="game-content">
             <div id="word-box">Dein Ort: <br><span id="my-word" style="color:var(--primary)">? ? ?</span></div>
-            <div id="game-status" class="status-msg">Warte auf Beginn...</div>
+            <div id="game-status" class="status-msg">Warte...</div>
+            
+            <div id="answer-area" style="display:none; margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 10px;">
+                <p><b>Du wurdest gefragt!</b></p>
+                <input type="text" id="answer-input" placeholder="Deine Antwort...">
+                <button class="btn btn-primary" onclick="sendAnswer()">Antwort senden</button>
+            </div>
+
             <div id="player-game-list" style="text-align: left;"></div>
             <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
             <button class="btn btn-danger" onclick="guessEnemyWord()" style="width:100%; max-width:none;">Wort erraten!</button>
         </div>
         <div id="dead-screen" style="display:none; padding: 20px;">
             <h2 style="color: var(--danger);">Du bist raus!</h2>
-            <p>Die anderen spielen noch zu Ende...</p>
-            <button class="btn btn-primary" onclick="exitToMain()">Neue Lobby / Hauptmenü</button>
+            <button class="btn btn-primary" onclick="exitToMain()">Hauptmenü</button>
         </div>
         <div id="end-screen" style="display:none;"></div>
     </div>
@@ -84,17 +91,12 @@
 
     let myUid, myName, currentRoom = null, isHost = false, myRole = "";
 
-    const wortPaare = [
-        ["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Bauernhof"], 
-        ["Flugzeug", "Zug"], ["Mond", "Mars"], ["Wüste", "Nordpol"], ["Garten", "Park"]
-    ];
-
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             myUid = user.uid;
             const nameSnap = await get(ref(db, `users/${myUid}/username`));
             myName = nameSnap.val() || "Unbekannt";
-            document.getElementById("debug-status").innerText = "Eingeloggt";
+            document.getElementById("debug-status").innerText = "Verbunden";
             document.getElementById("debug-user").innerText = myName;
             showSection("setup-section");
             checkRunningGames();
@@ -107,12 +109,9 @@
         const snap = await get(ref(db, 'rooms'));
         const rooms = snap.val();
         for (let code in rooms) {
-            // Re-Join nur, wenn Spiel läuft UND ich nicht manuell verlassen habe
             if (rooms[code].status !== "ended" && rooms[code].players?.[myUid] && !rooms[code].players[myUid].hasLeft) {
-                currentRoom = code;
-                isHost = (rooms[code].host === myUid);
-                enterRoom(code);
-                break;
+                currentRoom = code; isHost = (rooms[code].host === myUid);
+                enterRoom(code); break;
             }
         }
     }
@@ -121,7 +120,7 @@
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         currentRoom = code; isHost = true;
         await set(ref(db, `rooms/${code}`), {
-            host: myUid, status: "waiting",
+            host: myUid, status: "waiting", turn: myUid, responder: "",
             players: { [myUid]: { name: myName, isOut: false, role: "none", hasLeft: false } }
         });
         enterRoom(code);
@@ -130,7 +129,7 @@
     window.joinLobby = async () => {
         const code = document.getElementById("join-code").value.trim().toUpperCase();
         const snap = await get(ref(db, `rooms/${code}`));
-        if (!snap.exists()) return alert("Lobby existiert nicht!");
+        if (!snap.exists()) return alert("Lobby nicht gefunden!");
         currentRoom = code;
         await update(ref(db, `rooms/${code}/players/${myUid}`), { name: myName, isOut: false, role: "none", hasLeft: false });
         enterRoom(code);
@@ -146,46 +145,39 @@
             if (data.status === "playing") {
                 showSection("game-section");
                 const me = data.players[myUid];
-                if (me && me.isOut) {
-                    document.getElementById("game-content").style.display = "none";
-                    document.getElementById("dead-screen").style.display = "block";
-                } else {
-                    document.getElementById("game-content").style.display = "block";
-                    document.getElementById("dead-screen").style.display = "none";
-                }
-                document.getElementById("end-screen").style.display = "none";
-            } else if (data.status === "waiting") {
-                showSection("lobby-section");
-            } else if (data.status === "ended") {
-                showSection("game-section");
-                showEndScreen(data);
-                return;
-            }
+                document.getElementById("game-content").style.display = (me && me.isOut) ? "none" : "block";
+                document.getElementById("dead-screen").style.display = (me && me.isOut) ? "block" : "none";
+                document.getElementById("answer-area").style.display = (data.responder === myUid) ? "block" : "none";
+            } else if (data.status === "waiting") showSection("lobby-section");
+            else if (data.status === "ended") { showSection("game-section"); showEndScreen(data); return; }
+
             document.getElementById("lobby-list").innerHTML = Object.values(data.players).map(p => `<div>• ${p.name}</div>`).join("");
             if (data.players[myUid]?.word) {
                 document.getElementById("my-word").innerText = data.players[myUid].word;
                 myRole = data.players[myUid].role;
             }
-            renderGameList(data.players, data.turn);
+            renderGameList(data.players, data.turn, data.responder);
             if (data.statusMessage) document.getElementById("game-status").innerText = data.statusMessage;
         });
     }
 
-    function renderGameList(players, turn) {
+    function renderGameList(players, turn, responder) {
         const list = document.getElementById("player-game-list");
         list.innerHTML = "";
-        const isMyTurn = (turn === myUid);
+        const isMyTurn = (turn === myUid && responder === "");
+
         for (let id in players) {
             const p = players[id];
             if (p.hasLeft) continue;
             const div = document.createElement("div");
-            div.className = `player-item ${p.isOut ? 'out' : ''} ${id === turn ? 'my-turn' : ''}`;
+            div.className = `player-item ${p.isOut ? 'out' : ''} ${id === turn ? 'my-turn' : ''} ${id === responder ? 'is-responding' : ''}`;
+            
             let buttons = "";
             if (!p.isOut && isMyTurn && id !== myUid) {
                 buttons = `<button class="btn-ghost" onclick="ask('${id}')">Frage</button>
                            <button class="btn-ghost" style="color:red" onclick="accuse('${id}')">Vote</button>`;
             }
-            div.innerHTML = `<span>${p.name} ${id === turn ? "⭐" : ""}</span><div>${buttons}</div>`;
+            div.innerHTML = `<span>${p.name} ${id === turn ? "⭐" : ""} ${id === responder ? "💬" : ""}</span><div>${buttons}</div>`;
             list.appendChild(div);
         }
     }
@@ -193,59 +185,76 @@
     window.startGame = async () => {
         const snap = await get(ref(db, `rooms/${currentRoom}/players`));
         const ids = Object.keys(snap.val());
-        if (ids.length < 5) return alert("Mind. 5 Spieler nötig!");
-        const paar = wortPaare[Math.floor(Math.random() * wortPaare.length)];
+        if (ids.length < 5) return alert("Mind. 5 Spieler!");
+        const paar = ["Paris", "London"]; // Beispielpaar
         const shuffled = ids.sort(() => 0.5 - Math.random());
         const minCount = (ids.length >= 7) ? 3 : 2;
         const updates = {};
         shuffled.forEach((id, i) => {
-            const isMin = i < minCount;
-            updates[`rooms/${currentRoom}/players/${id}/word`] = isMin ? paar[1] : paar[0];
-            updates[`rooms/${currentRoom}/players/${id}/role`] = isMin ? "minority" : "majority";
+            updates[`rooms/${currentRoom}/players/${id}/word`] = i < minCount ? paar[1] : paar[0];
+            updates[`rooms/${currentRoom}/players/${id}/role`] = i < minCount ? "minority" : "majority";
             updates[`rooms/${currentRoom}/players/${id}/isOut`] = false;
         });
         updates[`rooms/${currentRoom}/status`] = "playing";
         updates[`rooms/${currentRoom}/words`] = { majority: paar[0], minority: paar[1] };
         updates[`rooms/${currentRoom}/turn`] = shuffled[0];
-        updates[`rooms/${currentRoom}/statusMessage`] = "Das Spiel beginnt!";
+        updates[`rooms/${currentRoom}/responder`] = "";
+        updates[`rooms/${currentRoom}/statusMessage`] = "Spiel gestartet!";
         await update(ref(db), updates);
     };
-
-    async function moveToNextTurn() {
-        const snap = await get(ref(db, `rooms/${currentRoom}/players`));
-        const players = snap.val();
-        const activeIds = Object.keys(players).filter(id => !players[id].isOut);
-        const currentIndex = activeIds.indexOf(myUid);
-        const nextId = activeIds[(currentIndex + 1) % activeIds.length];
-        await update(ref(db, `rooms/${currentRoom}/turn`), nextId);
-        checkGameOver(players);
-    }
 
     window.ask = async (tid) => {
         const q = prompt("Deine Frage an " + tid + ":");
         if (q) {
-            await update(ref(db, `rooms/${currentRoom}`), { statusMessage: `${myName} fragt: ${q}` });
-            await moveToNextTurn();
+            await update(ref(db, `rooms/${currentRoom}`), { 
+                statusMessage: `${myName} fragt: ${q}`,
+                responder: tid // Sperrt den Zug bis zur Antwort
+            });
         }
     };
 
+    window.sendAnswer = async () => {
+        const ans = document.getElementById("answer-input").value;
+        if (!ans) return;
+        await update(ref(db, `rooms/${currentRoom}`), { 
+            statusMessage: `${myName} antwortet: ${ans}`,
+            responder: "" // Gibt den Zug wieder frei
+        });
+        document.getElementById("answer-input").value = "";
+        await moveToNextTurn();
+    };
+
     window.accuse = async (tid) => {
-        if (confirm("Wurde " + tid + " mit Mehrheit rausgewählt?")) {
+        const snap = await get(ref(db, `rooms/${currentRoom}/players/${tid}/name`));
+        const targetName = snap.val();
+        await update(ref(db, `rooms/${currentRoom}`), { 
+            statusMessage: `ANKLAGE gegen ${targetName}! Alle befragen ihn/sie jetzt.`
+        });
+        if (confirm("Wurde " + targetName + " rausgewählt?")) {
             await update(ref(db, `rooms/${currentRoom}/players/${tid}/isOut`), true);
         }
         await moveToNextTurn();
     };
 
+    async function moveToNextTurn() {
+        const snap = await get(ref(db, `rooms/${currentRoom}`));
+        const data = snap.val();
+        const activeIds = Object.keys(data.players).filter(id => !data.players[id].isOut);
+        const currentIndex = activeIds.indexOf(data.turn);
+        const nextId = activeIds[(currentIndex + 1) % activeIds.length];
+        await update(ref(db, `rooms/${currentRoom}/turn`), nextId);
+        checkGameOver(data.players);
+    }
+
     window.guessEnemyWord = async () => {
-        const guess = prompt("Was ist das Wort der Gegner?");
+        const guess = prompt("Gegnerisches Wort?");
         if (!guess) return;
-        const snap = await get(ref(db, `rooms/${currentRoom}/words`));
-        const words = snap.val();
+        const words = (await get(ref(db, `rooms/${currentRoom}/words`))).val();
         const target = (myRole === "majority") ? words.minority : words.majority;
         if (guess.toLowerCase() === target.toLowerCase()) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `${myName} hat das Wort erraten! Sieg!` });
+            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `${myName} hat gewonnen!` });
         } else {
-            alert("Falsch! Du bist raus.");
+            alert("Falsch!");
             await update(ref(db, `rooms/${currentRoom}/players/${myUid}/isOut`), true);
             await moveToNextTurn();
         }
@@ -253,23 +262,18 @@
 
     async function checkGameOver(players) {
         const active = Object.values(players).filter(p => !p.isOut);
-        const majRemaining = active.filter(p => p.role === "majority").length;
-        const minRemaining = active.filter(p => p.role === "minority").length;
-        if (minRemaining === 0) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Mehrheit gewinnt!" });
-        } else if (majRemaining <= minRemaining) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Minderheit gewinnt!" });
-        }
+        const maj = active.filter(p => p.role === "majority").length;
+        const min = active.filter(p => p.role === "minority").length;
+        if (min === 0) await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Mehrheit gewinnt!" });
+        else if (maj <= min) await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: "Minderheit gewinnt!" });
     }
 
     window.exitToMain = async () => {
-        // Nur als verlassen markieren, damit man nicht per Re-Join reinkommt
         await update(ref(db, `rooms/${currentRoom}/players/${myUid}`), { hasLeft: true });
         location.reload();
     };
 
     window.closeRoom = async () => {
-        // Raum komplett löschen
         await remove(ref(db, `rooms/${currentRoom}`));
         location.reload();
     };
@@ -279,14 +283,12 @@
         document.getElementById("dead-screen").style.display = "none";
         const end = document.getElementById("end-screen");
         end.style.display = "block";
-        let html = `<h3>Spiel Beendet</h3><p>${data.statusMessage}</p><table><tr><th>Name</th><th>Rolle</th><th>Wort</th></tr>`;
+        let html = `<h3>Ergebnis</h3><p>${data.statusMessage}</p><table><tr><th>Name</th><th>Rolle</th><th>Wort</th></tr>`;
         for(let id in data.players) {
             const p = data.players[id];
             html += `<tr style="background:${p.role==='minority'?'#fee':'#efe'}"><td>${p.name}</td><td>${p.role}</td><td>${p.word}</td></tr>`;
         }
-        html += `</table>`;
-        // Nur der Host kann den Raum für alle löschen, oder wir machen einen "Beenden" Button für jeden
-        html += `<button class="btn btn-danger" onclick="closeRoom()" style="margin-top:20px">Raum löschen & Menü</button>`;
+        html += `</table><button class="btn btn-danger" onclick="closeRoom()" style="margin-top:20px">Raum löschen & Menü</button>`;
         end.innerHTML = html;
     }
 
