@@ -279,7 +279,6 @@
             finalUpdates[`rooms/${currentRoom}/currentVote/active`] = false;
             await update(ref(db), finalUpdates);
             
-            // Erst prüfen, ob Spiel vorbei ist, dann Zug weiter
             const finalSnap = await get(ref(db, `rooms/${currentRoom}`));
             if (!checkGameOver(finalSnap.val().players)) {
                 await moveToNextTurn();
@@ -304,9 +303,14 @@
         if (!g) return;
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
-        const target = (myRole === "majority") ? data.words.minority : data.words.majority;
-        if (g.toLowerCase() === target.toLowerCase()) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `${myName} hat gewonnen! Wort: ${target}` });
+        const enemyRole = (myRole === "majority") ? "minority" : "majority";
+        const targetWord = (myRole === "majority") ? data.words.minority : data.words.majority;
+
+        if (g.toLowerCase() === targetWord.toLowerCase()) {
+            const winMsg = (myRole === "majority") ? 
+                "SIEG DER MEHRHEIT! Das Wort wurde erraten!" : 
+                "SIEG DER MINDERHEIT! Das Wort wurde erraten!";
+            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: winMsg });
         } else {
             alert("Falsch! Du bist raus.");
             await update(ref(db, `rooms/${currentRoom}/players/${myUid}/isOut`), true);
@@ -316,6 +320,7 @@
     };
 
     function checkGameOver(players) {
+        if (!players) return false;
         const active = Object.values(players).filter(p => !p.isOut);
         const maj = active.filter(p => p.role === "majority").length;
         const min = active.filter(p => p.role === "minority").length;
@@ -326,9 +331,7 @@
         if (min === 0) {
             ended = true; msg = "Sieg der Mehrheit! Alle Spione wurden enttarnt.";
         } else if (maj === 0) {
-            ended = true; msg = "Sieg der Minderheit! Die Mehrheit wurde komplett eliminiert.";
-        } else if (maj <= 1 && min >= 1) { // Balance-Check: Wenn nur noch 1 Mehrheit vs Minderheit
-            ended = true; msg = "Sieg der Minderheit! Die Mehrheit ist zu schwach.";
+            ended = true; msg = "Sieg der Minderheit! Die Bürger wurden komplett eliminiert.";
         }
 
         if (ended) {
