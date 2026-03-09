@@ -87,7 +87,7 @@
                 } else {
                     await signInWithEmailAndPassword(auth, fakeEmail, localHash);
                     sessionStorage.setItem("vault_pass", pass); // Echtes PW für Chat.html
-                    window.location.href = "game.html";
+                    window.location.href = "ueberleitung.html";
                 }
             } catch (e) { document.getElementById("status").innerText = e.message; }
         }
