@@ -22,7 +22,7 @@
         .my-turn { background: #fff9e6; border-left: 5px solid #f1c40f; font-weight: bold; }
         .out { opacity: 0.4; background: #fafafa; text-decoration: line-through; }
         .status-msg { margin: 15px 0; padding: 12px; border-radius: 8px; background: #fff3cd; color: #856404; font-size: 14px; font-weight: 600; border: 1px solid #ffeeba; }
-        .vote-card { background: #fff; border: 2px solid var(--primary); padding: 15px; border-radius: 12px; margin: 10px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .vote-card { background: #fff; border: 2px solid var(--primary); padding: 15px; border-radius: 12px; margin: 10px 0; box-shadow: 0 4px 10px rgba(0,0,0,0.05); text-align: left; }
         table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 13px; }
         th, td { padding: 8px; border: 1px solid #eee; text-align: left; }
     </style>
@@ -172,18 +172,24 @@
         const v = data.currentVote;
         if (!v || !v.active) { area.style.display = "none"; return; }
         area.style.display = "block";
+        
         const hasVoted = v.votes && v.votes[myUid];
         const isTarget = v.target === myUid;
+        
         let voteList = "";
         if (v.votes) {
-            voteList = Object.keys(v.votes).map(id => `<span>${data.players[id].name} ✅</span>`).join(" | ");
+            voteList = Object.keys(v.votes).map(id => {
+                const choice = v.votes[id] === 'yes' ? '<span style="color:var(--success)">✅ JA</span>' : '<span style="color:var(--danger)">❌ NEIN</span>';
+                return `<div style="font-size:13px; margin-bottom:4px;"><b>${data.players[id].name}:</b> ${choice}</div>`;
+            }).join("");
         }
+
         if (isTarget) {
-            area.innerHTML = `<div class="vote-card"><b>Du wirst angeklagt!</b><br>Warte auf die Stimmen...<br><div style="font-size:11px; margin-top:5px;">${voteList}</div></div>`;
+            area.innerHTML = `<div class="vote-card"><b style="color:var(--danger)">ANKLAGE GEGEN DICH!</b><div style="margin-top:10px;">${voteList || "Warte auf Stimmen..."}</div></div>`;
         } else if (hasVoted) {
-            area.innerHTML = `<div class="vote-card">Stimme abgegeben.<br>Warte auf den Rest...<br><div style="font-size:11px; margin-top:5px;">${voteList}</div></div>`;
+            area.innerHTML = `<div class="vote-card"><b>Deine Stimme ist gezählt.</b><div style="margin-top:10px;">${voteList}</div></div>`;
         } else {
-            area.innerHTML = `<div class="vote-card"><p>Soll <b>${v.targetName}</b> eliminiert werden?</p><button class="btn btn-success" onclick="castVote('yes')">JA</button><button class="btn btn-danger" onclick="castVote('no')">NEIN</button><div style="font-size:11px; margin-top:5px;">Bereits gevotet: ${voteList}</div></div>`;
+            area.innerHTML = `<div class="vote-card"><p>Soll <b>${v.targetName}</b> eliminiert werden?</p><div style="display:flex; gap:10px;"><button class="btn btn-success" onclick="castVote('yes')">JA</button><button class="btn btn-danger" onclick="castVote('no')">NEIN</button></div><div style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">${voteList}</div></div>`;
         }
     }
 
@@ -223,28 +229,21 @@
         updates[`rooms/${currentRoom}/status`] = "playing";
         updates[`rooms/${currentRoom}/words`] = { majority: paar[0], minority: paar[1] };
         updates[`rooms/${currentRoom}/turn`] = shuffled[0];
-        updates[`rooms/${currentRoom}/responder`] = "";
-        updates[`rooms/${currentRoom}/statusMessage`] = "Das Spiel beginnt!";
+        updates[`rooms/${currentRoom}/statusMessage`] = "Spiel gestartet!";
         await update(ref(db), updates);
     };
 
     window.ask = async (tid) => {
         const q = prompt("Stelle deine Frage:");
         if (q) {
-            await update(ref(db, `rooms/${currentRoom}`), { 
-                statusMessage: `${myName} fragt: ${q}`,
-                responder: tid 
-            });
+            await update(ref(db, `rooms/${currentRoom}`), { statusMessage: `${myName} fragt: ${q}`, responder: tid });
         }
     };
 
     window.sendAnswer = async () => {
         const val = document.getElementById("answer-input").value.trim();
         if (!val) return;
-        await update(ref(db, `rooms/${currentRoom}`), { 
-            statusMessage: `${myName} antwortet: ${val}`,
-            responder: "" 
-        });
+        await update(ref(db, `rooms/${currentRoom}`), { statusMessage: `${myName} antwortet: ${val}`, responder: "" });
         document.getElementById("answer-input").value = "";
         await moveToNextTurn();
     };
@@ -272,17 +271,20 @@
             const finalUpdates = {};
             if (success) {
                 finalUpdates[`rooms/${currentRoom}/players/${v.target}/isOut`] = true;
-                finalUpdates[`rooms/${currentRoom}/statusMessage`] = `${v.targetName} wurde eliminiert!`;
+                finalUpdates[`rooms/${currentRoom}/statusMessage`] = `${v.targetName} eliminiert (${yesCount} JA-Stimmen)!`;
             } else {
                 finalUpdates[`rooms/${currentRoom}/statusMessage`] = `Anklage gegen ${v.targetName} abgelehnt.`;
             }
             finalUpdates[`rooms/${currentRoom}/currentVote/active`] = false;
             await update(ref(db), finalUpdates);
             
-            const finalSnap = await get(ref(db, `rooms/${currentRoom}`));
-            if (!checkGameOver(finalSnap.val().players)) {
-                await moveToNextTurn();
-            }
+            // Warte 3 Sekunden, damit man das Wahlergebnis sieht
+            setTimeout(async () => {
+                const finalSnap = await get(ref(db, `rooms/${currentRoom}`));
+                if (!checkGameOver(finalSnap.val().players)) {
+                    await moveToNextTurn();
+                }
+            }, 3000);
         }
     };
 
@@ -290,29 +292,24 @@
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
         if (!data || data.status === "ended") return;
-        const activeIds = Object.keys(data.players)
-            .filter(id => !data.players[id].isOut && !data.players[id].hasLeft)
-            .sort();
+        const activeIds = Object.keys(data.players).filter(id => !data.players[id].isOut && !data.players[id].hasLeft).sort();
         const currentIdx = activeIds.indexOf(data.turn);
         const nextId = activeIds[(currentIdx + 1) % activeIds.length];
         await update(ref(db, `rooms/${currentRoom}`), { turn: nextId, responder: "" });
     }
 
     window.guessEnemyWord = async () => {
-        const g = prompt("Gegnerisches Wort?");
+        const g = prompt("Wie lautet das Wort?");
         if (!g) return;
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
-        const enemyRole = (myRole === "majority") ? "minority" : "majority";
-        const targetWord = (myRole === "majority") ? data.words.minority : data.words.majority;
-
-        if (g.toLowerCase() === targetWord.toLowerCase()) {
-            const winMsg = (myRole === "majority") ? 
-                "SIEG DER MEHRHEIT! Das Wort wurde erraten!" : 
-                "SIEG DER MINDERHEIT! Das Wort wurde erraten!";
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: winMsg });
+        const guess = g.toLowerCase();
+        
+        // REGEL: Wenn IRGENDEIN Wort erraten wird, gewinnt die MINDERHEIT.
+        if (guess === data.words.majority.toLowerCase() || guess === data.words.minority.toLowerCase()) {
+            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `SIEG DER MINDERHEIT! Wort "${g}" wurde erraten!` });
         } else {
-            alert("Falsch! Du bist raus.");
+            alert("Falsch! Du bist eliminiert.");
             await update(ref(db, `rooms/${currentRoom}/players/${myUid}/isOut`), true);
             const finalSnap = await get(ref(db, `rooms/${currentRoom}`));
             if(!checkGameOver(finalSnap.val().players)) await moveToNextTurn();
@@ -321,7 +318,7 @@
 
     function checkGameOver(players) {
         if (!players) return false;
-        const active = Object.values(players).filter(p => !p.isOut);
+        const active = Object.values(players).filter(p => !p.isOut && !p.hasLeft);
         const maj = active.filter(p => p.role === "majority").length;
         const min = active.filter(p => p.role === "minority").length;
         
