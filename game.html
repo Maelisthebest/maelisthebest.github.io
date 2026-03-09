@@ -347,45 +347,54 @@
         const nextId = activeIds[(currentIdx + 1) % activeIds.length];
         await update(ref(db, `rooms/${currentRoom}`), { turn: nextId, responder: "" });
     }
-    
+        
     window.guessEnemyWord = async () => {
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
         
-        // Falls das Spiel schon vorbei ist oder man schon raus ist
         if (!data || data.status === "ended") return;
     
+        // Korrekte Rollen- und Wortzuweisung
+        const myRole = data.players[myUid].role; // minority oder majority
+        const myOwnWord = data.players[myUid].word.toLowerCase();
+        
         const wordMaj = data.words.majority.toLowerCase();
         const wordMin = data.words.minority.toLowerCase();
+    
+        // Das Zielwort ist immer das Wort der ANDEREN Gruppe
+        const targetWord = (myRole === 'majority') ? wordMin : wordMaj;
     
         let correct = false;
         let attempts = 0;
     
-        // Wir machen 3 Durchläufe
         for (attempts = 1; attempts <= 3; attempts++) {
-            let g = prompt(`VERSUCH ${attempts} von 3:\nWie lautet das Wort? (Abbrechen = Ausscheiden)`);
+            let g = prompt(`VERSUCH ${attempts} von 3:\nWie lautet das gegnerische Wort? (Abbrechen = Ausscheiden)`);
     
-            // FALL A: User klickt "Abbrechen"
             if (g === null) break; 
     
             let guess = g.trim().toLowerCase();
             if (guess === "") {
-                attempts--; // Leere Eingabe zählt nicht als Versuch
+                attempts--; 
                 continue;
             }
     
-            // FALL B: Wort ist richtig (Egal ob Mehrheit oder Minderheit -> Minderheit gewinnt)
-            if (guess === wordMaj || guess === wordMin) {
+            // VERHINDERT: Eigenes Wort eingeben um zu gewinnen
+            if (guess === myOwnWord) {
+                alert("Das ist dein eigenes Wort! Du musst das Wort der GEGNER raten.");
+                attempts--; 
+                continue;
+            }
+    
+            // PRÜFUNG: Nur das gegnerische Zielwort führt zum Sieg
+            if (guess === targetWord) {
                 correct = true;
                 await update(ref(db, `rooms/${currentRoom}`), { 
                     status: "ended", 
-                    statusMessage: `SIEG DER MINDERHEIT! ${myName} hat das Wort "${g}" erraten!` 
+                    statusMessage: `SIEG! ${myName} hat das gegnerische Wort "${g}" erraten!` 
                 });
-                return; // Beendet die Funktion sofort
+                return; 
             } 
     
-            // FALL C: Wort ist falsch
-            // Wir schicken das Update an alle, damit sie sehen, was geraten wurde
             await update(ref(db, `rooms/${currentRoom}`), { 
                 statusMessage: `❌ ${myName} rät falsch: "${g}" (${attempts}/3)` 
             });
@@ -395,25 +404,21 @@
             }
         }
     
-        // Wenn wir hier ankommen, war entweder alles falsch oder es wurde abgebrochen
         if (!correct) {
             alert("Du hast es nicht erraten oder abgebrochen. Du bist nun eliminiert.");
             
-            // Spieler rauswerfen
             const updates = {};
             updates[`rooms/${currentRoom}/players/${myUid}/isOut`] = true;
             updates[`rooms/${currentRoom}/statusMessage`] = `💀 ${myName} ist beim Raten gescheitert und raus!`;
             
             await update(ref(db), updates);
     
-            // Prüfen ob Spiel vorbei, sonst Zug weitergeben
             const finalSnap = await get(ref(db, `rooms/${currentRoom}`));
             if (!checkGameOver(finalSnap.val().players)) {
                 await moveToNextTurn();
             }
         }
     };
-        
     function checkGameOver(players) {
         if (!players) return false;
         const active = Object.values(players).filter(p => !p.isOut && !p.hasLeft);
