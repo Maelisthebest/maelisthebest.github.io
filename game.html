@@ -299,23 +299,61 @@
     }
 
     window.guessEnemyWord = async () => {
-        const g = prompt("Wie lautet das Wort?");
-        if (!g) return;
         const snap = await get(ref(db, `rooms/${currentRoom}`));
         const data = snap.val();
-        const guess = g.toLowerCase();
-        
-        // REGEL: Wenn IRGENDEIN Wort erraten wird, gewinnt die MINDERHEIT.
-        if (guess === data.words.majority.toLowerCase() || guess === data.words.minority.toLowerCase()) {
-            await update(ref(db, `rooms/${currentRoom}`), { status: "ended", statusMessage: `SIEG DER MINDERHEIT! Wort "${g}" wurde erraten!` });
-        } else {
-            alert("Falsch! Du bist eliminiert.");
-            await update(ref(db, `rooms/${currentRoom}/players/${myUid}/isOut`), true);
+        const wordMaj = data.words.majority.toLowerCase();
+        const wordMin = data.words.minority.toLowerCase();
+    
+        let attempts = 0;
+        let correct = false;
+        let lastGuess = "";
+    
+        // Loop für die 3 Versuche direkt hintereinander
+        while (attempts < 3 && !correct) {
+            const g = prompt(`${myName}, Versuch ${attempts + 1} von 3:\nWie lautet das Wort?`);
+            
+            if (!g) break; // Abbrechen, falls der User auf "Abbrechen" drückt
+            
+            attempts++;
+            lastGuess = g.toLowerCase();
+    
+            // Überprüfung der Regel
+            if (lastGuess === wordMaj || lastGuess === wordMin) {
+                correct = true;
+                await update(ref(db, `rooms/${currentRoom}`), { 
+                    status: "ended", 
+                    statusMessage: `SIEG DER MINDERHEIT! ${myName} hat das Wort "${g}" im ${attempts}. Versuch erraten!` 
+                });
+                return; // Funktion beenden, da Spiel vorbei
+            } else {
+                // Falscher Versuch: Für alle sichtbar machen
+                await update(ref(db, `rooms/${currentRoom}/statusMessage`), 
+                    `${myName} rät falsch: "${g}" (Versuch ${attempts}/3)`);
+                
+                if (attempts < 3) {
+                    alert(`"${g}" ist falsch! Du hast noch ${3 - attempts} Versuch(e).`);
+                }
+            }
+        }
+    
+        // Wenn nach 3 Versuchen nicht korrekt geraten wurde:
+        if (!correct && attempts >= 3) {
+            alert("Alle 3 Versuche waren falsch! Du bist eliminiert.");
+            
+            const updates = {};
+            updates[`rooms/${currentRoom}/players/${myUid}/isOut`] = true;
+            updates[`rooms/${currentRoom}/statusMessage`] = `${myName} hat 3-mal falsch geraten und ist raus!`;
+            await update(ref(db), updates);
+            
             const finalSnap = await get(ref(db, `rooms/${currentRoom}`));
-            if(!checkGameOver(finalSnap.val().players)) await moveToNextTurn();
+            if (!checkGameOver(finalSnap.val().players)) {
+                await moveToNextTurn();
+            }
+        } else if (!correct && attempts > 0) {
+            // Falls der Spieler nach 1 oder 2 Versuchen abgebrochen hat:
+            await moveToNextTurn();
         }
     };
-
     function checkGameOver(players) {
         if (!players) return false;
         const active = Object.values(players).filter(p => !p.isOut && !p.hasLeft);
