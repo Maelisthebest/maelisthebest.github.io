@@ -216,7 +216,7 @@
         const snap = await get(ref(db, `rooms/${currentRoom}/players`));
         const ids = Object.keys(snap.val());
         if (ids.length < 5) return alert("Zu wenige Spieler (mind. 5)!");
-        const wortPaare = ["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Hof"], ["Auto", "LKW"],
+        const wortPaare = [["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Hof"], ["Auto", "LKW"],
     ["Hund", "Wolf"], ["Apfel", "Birne"], ["Sonne", "Mond"], ["Bett", "Sofa"], ["Schule", "Uni"],
     ["Meer", "See"], ["Flugzeug", "Hubschrauber"], ["Pizza", "Pasta"], ["Tee", "Kaffee"], ["PC", "Laptop"],
     ["Fußball", "Handball"], ["Arzt", "Pfleger"], ["Kino", "Theater"], ["Berg", "Hügel"], ["Brot", "Brötchen"],
@@ -235,7 +235,7 @@
     ["Handtuch", "Bademantel"], ["Decke", "Kissen"], ["Kerze", "Lampe"], ["Spiegel", "Bild"], ["Radio", "Fernseher"],
     ["Kühlschrank", "Gefriertruhe"], ["Ofen", "Mikrowelle"], ["Bügeleisen", "Nähmaschine"], ["Hammer", "Zange"], ["Nagel", "Schraube"],
     ["Papier", "Pappe"], ["Kleber", "Klebeband"], ["Schere", "Messer"], ["Wald", "Tanne"], ["Blume", "Strauch"],
-    ["Zitrone", "Limette"], ["Erdbeere", "Himbeere"], ["Zucker", "Honig"], ["Wein", "Bier"], ["Cola", "Fanta"]
+    ["Zitrone", "Limette"], ["Erdbeere", "Himbeere"], ["Zucker", "Honig"], ["Wein", "Bier"], ["Cola", "Fanta"]]
 ;
         const paar = wortPaare[Math.floor(Math.random() * wortPaare.length)];
         const shuffled = ids.sort(() => 0.5 - Math.random());
