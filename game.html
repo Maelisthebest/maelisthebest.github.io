@@ -216,8 +216,7 @@
         const snap = await get(ref(db, `rooms/${currentRoom}/players`));
         const ids = Object.keys(snap.val());
         if (ids.length < 5) return alert("Zu wenige Spieler (mind. 5)!");
-        const wortPaare = const wortPaare = 
-    ["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Hof"], ["Auto", "LKW"],
+        const wortPaare = const wortPaare = ["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Hof"], ["Auto", "LKW"],
     ["Hund", "Wolf"], ["Apfel", "Birne"], ["Sonne", "Mond"], ["Bett", "Sofa"], ["Schule", "Uni"],
     ["Meer", "See"], ["Flugzeug", "Hubschrauber"], ["Pizza", "Pasta"], ["Tee", "Kaffee"], ["PC", "Laptop"],
     ["Fußball", "Handball"], ["Arzt", "Pfleger"], ["Kino", "Theater"], ["Berg", "Hügel"], ["Brot", "Brötchen"],
