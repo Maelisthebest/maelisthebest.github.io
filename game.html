@@ -216,7 +216,28 @@
         const snap = await get(ref(db, `rooms/${currentRoom}/players`));
         const ids = Object.keys(snap.val());
         if (ids.length < 5) return alert("Zu wenige Spieler (mind. 5)!");
-        const wortPaare = [["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Hof"]];
+        const wortPaare = const wortPaare = [
+    ["Paris", "London"], ["Wald", "Dschungel"], ["Küche", "Bad"], ["Zoo", "Hof"], ["Auto", "LKW"],
+    ["Hund", "Wolf"], ["Apfel", "Birne"], ["Sonne", "Mond"], ["Bett", "Sofa"], ["Schule", "Uni"],
+    ["Meer", "See"], ["Flugzeug", "Hubschrauber"], ["Pizza", "Pasta"], ["Tee", "Kaffee"], ["PC", "Laptop"],
+    ["Fußball", "Handball"], ["Arzt", "Pfleger"], ["Kino", "Theater"], ["Berg", "Hügel"], ["Brot", "Brötchen"],
+    ["Schiff", "Boot"], ["Polizei", "Feuerwehr"], ["Gitarre", "Klavier"], ["Sommer", "Winter"], ["Wald", "Park"],
+    ["U-Bahn", "S-Bahn"], ["Tisch", "Stuhl"], ["Uhr", "Kompass"], ["Handy", "Tablet"], ["Hose", "Jeans"],
+    ["Jacke", "Mantel"], ["Schuhe", "Stiefel"], ["Fenster", "Tür"], ["Garten", "Balkon"], ["Fluss", "Bach"],
+    ["Brille", "Kontaktlinsen"], ["Kekse", "Kuchen"], ["Milch", "Sahne"], ["Salz", "Pfeffer"], ["Gabel", "Löffel"],
+    ["Teller", "Schüssel"], ["Topf", "Pfanne"], ["Besen", "Staubsauger"], ["Zeitung", "Magazin"], ["Stift", "Pinsel"],
+    ["Farbe", "Lack"], ["Hamster", "Meerschweinchen"], ["Pferd", "Esel"], ["Löwe", "Tiger"], ["Hai", "Wal"],
+    ["Adler", "Falke"], ["Biene", "Wespe"], ["Ameise", "Spinne"], ["Fahrrad", "Motorrad"], ["Zug", "Bus"],
+    ["Dorf", "Stadt"], ["Insel", "Halbinsel"], ["Wüste", "Steppe"], ["Eis", "Schnee"], ["Regen", "Hagel"],
+    ["Blitz", "Donner"], ["Wald", "Wiese"], ["Kirche", "Moschee"], ["Museum", "Galerie"], ["Hotel", "Pension"],
+    ["Strand", "Klippe"], ["Schwimmbad", "Sauna"], ["Fitnessstudio", "Turnhalle"], ["Supermarkt", "Kiosk"], ["Bäckerei", "Metzgerei"],
+    ["Bank", "Post"], ["Apotheke", "Drogerie"], ["Hut", "Mütze"], ["Hemd", "T-Shirt"], ["Socken", "Strümpfe"],
+    ["Koffer", "Rucksack"], ["Portemonnaie", "Tasche"], ["Ring", "Kette"], ["Seife", "Shampoo"], ["Zahnbürste", "Zahnpasta"],
+    ["Handtuch", "Bademantel"], ["Decke", "Kissen"], ["Kerze", "Lampe"], ["Spiegel", "Bild"], ["Radio", "Fernseher"],
+    ["Kühlschrank", "Gefriertruhe"], ["Ofen", "Mikrowelle"], ["Bügeleisen", "Nähmaschine"], ["Hammer", "Zange"], ["Nagel", "Schraube"],
+    ["Papier", "Pappe"], ["Kleber", "Klebeband"], ["Schere", "Messer"], ["Wald", "Tanne"], ["Blume", "Strauch"],
+    ["Zitrone", "Limette"], ["Erdbeere", "Himbeere"], ["Zucker", "Honig"], ["Wein", "Bier"], ["Cola", "Fanta"]
+];
         const paar = wortPaare[Math.floor(Math.random() * wortPaare.length)];
         const shuffled = ids.sort(() => 0.5 - Math.random());
         const minCount = (ids.length >= 7) ? 3 : 2;
