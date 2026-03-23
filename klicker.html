@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maelist - Klick-Ranking</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; text-align: center; padding: 20px; }
+        .card { background: white; max-width: 400px; margin: 0 auto; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        #click-btn { 
+            width: 150px; height: 150px; border-radius: 50%; border: none; 
+            background: #3498db; color: white; font-size: 24px; font-weight: bold; 
+            cursor: pointer; box-shadow: 0 6px #2980b9; transition: 0.1s; margin: 20px 0;
+        }
+        #click-btn:active { box-shadow: 0 2px #2980b9; transform: translateY(4px); }
+        .rank-list { text-align: left; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
+        .rank-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fafafa; }
+        .my-rank { font-weight: bold; color: #3498db; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Klick-Meisterschaft</h2>
+    <p>Deine Klicks: <span id="my-clicks">0</span></p>
+    
+    <button id="click-btn" onclick="addClick()">KLICK!</button>
+
+    <div class="rank-list">
+        <h3>Top-Liste</h3>
+        <div id="leaderboard">Lädt...</div>
+    </div>
+    
+    <br>
+    <button onclick="window.location.href='index.html'" style="background:none; border:none; color:#999; cursor:pointer;">Zurück zum Hauptspiel</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let myUid, myName, currentScore = 0;
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            myUid = user.uid;
+            // Username holen
+            const userSnap = await get(ref(db, `users/${myUid}/username`));
+            myName = userSnap.val() || "Unbekannt";
+
+            // Dein persönlicher Score-Listener
+            onValue(ref(db, `clickStats/${myUid}`), (snap) => {
+                const data = snap.val();
+                currentScore = data ? data.clicks : 0;
+                document.getElementById("my-clicks").innerText = currentScore;
+            });
+
+            // Leaderboard-Listener (alle Scores)
+            onValue(ref(db, `clickStats`), (snap) => {
+                const allData = snap.val();
+                if (!allData) return;
+                
+                // In Array umwandeln und sortieren
+                const sorted = Object.entries(allData)
+                    .map(([id, val]) => ({ id, name: val.name, clicks: val.clicks }))
+                    .sort((a, b) => b.clicks - a.clicks);
+
+                document.getElementById("leaderboard").innerHTML = sorted.map(item => `
+                    <div class="rank-item ${item.id === myUid ? 'my-rank' : ''}">
+                        <span>${item.name}</span>
+                        <span>${item.clicks}</span>
+                    </div>
+                `).join("");
+            });
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+
+    window.addClick = async () => {
+        if (!myUid) return;
+        currentScore++;
+        await update(ref(db, `clickStats/${myUid}`), {
+            name: myName,
+            clicks: currentScore
+        });
+    };
+</script>
+
+</body>
+</html>
