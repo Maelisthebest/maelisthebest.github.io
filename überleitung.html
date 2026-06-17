@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maelist - Zentrale</title>
     <style>
-        :root { --primary: #3498db; --success: #2ecc71; --warning: #f1c40f; --dark: #2c3e50; --bg: #f4f7f6; }
+        :root { --primary: #3498db; --success: #2ecc71; --warning: #f1c40f; --vokabel: #9b59b6; --dark: #2c3e50; --bg: #f4f7f6; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .hub-container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 400px; }
         h1 { color: var(--dark); margin-bottom: 30px; font-size: 24px; }
@@ -13,8 +13,9 @@
         
         .btn-game { background: var(--primary); box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
         .btn-chat { background: var(--success); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3); }
-        /* NEU: Button für das Klick-Spiel */
         .btn-click { background: var(--warning); color: #856404; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
+        /* NEU: Style für den Vokabel-Button */
+        .btn-vokabel { background: var(--vokabel); box-shadow: 0 4px 15px rgba(155, 89, 182, 0.3); }
         
         .choice-btn:hover { transform: translateY(-3px); opacity: 0.9; }
         .footer { margin-top: 20px; font-size: 12px; color: #999; }
@@ -28,6 +29,7 @@
     <a href="game.html" class="choice-btn btn-game">🎮 Zum Spiel (Game)</a>
     <a href="chat.html" class="choice-btn btn-chat">💬 Zum Chat</a>
     <a href="klicker.html" class="choice-btn btn-click">🏆 Klick-Meisterschaft</a>
+    <a href="vokabeln.html" class="choice-btn btn-vokabel">🇬🇷 Griechisch-Vokabelspiel</a>
 
     <div class="footer" id="user-display">Lade Nutzerdaten...</div>
 </div>
