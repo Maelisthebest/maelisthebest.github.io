@@ -35,6 +35,7 @@
 <div class="container">
     <h2>🇬🇷 Griechisch-Vokabelspiel</h2>
 
+    <!-- SEKTION 1: SETUP / LOBBY -->
     <div id="setup-section" class="section active">
         <button class="btn btn-primary" onclick="createRoom()">Raum Erstellen (Host)</button>
         <p>— ODER —</p>
@@ -42,6 +43,7 @@
         <button class="btn btn-success" onclick="joinRoom()">Als Spieler beitreten</button>
     </div>
 
+    <!-- SEKTION 2: LOBBY WARTEN -->
     <div id="lobby-section" class="section">
         <h3 id="display-code">CODE: ------</h3>
         <p>Warten auf 4 Spieler + 1 Host...</p>
@@ -50,6 +52,7 @@
         <button id="start-btn" class="btn btn-success" style="display:none;" onclick="startPreviewPhase()">Spiel starten</button>
     </div>
 
+    <!-- SEKTION 3: VOKABEL-PREVIEW (5 SEKUNDEN) -->
     <div id="preview-section" class="section">
         <h3>Lerne die Vokabeln!</h3>
         <div id="preview-timer" class="timer">5</div>
@@ -59,8 +62,9 @@
         </table>
     </div>
 
+    <!-- SEKTION 4: SPIELPHASE (FRAGEN) -->
     <div id="game-section" class="section">
-        <h3 id="round-title">Runde 1/6</h3>
+        <h3 id="round-title">Runde 1</h3>
         <div id="host-view" style="display:none;">
             <p class="status-msg">Du bist der Host. Verfolge das Spiel live!</p>
             <div id="host-status">Warte auf Antworten...</div>
@@ -71,6 +75,7 @@
         </div>
     </div>
 
+    <!-- SEKTION 5: RUNDEN-ERGEBNIS -->
     <div id="result-section" class="section">
         <h3>Rundenergebnis</h3>
         <div id="result-msg" class="status-msg"></div>
@@ -103,14 +108,14 @@
 
     let myUid, myName, currentRoom = null, isHost = false;
 
-    // 6 feste Testvokabeln für das Spiel
+    // Deine 6 Vokabeln mit den exakten neuen Übersetzungen
     const vokabeln = [
-        { gr: "λόγος (logos)", de: "Wort / Rede" },
-        { gr: "φίλος (philos)", de: "Freund" },
-        { gr: "χρόνος (chronos)", de: "Zeit" },
-        { gr: "βίος (bios)", de: "Leben" },
-        { gr: "νόμος (nomos)", de: "Gesetz" },
-        { gr: "ψυχή (psyche)", de: "Seele" }
+        { gr: "βοῦς (bous)", de: "Rind / Ochse" },
+        { gr: "πορεύομαι (poreuomai)", de: "wandern / reisen" },
+        { gr: "ὄνομα (onoma)", de: "Name / der Ruf" },
+        { gr: "θαυμάζω (taumazo)", de: "staunen / bewundern / sich wundern" },
+        { gr: "ἔθνος (etnos)", de: "Volk" },
+        { gr: "χάρις (charis)", de: "Schönheit / Gefälligkeit / Dank" }
     ];
 
     onAuthStateChanged(auth, async (user) => {
@@ -124,16 +129,22 @@
     });
 
     window.createRoom = async () => {
+        if (!myUid) return alert("Verbindung lädt noch...");
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         currentRoom = code; isHost = true;
+        
+        // Host zieht sofort die erste komplett zufällige Vokabel
+        const ersterZufallsIndex = Math.floor(Math.random() * vokabeln.length);
+        
         await set(ref(db, `vokabelRooms/${code}`), {
-            host: myUid, status: "waiting", round: 1,
+            host: myUid, status: "waiting", round: 1, currentVokIdx: ersterZufallsIndex,
             players: {}
         });
         enterRoom(code);
     };
 
     window.joinRoom = async () => {
+        if (!myUid) return alert("Verbindung lädt noch...");
         const code = document.getElementById("room-code").value.trim().toUpperCase();
         const snap = await get(ref(db, `vokabelRooms/${code}`));
         if (!snap.exists()) return alert("Raum nicht gefunden!");
@@ -154,29 +165,43 @@
             const data = snap.val();
             if (!data) return;
 
-            // Spielerliste in der Lobby aktualisieren
             const pArray = Object.values(data.players || {});
-            document.getElementById("player-list").innerHTML = pArray.map(p => `• ${p.name}`).join("<br>");
+            document.getElementById("player-list").innerHTML = pArray.map(p => `• ${p.name} (${p.score || 0} P)`).join("<br>");
 
             if (data.status === "preview") {
                 startLocalPreview();
             } else if (data.status === "playing") {
                 showSection("game-section");
-                document.getElementById("round-title").innerText = `Runde ${data.round} / 6`;
+                document.getElementById("round-title").innerText = `Runde ${data.round} (Ziel: 15 Punkte)`;
                 if (isHost) {
                     document.getElementById("host-view").style.display = "block";
+                    document.getElementById("player-view").style.display = "none";
                     checkAnswersAndEvaluate(data);
                 } else {
                     document.getElementById("player-view").style.display = "block";
-                    renderQuestion(data.round - 1);
+                    document.getElementById("host-view").style.display = "none";
+                    renderQuestion(data.currentVokIdx || 0);
                 }
             } else if (data.status === "result") {
                 showSection("result-section");
                 renderLeaderboard(data.players);
+                
+                const hatGewinner = Object.values(data.players).some(p => p.score >= 15);
+                
                 if (isHost) {
-                    document.getElementById("next-round-btn").style.display = "inline-block";
-                    document.getElementById("next-round-btn").innerText = data.round >= 6 ? "Spiel Beenden" : "Nächste Runde";
+                    const nextBtn = document.getElementById("next-round-btn");
+                    nextBtn.style.display = "inline-block";
+                    if (hatGewinner) {
+                        document.getElementById("result-msg").innerText = "🏆 EIN SPIELER HAT DIE 15 PUNKTE GEKNACKT! SPIEL VORBEI!";
+                        nextBtn.innerText = "Spiel Beenden";
+                    } else {
+                        document.getElementById("result-msg").innerText = "Niemand hat 15 Punkte. Weiter geht's!";
+                        nextBtn.innerText = "Nächste Runde";
+                    }
                 }
+            } else if (data.status === "ended") {
+                alert("Das Spiel wurde beendet.");
+                window.location.href = "überleitung.html";
             }
         });
     }
@@ -200,26 +225,36 @@
         await update(ref(db, `vokabelRooms/${currentRoom}`), { status: "preview" });
     };
 
-    function renderQuestion(vokabelIdx) {
+    // Mischt Optionen fest anhand des Vokabel-Index, damit sie bei JEDEM Spieler identisch bleiben
+    function getSeededOptions(vokabelIdx) {
         const currentVok = vokabeln[vokabelIdx];
+        const falscheOptionen = vokabeln.filter(v => v.de !== currentVok.de).map(v => v.de);
+        
+        let optionen = [currentVok.de, falscheOptionen[0], falscheOptionen[1], falscheOptionen[2]];
+        
+        // Berechenbare, feste Sortierung für die Runde
+        return optionen.sort((a, b) => (a.length + vokabelIdx) % 3 - (b.length + vokabelIdx) % 3);
+    }
+
+    function renderQuestion(activeVokIdx) {
+        const currentVok = vokabeln[activeVokIdx];
         document.getElementById("current-vokabel").innerText = currentVok.gr;
         
-        // Falsche Antworten mischen für Multiple Choice
-        const falscheOptionen = vokabeln.filter(v => v.de !== currentVok.de).map(v => v.de);
-        const optionen = [currentVok.de, falscheOptionen[0], falscheOptionen[1], falscheOptionen[2]].sort(() => 0.5 - Math.random());
+        const optionen = getSeededOptions(activeVokIdx);
 
         const container = document.getElementById("options-container");
         container.innerHTML = optionen.map(opt => `
-            <button class="option-btn" onclick="submitAnswer('${opt}', ${vokabelIdx})">${opt}</button>
+            <button class="option-btn" onclick="submitAnswer('${opt}', ${activeVokIdx})">${opt}</button>
         `).join("");
     }
 
     let startTime;
-    // Sobald die Frage angezeigt wird, startet die Zeitmessung
-    showSection = ((original) => (id) => {
+    // Zeitmessung startet exakt beim Wechsel in den Game-Screen
+    const originalShowSection = showSection;
+    showSection = (id) => {
         if(id === "game-section" && !isHost) startTime = Date.now();
-        original(id);
-    })(showSection);
+        originalShowSection(id);
+    };
 
     window.submitAnswer = async (chosen, idx) => {
         const timeTaken = Date.now() - startTime;
@@ -239,36 +274,31 @@
 
         document.getElementById("host-status").innerText = `Antworten: ${answered.length} / ${totalPlayers}`;
 
-        // Wenn alle Spieler geantwortet haben, wertet der Host aus
         if (answered.length === totalPlayers && totalPlayers > 0) {
             const updates = {};
             
-            // Richtige & Falsche sortiert nach Zeit
             const corrects = answered.filter(([id, p]) => p.answer === "correct").sort((a, b) => a[1].time - b[1].time);
             const wrongs = answered.filter(([id, p]) => p.answer === "wrong").sort((a, b) => a[1].time - b[1].time);
 
-            // Punkteberechnung laut Vorgabe
             answered.forEach(([id, p]) => {
                 let pointsChange = 0;
                 
                 if (p.answer === "correct") {
-                    // Schnellster mit richtiger Antwort bekommt 2 Punkte, alle anderen Richtigsteller 1 Punkt
                     if (corrects.length > 0 && id === corrects[0][0]) {
-                        pointsChange = 2;
+                        pointsChange = 2; // Schnellster Richtigsteller
                     } else {
-                        pointsChange = 1;
+                        pointsChange = 1; // Normal Richtigsteller
                     }
                 } else if (p.answer === "wrong") {
-                    // Langsamster mit falscher Antwort bekommt -2 Punkte, alle anderen Falschantworter -1 Punkt
                     if (wrongs.length > 0 && id === wrongs[wrongs.length - 1][0]) {
-                        pointsChange = -2;
+                        pointsChange = -2; // Langsamster Falschantworter
                     } else {
-                        pointsChange = -1;
+                        pointsChange = -1; // Normaler Falschantworter
                     }
                 }
                 
                 updates[`vokabelRooms/${currentRoom}/players/${id}/score`] = (p.score || 0) + pointsChange;
-                updates[`vokabelRooms/${currentRoom}/players/${id}/answer`] = ""; // Reset für nächste Runde
+                updates[`vokabelRooms/${currentRoom}/players/${id}/answer`] = ""; 
                 updates[`vokabelRooms/${currentRoom}/players/${id}/time`] = 0;
             });
 
@@ -285,14 +315,23 @@
     }
 
     window.nextRound = async () => {
-        const snap = await get(ref(db, `vokabelRooms/${currentRoom}/round`));
-        const r = snap.val();
-        if (r >= 6) {
+        const snap = await get(ref(db, `vokabelRooms/${currentRoom}`));
+        const data = snap.val();
+        
+        const hatGewinner = Object.values(data.players).some(p => p.score >= 15);
+        
+        if (hatGewinner) {
             await update(ref(db, `vokabelRooms/${currentRoom}`), { status: "ended" });
-            alert("Das Spiel ist beendet!");
             window.location.href = "überleitung.html";
         } else {
-            await update(ref(db, `vokabelRooms/${currentRoom}`), { round: r + 1, status: "playing" });
+            // Zieht für die neue Runde eine komplett neue, zufällige Vokabel
+            const neuerZufallsIndex = Math.floor(Math.random() * vokabeln.length);
+            
+            await update(ref(db, `vokabelRooms/${currentRoom}`), { 
+                round: data.round + 1, 
+                currentVokIdx: neuerZufallsIndex,
+                status: "playing" 
+            });
         }
     };
 
