@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maelist - Griechisch Vokabelspiel</title>
+    <style>
+        :root { --primary: #3498db; --success: #2ecc71; --danger: #e74c3c; --dark: #2c3e50; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; color: var(--dark); margin: 0; min-height: 100vh; }
+        
+        .container { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); max-width: 600px; width: 100%; text-align: center; margin-top: 20px; }
+        .section { display: none; }
+        .active { display: block; }
+        
+        .btn { padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: 0.2s; margin: 8px; width: 100%; max-width: 200px; font-size: 16px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        
+        table { width: 100%; margin: 15px 0; border-collapse: collapse; }
+        th, td { padding: 12px; border: 1px solid #eee; text-align: center; font-size: 16px; }
+        th { background: #f8f9fa; }
+
+        .timer { font-size: 32px; font-weight: bold; color: var(--danger); margin: 15px; }
+        .vokabel-box { font-size: 36px; font-weight: bold; color: var(--primary); margin: 20px; padding: 15px; background: #e8f4fd; border-radius: 12px; }
+        
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+        .option-btn { padding: 15px; border: 2px solid #ddd; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; background: white; transition: 0.2s; }
+        .option-btn:hover { background: #f8f9fa; border-color: var(--primary); }
+        
+        .status-msg { padding: 12px; background: #fff3cd; color: #856404; border-radius: 8px; font-weight: bold; margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🇬🇷 Griechisch-Vokabelspiel</h2>
+
+    <div id="setup-section" class="section active">
+        <button class="btn btn-primary" onclick="createRoom()">Raum Erstellen (Host)</button>
+        <p>— ODER —</p>
+        <input type="text" id="room-code" placeholder="CODE EINGEBEN" style="padding:10px; text-align:center; font-size:16px; border-radius:8px; border:1px solid #ccc;" maxlength="6"><br>
+        <button class="btn btn-success" onclick="joinRoom()">Als Spieler beitreten</button>
+    </div>
+
+    <div id="lobby-section" class="section">
+        <h3 id="display-code">CODE: ------</h3>
+        <p>Warten auf 4 Spieler + 1 Host...</p>
+        <div id="player-list" style="text-align:left; max-width:200px; margin:0 auto; padding:10px; background:#f8f9fa; border-radius:8px;"></div>
+        <br>
+        <button id="start-btn" class="btn btn-success" style="display:none;" onclick="startPreviewPhase()">Spiel starten</button>
+    </div>
+
+    <div id="preview-section" class="section">
+        <h3>Lerne die Vokabeln!</h3>
+        <div id="preview-timer" class="timer">5</div>
+        <table>
+            <thead><tr><th>Griechisch</th><th>Deutsch</th></tr></thead>
+            <tbody id="preview-table-body"></tbody>
+        </table>
+    </div>
+
+    <div id="game-section" class="section">
+        <h3 id="round-title">Runde 1/6</h3>
+        <div id="host-view" style="display:none;">
+            <p class="status-msg">Du bist der Host. Verfolge das Spiel live!</p>
+            <div id="host-status">Warte auf Antworten...</div>
+        </div>
+        <div id="player-view" style="display:none;">
+            <div id="current-vokabel" class="vokabel-box">---</div>
+            <div class="options-grid" id="options-container"></div>
+        </div>
+    </div>
+
+    <div id="result-section" class="section">
+        <h3>Rundenergebnis</h3>
+        <div id="result-msg" class="status-msg"></div>
+        <table>
+            <thead><tr><th>Spieler</th><th>Punkte</th></tr></thead>
+            <tbody id="leaderboard-body"></tbody>
+        </table>
+        <button id="next-round-btn" class="btn btn-primary" style="display:none;" onclick="nextRound()">Nächste Runde</button>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let myUid, myName, currentRoom = null, isHost = false;
+
+    // 6 feste Testvokabeln für das Spiel
+    const vokabeln = [
+        { gr: "λόγος (logos)", de: "Wort / Rede" },
+        { gr: "φίλος (philos)", de: "Freund" },
+        { gr: "χρόνος (chronos)", de: "Zeit" },
+        { gr: "βίος (bios)", de: "Leben" },
+        { gr: "νόμος (nomos)", de: "Gesetz" },
+        { gr: "ψυχή (psyche)", de: "Seele" }
+    ];
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            myUid = user.uid;
+            const snap = await get(ref(db, `users/${myUid}/username`));
+            myName = snap.val() || "Spieler";
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+
+    window.createRoom = async () => {
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        currentRoom = code; isHost = true;
+        await set(ref(db, `vokabelRooms/${code}`), {
+            host: myUid, status: "waiting", round: 1,
+            players: {}
+        });
+        enterRoom(code);
+    };
+
+    window.joinRoom = async () => {
+        const code = document.getElementById("room-code").value.trim().toUpperCase();
+        const snap = await get(ref(db, `vokabelRooms/${code}`));
+        if (!snap.exists()) return alert("Raum nicht gefunden!");
+        
+        currentRoom = code;
+        await update(ref(db, `vokabelRooms/${code}/players/${myUid}`), {
+            name: myName, score: 0, answer: "", time: 0
+        });
+        enterRoom(code);
+    };
+
+    function enterRoom(code) {
+        document.getElementById("display-code").innerText = "CODE: " + code;
+        showSection("lobby-section");
+        if (isHost) document.getElementById("start-btn").style.display = "inline-block";
+
+        onValue(ref(db, `vokabelRooms/${code}`), (snap) => {
+            const data = snap.val();
+            if (!data) return;
+
+            // Spielerliste in der Lobby aktualisieren
+            const pArray = Object.values(data.players || {});
+            document.getElementById("player-list").innerHTML = pArray.map(p => `• ${p.name}`).join("<br>");
+
+            if (data.status === "preview") {
+                startLocalPreview();
+            } else if (data.status === "playing") {
+                showSection("game-section");
+                document.getElementById("round-title").innerText = `Runde ${data.round} / 6`;
+                if (isHost) {
+                    document.getElementById("host-view").style.display = "block";
+                    checkAnswersAndEvaluate(data);
+                } else {
+                    document.getElementById("player-view").style.display = "block";
+                    renderQuestion(data.round - 1);
+                }
+            } else if (data.status === "result") {
+                showSection("result-section");
+                renderLeaderboard(data.players);
+                if (isHost) {
+                    document.getElementById("next-round-btn").style.display = "inline-block";
+                    document.getElementById("next-round-btn").innerText = data.round >= 6 ? "Spiel Beenden" : "Nächste Runde";
+                }
+            }
+        });
+    }
+
+    function startLocalPreview() {
+        showSection("preview-section");
+        document.getElementById("preview-table-body").innerHTML = vokabeln.map(v => `<tr><td><b>${v.gr}</b></td><td>${v.de}</td></tr>`).join("");
+        
+        let timeLeft = 5;
+        const interval = setInterval(() => {
+            timeLeft--;
+            document.getElementById("preview-timer").innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                if (isHost) update(ref(db, `vokabelRooms/${currentRoom}`), { status: "playing" });
+            }
+        }, 1000);
+    }
+
+    window.startPreviewPhase = async () => {
+        await update(ref(db, `vokabelRooms/${currentRoom}`), { status: "preview" });
+    };
+
+    function renderQuestion(vokabelIdx) {
+        const currentVok = vokabeln[vokabelIdx];
+        document.getElementById("current-vokabel").innerText = currentVok.gr;
+        
+        // Falsche Antworten mischen für Multiple Choice
+        const falscheOptionen = vokabeln.filter(v => v.de !== currentVok.de).map(v => v.de);
+        const optionen = [currentVok.de, falscheOptionen[0], falscheOptionen[1], falscheOptionen[2]].sort(() => 0.5 - Math.random());
+
+        const container = document.getElementById("options-container");
+        container.innerHTML = optionen.map(opt => `
+            <button class="option-btn" onclick="submitAnswer('${opt}', ${vokabelIdx})">${opt}</button>
+        `).join("");
+    }
+
+    let startTime;
+    // Sobald die Frage angezeigt wird, startet die Zeitmessung
+    showSection = ((original) => (id) => {
+        if(id === "game-section" && !isHost) startTime = Date.now();
+        original(id);
+    })(showSection);
+
+    window.submitAnswer = async (chosen, idx) => {
+        const timeTaken = Date.now() - startTime;
+        document.getElementById("options-container").innerHTML = "<p>Antwort gesendet! Warte auf die anderen...</p>";
+        
+        const isCorrect = chosen === vokabeln[idx].de;
+        await update(ref(db, `vokabelRooms/${currentRoom}/players/${myUid}`), {
+            answer: isCorrect ? "correct" : "wrong",
+            time: timeTaken
+        });
+    };
+
+    async function checkAnswersAndEvaluate(data) {
+        const players = Object.entries(data.players || {});
+        const totalPlayers = players.length;
+        const answered = players.filter(([id, p]) => p.answer !== "");
+
+        document.getElementById("host-status").innerText = `Antworten: ${answered.length} / ${totalPlayers}`;
+
+        // Wenn alle Spieler geantwortet haben, wertet der Host aus
+        if (answered.length === totalPlayers && totalPlayers > 0) {
+            const updates = {};
+            
+            // Richtige & Falsche sortiert nach Zeit
+            const corrects = answered.filter(([id, p]) => p.answer === "correct").sort((a, b) => a[1].time - b[1].time);
+            const wrongs = answered.filter(([id, p]) => p.answer === "wrong").sort((a, b) => a[1].time - b[1].time);
+
+            // Punkteberechnung laut Vorgabe
+            answered.forEach(([id, p]) => {
+                let pointsChange = 0;
+                
+                if (p.answer === "correct") {
+                    // Schnellster mit richtiger Antwort bekommt 2 Punkte, alle anderen Richtigsteller 1 Punkt
+                    if (corrects.length > 0 && id === corrects[0][0]) {
+                        pointsChange = 2;
+                    } else {
+                        pointsChange = 1;
+                    }
+                } else if (p.answer === "wrong") {
+                    // Langsamster mit falscher Antwort bekommt -2 Punkte, alle anderen Falschantworter -1 Punkt
+                    if (wrongs.length > 0 && id === wrongs[wrongs.length - 1][0]) {
+                        pointsChange = -2;
+                    } else {
+                        pointsChange = -1;
+                    }
+                }
+                
+                updates[`vokabelRooms/${currentRoom}/players/${id}/score`] = (p.score || 0) + pointsChange;
+                updates[`vokabelRooms/${currentRoom}/players/${id}/answer`] = ""; // Reset für nächste Runde
+                updates[`vokabelRooms/${currentRoom}/players/${id}/time`] = 0;
+            });
+
+            updates[`vokabelRooms/${currentRoom}/status`] = "result";
+            await update(ref(db), updates);
+        }
+    }
+
+    function renderLeaderboard(players) {
+        const sorted = Object.values(players || {}).sort((a, b) => b.score - a.score);
+        document.getElementById("leaderboard-body").innerHTML = sorted.map(p => `
+            <tr><td><b>${p.name}</b></td><td>${p.score} Pkt.</td></tr>
+        `).join("");
+    }
+
+    window.nextRound = async () => {
+        const snap = await get(ref(db, `vokabelRooms/${currentRoom}/round`));
+        const r = snap.val();
+        if (r >= 6) {
+            await update(ref(db, `vokabelRooms/${currentRoom}`), { status: "ended" });
+            alert("Das Spiel ist beendet!");
+            window.location.href = "überleitung.html";
+        } else {
+            await update(ref(db, `vokabelRooms/${currentRoom}`), { round: r + 1, status: "playing" });
+        }
+    };
+
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+</script>
+</body>
+</html>
