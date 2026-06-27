@@ -124,7 +124,7 @@
             x: Math.random() * (canvas.width - 60) + 30,
             y: Math.random() * (canvas.height - 60) + 30,
             isIt: !hasActiveCatcher,
-            lastTagged: 0 // Zeitstempel, wann dieser Spieler das letzte Mal gefangen hat/wurde
+            lastTagged: 0
         };
 
         await set(myGameRef, initialData);
@@ -212,7 +212,7 @@
             if (speedBoostTimer === 0) mySpeed = 4;
         }
 
-        // Raum-Check: Existiert ein Fänger?
+        // Raum-Check auf Fänger-Existenz
         let activeCatcherExists = false;
         let playerIds = Object.keys(allPlayers);
         
@@ -223,7 +223,6 @@
             }
         }
 
-        // Automatischer Fallback-Fänger, falls der alte Fänger das Spiel verlässt
         if (!activeCatcherExists && playerIds.length > 0) {
             let fallbackCatcherId = playerIds[0];
             if (myUid === fallbackCatcherId) {
@@ -244,12 +243,11 @@
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // Position übertragen
-        update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
+        // CRITICAL FIX: Sende die Positions-Updates NUR ab, wenn wir nicht sekundenbruchteil-genau gefangen haben
+        update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY, isIt: me.isIt });
 
-        // NUR DER FÄNGER RECHNET DIE KOLLISIONEN AUS
+        // NUR DER AKTIVE FÄNGER PRÜFT BERÜHRUNGEN
         if (me.isIt) {
-            // Prüfen, ob der Fänger selbst aus der Sperre raus ist (2 Sekunden Puffer = 2000ms)
             if (!me.lastTagged || currentTime - me.lastTagged > 2000) {
                 
                 for (let playerKey in allPlayers) {
@@ -258,15 +256,15 @@
                     let target = allPlayers[playerKey];
                     let distance = Math.hypot(newX - target.x, newY - target.y);
                     
-                    // Spieler berührt? (Radius 15 + 15 = 30)
                     if (distance < 30) { 
+                        // FIX: Wir entziehen uns SOFORT lokal die Rolle, damit das nächste Frame 
+                        // keine Fänger-Daten mehr sendet, während Firebase arbeitet!
+                        me.isIt = false; 
+
                         let updates = {};
-                        
-                        // Ich werde normaler Spieler
                         updates[`players/${myUid}/isIt`] = false;
                         updates[`players/${myUid}/lastTagged`] = currentTime;
                         
-                        // Das Opfer wird neuer Fänger und kriegt die 2 Sekunden Sperre aufgedrückt
                         updates[`players/${playerKey}/isIt`] = true;
                         updates[`players/${playerKey}/lastTagged`] = currentTime;
                         
@@ -276,7 +274,7 @@
                 }
             }
 
-            // Power-Up Flugbahn berechnen (macht auch nur der Fänger)
+            // Power-Up Bewegung berechnen
             if (powerupBox.active) {
                 let px = powerupBox.x + powerupBox.vx;
                 let py = powerupBox.y + powerupBox.vy;
@@ -296,14 +294,13 @@
             }
         }
 
-        // Kollision mit dem Power-Up (Gilt für jeden Spieler lokal)
+        // Kollision mit dem Power-Up
         if (powerupBox.active) {
             let pDist = Math.hypot(newX - powerupBox.x, newY - powerupBox.y);
             if (pDist < 27) { 
                 mySpeed = 8; 
                 speedBoostTimer = 180; 
                 
-                // Wenn der Fänger das einsammelt, respawnt es sofort
                 if (me.isIt) {
                     set(ref(db, 'games/fangspiel/powerup'), {
                         x: Math.random() * (canvas.width - 40) + 20,
@@ -316,7 +313,7 @@
             }
         }
 
-        // --- RENDER ---
+        // --- DRAW ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Power-Up zeichnen
@@ -331,7 +328,7 @@
             ctx.fillText('⚡', powerupBox.x - 6, powerupBox.y + 4);
         }
 
-        // Spieler zeichnen
+        // Alle Spieler zeichnen
         let count = 0;
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
@@ -342,7 +339,6 @@
             ctx.fillStyle = p.isIt ? '#ff0000' : '#0099ff';
             ctx.fill();
 
-            // Weißer Rand für den Fänger
             if (p.isIt) {
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 3;
@@ -350,12 +346,10 @@
             }
             ctx.closePath();
 
-            // Text über dem Kopf rendern
             ctx.fillStyle = '#fff';
             ctx.font = '12px monospace';
             ctx.textAlign = 'center';
             
-            // Zeige optisch an, ob der Fänger gerade noch in seiner 2-Sekunden-Sperre steckt
             let isProtected = p.isIt && p.lastTagged && (currentTime - p.lastTagged < 2000);
             let label = p.username + (p.isIt ? (isProtected ? " (Puffer...)" : " (Fänger)") : "");
             
