@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -47,7 +46,6 @@
 </div>
 
 <div id="control-panel">
-    <!-- Kreis-Joystick für Touch/Maus -->
     <div class="joycon-circle" id="joystick-circle">
         <div class="joycon-stick" id="joystick-stick"></div>
     </div>
@@ -83,14 +81,12 @@
     let powerupBox = { x: 100, y: 100, vx: 2, vy: 2, active: true };
     let lastTagTime = 0;
 
-    // Eingaben (Joystick + Tastatur kombiniert)
     let joyX = 0, joyY = 0;
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
 
     let mySpeed = 4;
     let speedBoostTimer = 0;
 
-    // 1. Auth check
     onAuthStateChanged(auth, (user) => {
         if (user) {
             myUid = user.uid;
@@ -106,19 +102,16 @@
         }
     });
 
-    // 2. Game Session Start
     async function startGameSession() {
         lobbyStatus.innerText = `Eingeloggt als: ${myUsername}. Betrete Arena...`;
 
         const myGameRef = ref(db, `games/fangspiel/players/${myUid}`);
 
-        // Sicherer Check gegen "Alle werden Fänger": Hol dir den aktuellen Live-Stand einmalig ab
         const snap = await get(ref(db, 'games/fangspiel/players'));
         let isItInitially = true;
         
         if (snap.exists()) {
             const playersInDb = snap.val();
-            // Wenn es bereits aktive Spieler in der Liste gibt, bin ich kein Fänger
             if (playersInDb && Object.keys(playersInDb).length > 0) {
                 isItInitially = false;
             }
@@ -134,7 +127,6 @@
         await set(myGameRef, initialData);
         onDisconnect(myGameRef).remove();
 
-        // Firebase Sync für Spieler und Power-Ups
         onValue(ref(db, 'games/fangspiel/players'), (snapshot) => {
             if (snapshot.exists()) allPlayers = snapshot.val();
             else allPlayers = {};
@@ -147,7 +139,6 @@
         updateLoop();
     }
 
-    // 3. Kreis-Joystick Steuerung (Mobile/Maus)
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -188,19 +179,17 @@
     }
     setupJoystick();
 
-    // 4. WASD & Pfeiltasten Keyboard Support
     window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
     function getKeyboardInput() {
         let kX = 0;
         let kY = 0;
-        if (keys.w || keys.w.toUpperCase === 'W' || keys.ArrowUp) kY -= 1;
-        if (keys.s || keys.s.toUpperCase === 'S' || keys.ArrowDown) kY += 1;
-        if (keys.a || keys.a.toUpperCase === 'A' || keys.ArrowLeft) kX -= 1;
-        if (keys.d || keys.d.toUpperCase === 'D' || keys.ArrowRight) kX += 1;
+        if (keys.w || keys.ArrowUp) kY -= 1;
+        if (keys.s || keys.ArrowDown) kY += 1;
+        if (keys.a || keys.ArrowLeft) kX -= 1;
+        if (keys.d || keys.ArrowRight) kX += 1;
 
-        // Diagonalen-Ausgleich (damit man schräg nicht schneller rennt)
         if (kX !== 0 && kY !== 0) {
             kX *= 0.7071;
             kY *= 0.7071;
@@ -208,7 +197,6 @@
         return { x: kX, y: kY };
     }
 
-    // 5. Gameloop
     function updateLoop() {
         if (!myUid || !allPlayers[myUid]) {
             requestAnimationFrame(updateLoop);
@@ -217,18 +205,15 @@
 
         let me = allPlayers[myUid];
 
-        // Automatischer Speed-Boost-Timer runterzählen
         if (speedBoostTimer > 0) {
             speedBoostTimer--;
             if (speedBoostTimer === 0) mySpeed = 4;
         }
 
-        // Joystick- und Keyboard-Input kombinieren
         let keyInput = getKeyboardInput();
         let finalMoveX = joyX !== 0 ? joyX : keyInput.x;
         let finalMoveY = joyY !== 0 ? joyY : keyInput.y;
 
-        // Neue eigene Position berechnen
         let newX = me.x + finalMoveX * mySpeed;
         let newY = me.y + finalMoveY * mySpeed;
 
@@ -237,32 +222,37 @@
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // Update an Firebase senden
+        // Position updaten
         update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
 
-        // Wenn ich der Fänger bin, verwalte ich das Power-Up und checke Kollisionen
+        // FÄNGER-LOGIK (Präzise gelöst)
         if (me.isIt) {
             let currentTime = Date.now();
 
-            // Fangen-Logik mit Cooldown
+            // 1.5 Sekunden Cooldown nach dem Fangen, damit es nicht direkt zurückspringt
             if (currentTime - lastTagTime > 1500) {
                 for (let playerKey in allPlayers) {
                     if (playerKey === myUid) continue;
+                    
                     let target = allPlayers[playerKey];
+                    // Distanz zwischen Fänger und anderem Spieler berechnen
                     let distance = Math.hypot(newX - target.x, newY - target.y);
                     
+                    // Kollisionsradius (Beide Spieler haben Radius 15, also 15 + 15 = 30)
                     if (distance < 30) { 
                         let updates = {};
-                        updates[`games/fangspiel/players/${myUid}/isIt`] = false;
-                        updates[`games/fangspiel/players/${playerKey}/isIt`] = true;
-                        update(ref(db), updates);
+                        // Wichtig: Beides gleichzeitig in einem einzigen Update-Paket abschicken!
+                        updates[`players/${myUid}/isIt`] = false;
+                        updates[`players/${playerKey}/isIt`] = true;
+                        
+                        update(ref(db, 'games/fangspiel'), updates);
                         lastTagTime = currentTime;
                         break;
                     }
                 }
             }
 
-            // Power-Up Bewegung berechnen und bouncen lassen
+            // Power-Up Flugbahn berechnen
             if (powerupBox.active) {
                 let px = powerupBox.x + powerupBox.vx;
                 let py = powerupBox.y + powerupBox.vy;
@@ -282,13 +272,14 @@
             }
         }
 
-        // Kollision mit dem fliegenden Blitz-Powerup
+        // Kollision mit dem Power-Up
         if (powerupBox.active) {
             let pDist = Math.hypot(newX - powerupBox.x, newY - powerupBox.y);
             if (pDist < 27) { 
-                mySpeed = 8; // Auto-Boost an!
-                speedBoostTimer = 180; // ~3 Sekunden
+                mySpeed = 8; 
+                speedBoostTimer = 180; // ca. 3 Sekunden bei 60fps
                 
+                // Nur der aktuelle Fänger resettet das Power-Up global bei Einsammeln
                 if (me.isIt) {
                     set(ref(db, 'games/fangspiel/powerup'), {
                         x: Math.random() * (canvas.width - 40) + 20,
@@ -304,7 +295,7 @@
         // --- DRAW ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Fliegendes Power-Up rendern
+        // Power-Up zeichnen
         if (powerupBox.active) {
             ctx.beginPath();
             ctx.arc(powerupBox.x, powerupBox.y, 12, 0, Math.PI * 2);
@@ -316,7 +307,7 @@
             ctx.fillText('⚡', powerupBox.x - 6, powerupBox.y + 4);
         }
 
-        // Alle Spieler zeichnen
+        // Spieler zeichnen
         let count = 0;
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
@@ -324,8 +315,6 @@
 
             ctx.beginPath();
             ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
-            
-            // Fänger = Rot, Alle anderen = Ein einheitliches Blau!
             ctx.fillStyle = p.isIt ? '#ff0000' : '#0099ff';
             ctx.fill();
 
@@ -336,7 +325,6 @@
             }
             ctx.closePath();
 
-            // Text-Tag über dem Kopf
             ctx.fillStyle = '#fff';
             ctx.font = '12px monospace';
             ctx.textAlign = 'center';
@@ -345,7 +333,7 @@
             ctx.fillText(label, p.x, p.y - 22);
         }
 
-        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD / Pfeiltasten oder Joystick nutzen!`;
+        lobbyStatus.innerText = `Spieler in der Arena: ${count} | Steuerung mit WASD, Pfeiltasten oder Joystick!`;
 
         requestAnimationFrame(updateLoop);
     }
@@ -353,5 +341,3 @@
 
 </body>
 </html>
-
-```
