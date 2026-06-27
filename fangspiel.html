@@ -1,17 +1,4 @@
-Das fixen wir direkt!
 
-### Warum plötzlich alle Fänger waren:
-
-Wenn das Spiel komplett leer war (keine Spieler in Firebase) und zwei Leute exakt zeitgleich beigetreten sind, haben beide lokal geprüft: *"Gibt es schon jemanden?"* Beide sagten *"Nein"* und wurden gleichzeitig Fänger. Ich habe die Logik jetzt so umgeschrieben, dass immer **nur der allererste Spieler**, der die Arena betritt, der Fänger ist. Alle Nachzügler werden automatisch normale blaue Läufer.
-
-### Das Update:
-
-1. **Fehler behoben:** Es gibt wieder genau **einen** Fänger (Rot). Alle anderen sind Jäger/Läufer (Blau).
-2. **Tastatur-Support:** Du kannst dich jetzt zusätzlich ganz geschmeidig mit **WASD** (oder den Pfeiltasten) am PC bewegen, während die Leute am Handy weiterhin den Touch-Kreis nutzen!
-
-Hier ist der fertige Code für deine `fangspiel.html`:
-
-```html
 <!DOCTYPE html>
 <html lang="de">
 <head>
