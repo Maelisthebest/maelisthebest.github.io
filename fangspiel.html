@@ -107,21 +107,26 @@
 
         const myGameRef = ref(db, `games/fangspiel/players/${myUid}`);
 
+        // Scanne die gesamte Spieler-Liste aktiv nach einem existierenden Fänger
         const snap = await get(ref(db, 'games/fangspiel/players'));
-        let isItInitially = true;
+        let hasActiveCatcher = false;
         
         if (snap.exists()) {
             const playersInDb = snap.val();
-            if (playersInDb && Object.keys(playersInDb).length > 0) {
-                isItInitially = false;
+            for (let id in playersInDb) {
+                if (playersInDb[id].isIt === true) {
+                    hasActiveCatcher = true;
+                    break;
+                }
             }
         }
 
+        // Wenn kein Fänger gefunden wurde (weil die DB leer ist oder der Fänger geleaved ist), wirst DU der Fänger
         const initialData = {
             username: myUsername,
             x: Math.random() * (canvas.width - 60) + 30,
             y: Math.random() * (canvas.height - 60) + 30,
-            isIt: isItInitially
+            isIt: !hasActiveCatcher 
         };
 
         await set(myGameRef, initialData);
@@ -183,16 +188,14 @@
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
     function getKeyboardInput() {
-        let kX = 0;
-        let kY = 0;
+        let kX = 0, kY = 0;
         if (keys.w || keys.ArrowUp) kY -= 1;
         if (keys.s || keys.ArrowDown) kY += 1;
         if (keys.a || keys.ArrowLeft) kX -= 1;
         if (keys.d || keys.ArrowRight) kX += 1;
 
         if (kX !== 0 && kY !== 0) {
-            kX *= 0.7071;
-            kY *= 0.7071;
+            kX *= 0.7071; kY *= 0.7071;
         }
         return { x: kX, y: kY };
     }
@@ -210,6 +213,27 @@
             if (speedBoostTimer === 0) mySpeed = 4;
         }
 
+        // Live-Überprüfung im Loop: Gibt es aktuell einen Fänger im Spiel?
+        let activeCatcherExists = false;
+        let playerIds = Object.keys(allPlayers);
+        
+        for (let id of playerIds) {
+            if (allPlayers[id].isIt === true) {
+                activeCatcherExists = true;
+                break;
+            }
+        }
+
+        // Wenn mitten im Spiel kein Fänger existiert (z.B. weil er geleaved/neugeladen hat),
+        // bestimmt die restliche Gruppe automatisch den ersten Spieler in der Liste zum neuen Fänger.
+        if (!activeCatcherExists && playerIds.length > 0) {
+            let fallbackCatcherId = playerIds[0];
+            if (myUid === fallbackCatcherId) {
+                update(ref(db, `games/fangspiel/players/${myUid}`), { isIt: true });
+                me.isIt = true; // Lokalen State sofort korrigieren
+            }
+        }
+
         let keyInput = getKeyboardInput();
         let finalMoveX = joyX !== 0 ? joyX : keyInput.x;
         let finalMoveY = joyY !== 0 ? joyY : keyInput.y;
@@ -222,26 +246,22 @@
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // Position updaten
+        // Eigene Position synchronisieren
         update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
 
-        // FÄNGER-LOGIK (Präzise gelöst)
+        // Fänger-Logik
         if (me.isIt) {
             let currentTime = Date.now();
 
-            // 1.5 Sekunden Cooldown nach dem Fangen, damit es nicht direkt zurückspringt
             if (currentTime - lastTagTime > 1500) {
                 for (let playerKey in allPlayers) {
                     if (playerKey === myUid) continue;
                     
                     let target = allPlayers[playerKey];
-                    // Distanz zwischen Fänger und anderem Spieler berechnen
                     let distance = Math.hypot(newX - target.x, newY - target.y);
                     
-                    // Kollisionsradius (Beide Spieler haben Radius 15, also 15 + 15 = 30)
                     if (distance < 30) { 
                         let updates = {};
-                        // Wichtig: Beides gleichzeitig in einem einzigen Update-Paket abschicken!
                         updates[`players/${myUid}/isIt`] = false;
                         updates[`players/${playerKey}/isIt`] = true;
                         
@@ -252,7 +272,7 @@
                 }
             }
 
-            // Power-Up Flugbahn berechnen
+            // Power-Up Bewegung berechnen
             if (powerupBox.active) {
                 let px = powerupBox.x + powerupBox.vx;
                 let py = powerupBox.y + powerupBox.vy;
@@ -277,9 +297,8 @@
             let pDist = Math.hypot(newX - powerupBox.x, newY - powerupBox.y);
             if (pDist < 27) { 
                 mySpeed = 8; 
-                speedBoostTimer = 180; // ca. 3 Sekunden bei 60fps
+                speedBoostTimer = 180; 
                 
-                // Nur der aktuelle Fänger resettet das Power-Up global bei Einsammeln
                 if (me.isIt) {
                     set(ref(db, 'games/fangspiel/powerup'), {
                         x: Math.random() * (canvas.width - 40) + 20,
@@ -333,7 +352,7 @@
             ctx.fillText(label, p.x, p.y - 22);
         }
 
-        lobbyStatus.innerText = `Spieler in der Arena: ${count} | Steuerung mit WASD, Pfeiltasten oder Joystick!`;
+        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD / Pfeiltasten oder Joystick nutzen!`;
 
         requestAnimationFrame(updateLoop);
     }
