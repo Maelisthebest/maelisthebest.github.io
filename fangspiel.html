@@ -226,7 +226,7 @@
         if (!activeCatcherExists && playerIds.length > 0) {
             let fallbackCatcherId = playerIds[0];
             if (myUid === fallbackCatcherId) {
-                update(ref(db, `games/fangspiel/players/${myUid}`), { isIt: true, lastTagged: currentTime });
+                update(ref(db, `games/fangspiel/players/${myUid}`), { isIt: true, lastTagged: 0 });
                 me.isIt = true;
             }
         }
@@ -243,38 +243,41 @@
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // CRITICAL FIX: Sende die Positions-Updates NUR ab, wenn wir nicht sekundenbruchteil-genau gefangen haben
+        // Position und Rollenstatus hochladen
         update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY, isIt: me.isIt });
 
         // NUR DER AKTIVE FÄNGER PRÜFT BERÜHRUNGEN
         if (me.isIt) {
-            if (!me.lastTagged || currentTime - me.lastTagged > 2000) {
+            for (let playerKey in allPlayers) {
+                if (playerKey === myUid) continue;
                 
-                for (let playerKey in allPlayers) {
-                    if (playerKey === myUid) continue;
-                    
-                    let target = allPlayers[playerKey];
-                    let distance = Math.hypot(newX - target.x, newY - target.y);
-                    
-                    if (distance < 30) { 
-                        // FIX: Wir entziehen uns SOFORT lokal die Rolle, damit das nächste Frame 
-                        // keine Fänger-Daten mehr sendet, während Firebase arbeitet!
-                        me.isIt = false; 
+                let target = allPlayers[playerKey];
+                
+                // PRÜFUNG: Hat das potenzielle Opfer noch einen aktiven Schutzpuffer (2 Sekunden)?
+                let isTargetProtected = target.lastTagged && (currentTime - target.lastTagged < 2000);
+                if (isTargetProtected) continue; // Überspringe diesen Spieler, er darf nicht gefangen werden
 
-                        let updates = {};
-                        updates[`players/${myUid}/isIt`] = false;
-                        updates[`players/${myUid}/lastTagged`] = currentTime;
-                        
-                        updates[`players/${playerKey}/isIt`] = true;
-                        updates[`players/${playerKey}/lastTagged`] = currentTime;
-                        
-                        update(ref(db, 'games/fangspiel'), updates);
-                        break;
-                    }
+                let distance = Math.hypot(newX - target.x, newY - target.y);
+                
+                if (distance < 30) { 
+                    // Sofort lokal entfängern, um Überschreiben zu verhindern
+                    me.isIt = false; 
+
+                    let updates = {};
+                    // Ich werde normaler blauer Spieler und erhalte den 2-Sekunden-Puffer!
+                    updates[`players/${myUid}/isIt`] = false;
+                    updates[`players/${myUid}/lastTagged`] = currentTime; 
+                    
+                    // Das Opfer wird neuer Fänger ohne eigenen Puffer (kann direkt loslegen)
+                    updates[`players/${playerKey}/isIt`] = true;
+                    updates[`players/${playerKey}/lastTagged`] = 0;
+                    
+                    update(ref(db, 'games/fangspiel'), updates);
+                    break;
                 }
             }
 
-            // Power-Up Bewegung berechnen
+            // Power-Up Flugbahn berechnen
             if (powerupBox.active) {
                 let px = powerupBox.x + powerupBox.vx;
                 let py = powerupBox.y + powerupBox.vy;
@@ -350,8 +353,9 @@
             ctx.font = '12px monospace';
             ctx.textAlign = 'center';
             
-            let isProtected = p.isIt && p.lastTagged && (currentTime - p.lastTagged < 2000);
-            let label = p.username + (p.isIt ? (isProtected ? " (Puffer...)" : " (Fänger)") : "");
+            // JETZT KORREKT: Zeige "(Puffer...)" bei blauen Spielern an, wenn ihr Schutz aktiv ist
+            let isProtected = !p.isIt && p.lastTagged && (currentTime - p.lastTagged < 2000);
+            let label = p.username + (p.isIt ? " (Fänger)" : (isProtected ? " (Puffer...)" : ""));
             
             ctx.fillText(label, p.x, p.y - 22);
         }
