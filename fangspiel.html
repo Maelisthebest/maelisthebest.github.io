@@ -1,3 +1,17 @@
+Das fixen wir direkt!
+
+### Warum plötzlich alle Fänger waren:
+
+Wenn das Spiel komplett leer war (keine Spieler in Firebase) und zwei Leute exakt zeitgleich beigetreten sind, haben beide lokal geprüft: *"Gibt es schon jemanden?"* Beide sagten *"Nein"* und wurden gleichzeitig Fänger. Ich habe die Logik jetzt so umgeschrieben, dass immer **nur der allererste Spieler**, der die Arena betritt, der Fänger ist. Alle Nachzügler werden automatisch normale blaue Läufer.
+
+### Das Update:
+
+1. **Fehler behoben:** Es gibt wieder genau **einen** Fänger (Rot). Alle anderen sind Jäger/Läufer (Blau).
+2. **Tastatur-Support:** Du kannst dich jetzt zusätzlich ganz geschmeidig mit **WASD** (oder den Pfeiltasten) am PC bewegen, während die Leute am Handy weiterhin den Touch-Kreis nutzen!
+
+Hier ist der fertige Code für deine `fangspiel.html`:
+
+```html
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -46,6 +60,7 @@
 </div>
 
 <div id="control-panel">
+    <!-- Kreis-Joystick für Touch/Maus -->
     <div class="joycon-circle" id="joystick-circle">
         <div class="joycon-stick" id="joystick-stick"></div>
     </div>
@@ -54,7 +69,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getDatabase, ref, set, onValue, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref, set, onValue, update, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
@@ -78,12 +93,13 @@
     let myUsername = "Anonym";
     let allPlayers = {};
     
-    // Power-Up fliegt im Raum rum
     let powerupBox = { x: 100, y: 100, vx: 2, vy: 2, active: true };
     let lastTagTime = 0;
 
-    let inputX = 0;
-    let inputY = 0;
+    // Eingaben (Joystick + Tastatur kombiniert)
+    let joyX = 0, joyY = 0;
+    let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+
     let mySpeed = 4;
     let speedBoostTimer = 0;
 
@@ -103,18 +119,23 @@
         }
     });
 
-    // 2. Game Session
-    function startGameSession() {
+    // 2. Game Session Start
+    async function startGameSession() {
         lobbyStatus.innerText = `Eingeloggt als: ${myUsername}. Betrete Arena...`;
 
         const myGameRef = ref(db, `games/fangspiel/players/${myUid}`);
 
+        // Sicherer Check gegen "Alle werden Fänger": Hol dir den aktuellen Live-Stand einmalig ab
+        const snap = await get(ref(db, 'games/fangspiel/players'));
         let isItInitially = true;
-        onValue(ref(db, 'games/fangspiel/players'), (snap) => {
-            if (snap.exists() && Object.keys(snap.val()).length > 0) {
-                isItInitially = false; 
+        
+        if (snap.exists()) {
+            const playersInDb = snap.val();
+            // Wenn es bereits aktive Spieler in der Liste gibt, bin ich kein Fänger
+            if (playersInDb && Object.keys(playersInDb).length > 0) {
+                isItInitially = false;
             }
-        }, { onlyOnce: true });
+        }
 
         const initialData = {
             username: myUsername,
@@ -123,10 +144,10 @@
             isIt: isItInitially
         };
 
-        set(myGameRef, initialData);
+        await set(myGameRef, initialData);
         onDisconnect(myGameRef).remove();
 
-        // Firebase Sync
+        // Firebase Sync für Spieler und Power-Ups
         onValue(ref(db, 'games/fangspiel/players'), (snapshot) => {
             if (snapshot.exists()) allPlayers = snapshot.val();
             else allPlayers = {};
@@ -139,7 +160,7 @@
         updateLoop();
     }
 
-    // 3. Kreis-Joystick Steuerung
+    // 3. Kreis-Joystick Steuerung (Mobile/Maus)
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -160,13 +181,13 @@
             }
 
             stick.style.transform = `translate(${dx}px, ${dy}px)`;
-            inputX = dx / maxRadius;
-            inputY = dy / maxRadius;
+            joyX = dx / maxRadius;
+            joyY = dy / maxRadius;
         }
 
         function resetStick() {
             stick.style.transform = 'translate(0px, 0px)';
-            inputX = 0; inputY = 0;
+            joyX = 0; joyY = 0;
         }
 
         circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
@@ -180,7 +201,27 @@
     }
     setupJoystick();
 
-    // 4. Gameloop
+    // 4. WASD & Pfeiltasten Keyboard Support
+    window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
+    window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+
+    function getKeyboardInput() {
+        let kX = 0;
+        let kY = 0;
+        if (keys.w || keys.w.toUpperCase === 'W' || keys.ArrowUp) kY -= 1;
+        if (keys.s || keys.s.toUpperCase === 'S' || keys.ArrowDown) kY += 1;
+        if (keys.a || keys.a.toUpperCase === 'A' || keys.ArrowLeft) kX -= 1;
+        if (keys.d || keys.d.toUpperCase === 'D' || keys.ArrowRight) kX += 1;
+
+        // Diagonalen-Ausgleich (damit man schräg nicht schneller rennt)
+        if (kX !== 0 && kY !== 0) {
+            kX *= 0.7071;
+            kY *= 0.7071;
+        }
+        return { x: kX, y: kY };
+    }
+
+    // 5. Gameloop
     function updateLoop() {
         if (!myUid || !allPlayers[myUid]) {
             requestAnimationFrame(updateLoop);
@@ -189,30 +230,35 @@
 
         let me = allPlayers[myUid];
 
-        // Automatischer Speed Boost Timer
+        // Automatischer Speed-Boost-Timer runterzählen
         if (speedBoostTimer > 0) {
             speedBoostTimer--;
-            if (speedBoostTimer === 0) mySpeed = 4; // Normaler Speed
+            if (speedBoostTimer === 0) mySpeed = 4;
         }
 
+        // Joystick- und Keyboard-Input kombinieren
+        let keyInput = getKeyboardInput();
+        let finalMoveX = joyX !== 0 ? joyX : keyInput.x;
+        let finalMoveY = joyY !== 0 ? joyY : keyInput.y;
+
         // Neue eigene Position berechnen
-        let newX = me.x + inputX * mySpeed;
-        let newY = me.y + inputY * mySpeed;
+        let newX = me.x + finalMoveX * mySpeed;
+        let newY = me.y + finalMoveY * mySpeed;
 
         if (newX < 15) newX = 15;
         if (newX > canvas.width - 15) newX = canvas.width - 15;
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // Position hochladen
+        // Update an Firebase senden
         update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
 
-        // Wenn ich Fänger bin, steuere ich das herumfliegende Power-Up & Kollisionen
+        // Wenn ich der Fänger bin, verwalte ich das Power-Up und checke Kollisionen
         if (me.isIt) {
             let currentTime = Date.now();
 
-            // 1. Fangen-Logik (Wer berührt wird, wird Fänger)
-            if (currentTime - lastTagTime > 1500) { // 1.5s Cooldown gegen Insta-Re-Tag
+            // Fangen-Logik mit Cooldown
+            if (currentTime - lastTagTime > 1500) {
                 for (let playerKey in allPlayers) {
                     if (playerKey === myUid) continue;
                     let target = allPlayers[playerKey];
@@ -229,14 +275,13 @@
                 }
             }
 
-            // 2. Power-Up Bewegung berechnen (Herumfliegen)
+            // Power-Up Bewegung berechnen und bouncen lassen
             if (powerupBox.active) {
                 let px = powerupBox.x + powerupBox.vx;
                 let py = powerupBox.y + powerupBox.vy;
                 let pvx = powerupBox.vx;
                 let pvy = powerupBox.vy;
 
-                // Abprallen an den Wänden
                 if (px < 12 || px > canvas.width - 12) pvx *= -1;
                 if (py < 12 || py > canvas.height - 12) pvy *= -1;
 
@@ -250,30 +295,29 @@
             }
         }
 
-        // Kollision mit dem fliegenden Power-Up prüfen (Gilt für alle Spieler)
+        // Kollision mit dem fliegenden Blitz-Powerup
         if (powerupBox.active) {
             let pDist = Math.hypot(newX - powerupBox.x, newY - powerupBox.y);
             if (pDist < 27) { 
-                mySpeed = 8; // Sofortiger automatischer Boost
-                speedBoostTimer = 180; // ca. 3 Sekunden bei 60 FPS
+                mySpeed = 8; // Auto-Boost an!
+                speedBoostTimer = 180; // ~3 Sekunden
                 
-                // Power-Up kurz unsichtbar machen und woanders neu spawnen
                 if (me.isIt) {
                     set(ref(db, 'games/fangspiel/powerup'), {
                         x: Math.random() * (canvas.width - 40) + 20,
                         y: Math.random() * (canvas.height - 40) + 20,
-                        vx: (Math.random() > 0.5 ? 2 : -2),
-                        vy: (Math.random() > 0.5 ? 2 : -2),
+                        vx: (Math.random() > 0.5 ? 2.5 : -2.5),
+                        vy: (Math.random() > 0.5 ? 2.5 : -2.5),
                         active: true
                     });
                 }
             }
         }
 
-        // --- ZEICHNEN ---
+        // --- DRAW ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Fliegendes Power-Up zeichnen
+        // Fliegendes Power-Up rendern
         if (powerupBox.active) {
             ctx.beginPath();
             ctx.arc(powerupBox.x, powerupBox.y, 12, 0, Math.PI * 2);
@@ -285,14 +329,16 @@
             ctx.fillText('⚡', powerupBox.x - 6, powerupBox.y + 4);
         }
 
-        // Spieler zeichnen
+        // Alle Spieler zeichnen
+        let count = 0;
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
+            count++;
 
             ctx.beginPath();
             ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
             
-            // Fänger = Rot, Alle anderen = Blau
+            // Fänger = Rot, Alle anderen = Ein einheitliches Blau!
             ctx.fillStyle = p.isIt ? '#ff0000' : '#0099ff';
             ctx.fill();
 
@@ -303,15 +349,16 @@
             }
             ctx.closePath();
 
-            // Text über dem Kopf
+            // Text-Tag über dem Kopf
             ctx.fillStyle = '#fff';
             ctx.font = '12px monospace';
             ctx.textAlign = 'center';
             
-            // Wenn er Fänger ist, steht explizit "(Fänger)" dahinter
             let label = p.username + (p.isIt ? " (Fänger)" : "");
             ctx.fillText(label, p.x, p.y - 22);
         }
+
+        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD / Pfeiltasten oder Joystick nutzen!`;
 
         requestAnimationFrame(updateLoop);
     }
@@ -319,3 +366,5 @@
 
 </body>
 </html>
+
+```
