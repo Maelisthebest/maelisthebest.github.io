@@ -204,6 +204,7 @@
             return;
         }
 
+        // Vertraue ausschließlich den Daten, die aus Firebase zurückkommen
         let me = allPlayers[myUid];
         let currentTime = Date.now();
 
@@ -227,7 +228,6 @@
             let fallbackCatcherId = playerIds[0];
             if (myUid === fallbackCatcherId) {
                 update(ref(db, `games/fangspiel/players/${myUid}`), { isIt: true, lastTagged: 0 });
-                me.isIt = true;
             }
         }
 
@@ -243,8 +243,8 @@
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // Position und Rollenstatus hochladen
-        update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY, isIt: me.isIt });
+        // CRITICAL FIX 1: Wir senden NUR noch x und y! Niemals den lokalen Rollenstatus überschreiben!
+        update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
 
         // NUR DER AKTIVE FÄNGER PRÜFT BERÜHRUNGEN
         if (me.isIt) {
@@ -253,22 +253,21 @@
                 
                 let target = allPlayers[playerKey];
                 
-                // Hat der Spieler, den wir fangen wollen, noch Pufferschutz?
+                // Puffer des blauen Spielers prüfen
                 let isTargetProtected = target.lastTagged && (currentTime - target.lastTagged < 2000);
                 if (isTargetProtected) continue; 
 
                 let distance = Math.hypot(newX - target.x, newY - target.y);
                 
                 if (distance < 30) { 
-                    // Sofort lokal entfängern, um Überschreiben im selben Loop-Frame zu verhindern
-                    me.isIt = false; 
-
+                    // CRITICAL FIX 2: Absolut atomares Cloud-Update ohne jede lokale Verzögerung oder Variablen-Zwischenspeicher
                     let updates = {};
-                    // Alter Fänger wird blau und kriegt den Puffer
+                    
+                    // Ich werde blau und kriege Puffer
                     updates[`players/${myUid}/isIt`] = false;
                     updates[`players/${myUid}/lastTagged`] = currentTime; 
                     
-                    // Neues Opfer wird roter Fänger (kein Puffer nötig)
+                    // Er wird Fänger und verliert alten Puffer
                     updates[`players/${playerKey}/isIt`] = true;
                     updates[`players/${playerKey}/lastTagged`] = 0;
                     
