@@ -79,7 +79,6 @@
     let allPlayers = {};
     
     let powerupBox = { x: 100, y: 100, vx: 2, vy: 2, active: true };
-    let lastTagTime = 0;
 
     let joyX = 0, joyY = 0;
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
@@ -107,7 +106,6 @@
 
         const myGameRef = ref(db, `games/fangspiel/players/${myUid}`);
 
-        // Scanne die gesamte Spieler-Liste aktiv nach einem existierenden Fänger
         const snap = await get(ref(db, 'games/fangspiel/players'));
         let hasActiveCatcher = false;
         
@@ -121,12 +119,12 @@
             }
         }
 
-        // Wenn kein Fänger gefunden wurde (weil die DB leer ist oder der Fänger geleaved ist), wirst DU der Fänger
         const initialData = {
             username: myUsername,
             x: Math.random() * (canvas.width - 60) + 30,
             y: Math.random() * (canvas.height - 60) + 30,
-            isIt: !hasActiveCatcher 
+            isIt: !hasActiveCatcher,
+            lastTagged: 0 // Zeitstempel, wann dieser Spieler das letzte Mal gefangen hat/wurde
         };
 
         await set(myGameRef, initialData);
@@ -207,13 +205,14 @@
         }
 
         let me = allPlayers[myUid];
+        let currentTime = Date.now();
 
         if (speedBoostTimer > 0) {
             speedBoostTimer--;
             if (speedBoostTimer === 0) mySpeed = 4;
         }
 
-        // Live-Überprüfung im Loop: Gibt es aktuell einen Fänger im Spiel?
+        // Raum-Check: Existiert ein Fänger?
         let activeCatcherExists = false;
         let playerIds = Object.keys(allPlayers);
         
@@ -224,13 +223,12 @@
             }
         }
 
-        // Wenn mitten im Spiel kein Fänger existiert (z.B. weil er geleaved/neugeladen hat),
-        // bestimmt die restliche Gruppe automatisch den ersten Spieler in der Liste zum neuen Fänger.
+        // Automatischer Fallback-Fänger, falls der alte Fänger das Spiel verlässt
         if (!activeCatcherExists && playerIds.length > 0) {
             let fallbackCatcherId = playerIds[0];
             if (myUid === fallbackCatcherId) {
-                update(ref(db, `games/fangspiel/players/${myUid}`), { isIt: true });
-                me.isIt = true; // Lokalen State sofort korrigieren
+                update(ref(db, `games/fangspiel/players/${myUid}`), { isIt: true, lastTagged: currentTime });
+                me.isIt = true;
             }
         }
 
@@ -246,33 +244,39 @@
         if (newY < 15) newY = 15;
         if (newY > canvas.height - 15) newY = canvas.height - 15;
 
-        // Eigene Position synchronisieren
+        // Position übertragen
         update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
 
-        // Fänger-Logik
+        // NUR DER FÄNGER RECHNET DIE KOLLISIONEN AUS
         if (me.isIt) {
-            let currentTime = Date.now();
-
-            if (currentTime - lastTagTime > 1500) {
+            // Prüfen, ob der Fänger selbst aus der Sperre raus ist (2 Sekunden Puffer = 2000ms)
+            if (!me.lastTagged || currentTime - me.lastTagged > 2000) {
+                
                 for (let playerKey in allPlayers) {
                     if (playerKey === myUid) continue;
                     
                     let target = allPlayers[playerKey];
                     let distance = Math.hypot(newX - target.x, newY - target.y);
                     
+                    // Spieler berührt? (Radius 15 + 15 = 30)
                     if (distance < 30) { 
                         let updates = {};
+                        
+                        // Ich werde normaler Spieler
                         updates[`players/${myUid}/isIt`] = false;
+                        updates[`players/${myUid}/lastTagged`] = currentTime;
+                        
+                        // Das Opfer wird neuer Fänger und kriegt die 2 Sekunden Sperre aufgedrückt
                         updates[`players/${playerKey}/isIt`] = true;
+                        updates[`players/${playerKey}/lastTagged`] = currentTime;
                         
                         update(ref(db, 'games/fangspiel'), updates);
-                        lastTagTime = currentTime;
                         break;
                     }
                 }
             }
 
-            // Power-Up Bewegung berechnen
+            // Power-Up Flugbahn berechnen (macht auch nur der Fänger)
             if (powerupBox.active) {
                 let px = powerupBox.x + powerupBox.vx;
                 let py = powerupBox.y + powerupBox.vy;
@@ -292,13 +296,14 @@
             }
         }
 
-        // Kollision mit dem Power-Up
+        // Kollision mit dem Power-Up (Gilt für jeden Spieler lokal)
         if (powerupBox.active) {
             let pDist = Math.hypot(newX - powerupBox.x, newY - powerupBox.y);
             if (pDist < 27) { 
                 mySpeed = 8; 
                 speedBoostTimer = 180; 
                 
+                // Wenn der Fänger das einsammelt, respawnt es sofort
                 if (me.isIt) {
                     set(ref(db, 'games/fangspiel/powerup'), {
                         x: Math.random() * (canvas.width - 40) + 20,
@@ -311,7 +316,7 @@
             }
         }
 
-        // --- DRAW ---
+        // --- RENDER ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Power-Up zeichnen
@@ -337,6 +342,7 @@
             ctx.fillStyle = p.isIt ? '#ff0000' : '#0099ff';
             ctx.fill();
 
+            // Weißer Rand für den Fänger
             if (p.isIt) {
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 3;
@@ -344,15 +350,19 @@
             }
             ctx.closePath();
 
+            // Text über dem Kopf rendern
             ctx.fillStyle = '#fff';
             ctx.font = '12px monospace';
             ctx.textAlign = 'center';
             
-            let label = p.username + (p.isIt ? " (Fänger)" : "");
+            // Zeige optisch an, ob der Fänger gerade noch in seiner 2-Sekunden-Sperre steckt
+            let isProtected = p.isIt && p.lastTagged && (currentTime - p.lastTagged < 2000);
+            let label = p.username + (p.isIt ? (isProtected ? " (Puffer...)" : " (Fänger)") : "");
+            
             ctx.fillText(label, p.x, p.y - 22);
         }
 
-        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD / Pfeiltasten oder Joystick nutzen!`;
+        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD, Pfeiltasten oder Joystick nutzen!`;
 
         requestAnimationFrame(updateLoop);
     }
