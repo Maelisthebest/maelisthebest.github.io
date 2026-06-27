@@ -253,22 +253,22 @@
                 
                 let target = allPlayers[playerKey];
                 
-                // PRÜFUNG: Hat das potenzielle Opfer noch einen aktiven Schutzpuffer (2 Sekunden)?
+                // Hat der Spieler, den wir fangen wollen, noch Pufferschutz?
                 let isTargetProtected = target.lastTagged && (currentTime - target.lastTagged < 2000);
-                if (isTargetProtected) continue; // Überspringe diesen Spieler, er darf nicht gefangen werden
+                if (isTargetProtected) continue; 
 
                 let distance = Math.hypot(newX - target.x, newY - target.y);
                 
                 if (distance < 30) { 
-                    // Sofort lokal entfängern, um Überschreiben zu verhindern
+                    // Sofort lokal entfängern, um Überschreiben im selben Loop-Frame zu verhindern
                     me.isIt = false; 
 
                     let updates = {};
-                    // Ich werde normaler blauer Spieler und erhalte den 2-Sekunden-Puffer!
+                    // Alter Fänger wird blau und kriegt den Puffer
                     updates[`players/${myUid}/isIt`] = false;
                     updates[`players/${myUid}/lastTagged`] = currentTime; 
                     
-                    // Das Opfer wird neuer Fänger ohne eigenen Puffer (kann direkt loslegen)
+                    // Neues Opfer wird roter Fänger (kein Puffer nötig)
                     updates[`players/${playerKey}/isIt`] = true;
                     updates[`players/${playerKey}/lastTagged`] = 0;
                     
@@ -353,14 +353,14 @@
             ctx.font = '12px monospace';
             ctx.textAlign = 'center';
             
-            // JETZT KORREKT: Zeige "(Puffer...)" bei blauen Spielern an, wenn ihr Schutz aktiv ist
+            // Schutz-Anzeige über dem Kopf des frisch gefangenen, blauen Spielers
             let isProtected = !p.isIt && p.lastTagged && (currentTime - p.lastTagged < 2000);
             let label = p.username + (p.isIt ? " (Fänger)" : (isProtected ? " (Puffer...)" : ""));
             
             ctx.fillText(label, p.x, p.y - 22);
         }
 
-        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD, Pfeiltasten oder Joystick nutzen!`;
+        lobbyStatus.innerText = `Spieler in der Arena: ${count} | WASD / Pfeiltasten oder Joystick nutzen!`;
 
         requestAnimationFrame(updateLoop);
     }
