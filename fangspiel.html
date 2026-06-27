@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Maelist - Live Multiplayer Fangspiel 🎮</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 0; background: #1a1a1a;
+            font-family: sans-serif; color: #fff;
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; height: 100vh;
+        }
+        header { text-align: center; padding: 10px; width: 100%; background: #075e54; }
+        h1 { margin: 0; font-size: 1.3rem; color: #25d366; }
+        #game-container {
+            position: relative; width: 100%; max-width: 800px;
+            height: 50vh; background: #111; border-bottom: 4px solid #075e54;
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        #control-panel {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; max-width: 800px; flex-grow: 1; background: #222; padding: 20px;
+        }
+        .joycon-circle {
+            width: 130px; height: 130px; background: #333; border-radius: 50%;
+            position: relative; border: 4px solid #444; touch-action: none;
+        }
+        .joycon-stick {
+            width: 50px; height: 50px; background: #25d366; border-radius: 50%;
+            position: absolute; top: 36px; left: 36px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .powerup-btn {
+            margin-top: 15px; padding: 12px 30px; background: #ffcc00; color: #000;
+            border: none; font-weight: bold; border-radius: 4px; cursor: pointer;
+            display: none; font-size: 1rem;
+        }
+        #lobby-status { font-size: 14px; margin-bottom: 10px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Maelist Multiplayer Tag</h1>
+    <div id="lobby-status">Verbinde mit Firebase...</div>
+</header>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+</div>
+
+<div id="control-panel">
+    <div class="joycon-circle" id="joystick-circle">
+        <div class="joycon-stick" id="joystick-stick"></div>
+    </div>
+    <button class="powerup-btn" id="powerup-btn">⚡ SPEED BOOSTER!</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    // Exakt deine Firebase Config aus der index.html
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const lobbyStatus = document.getElementById('lobby-status');
+    const powerupBtn = document.getElementById('powerup-btn');
+
+    let myUid = null;
+    let myUsername = "Anonym";
+    let allPlayers = {};
+    let powerupBox = { x: -100, y: -100, active: false };
+
+    // Lokale Joystick-Eingabewerte
+    let inputX = 0;
+    let inputY = 0;
+
+    // Eigene Spieler-Eigenschaften vor Ort
+    let mySpeed = 4;
+    let powerupTimer = 0;
+    let hasPowerup = false;
+
+    // 1. Authentifizierung prüfen
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            myUid = user.uid;
+            
+            // Username aus deiner DB-Struktur auslesen (/users/uid)
+            onValue(ref(db, `users/${myUid}`), (snapshot) => {
+                if(snapshot.exists()) {
+                    myUsername = snapshot.val().username;
+                }
+                startGameSession();
+            }, { onlyOnce: true });
+
+        } else {
+            lobbyStatus.innerText = "Nicht eingeloggt! Gehe zur index.html...";
+            setTimeout(() => { window.location.href = "index.html"; }, 2000);
+        }
+    });
+
+    // 2. Spiel-Session in Firebase starten
+    function startGameSession() {
+        lobbyStatus.innerText = `Eingeloggt als: ${myUsername}. Warte auf Mitspieler...`;
+
+        const myGameRef = ref(db, `games/fangspiel/players/${myUid}`);
+
+        // Initialisiere mich in der Firebase-Spielerliste
+        // Wenn noch kein Fänger existiert, werde ich standardmäßig Fänger (isIt: true)
+        let isItInitially = true;
+        onValue(ref(db, 'games/fangspiel/players'), (snap) => {
+            if (snap.exists()) {
+                isItInitially = false; // Es gibt schon jemanden, ich bin normaler Läufer
+            }
+        }, { onlyOnce: true });
+
+        const initialData = {
+            username: myUsername,
+            x: Math.random() * (canvas.width - 60) + 30,
+            y: Math.random() * (canvas.height - 60) + 30,
+            isIt: isItInitially,
+            color: '#' + Math.floor(Math.random()*16777215).toString(16) // Zufallsfarbe
+        };
+
+        set(myGameRef, initialData);
+
+        // Automatisches Löschen aus Firebase, wenn der Tab geschlossen wird
+        onDisconnect(myGameRef).remove();
+
+        // Synchronisiere alle Spieler live aus Firebase
+        onValue(ref(db, 'games/fangspiel/players'), (snapshot) => {
+            if (snapshot.exists()) {
+                allPlayers = snapshot.val();
+            } else {
+                allPlayers = {};
+            }
+        });
+
+        // Synchronisiere Power-Up Box live aus Firebase
+        onValue(ref(db, 'games/fangspiel/powerup'), (snapshot) => {
+            if (snapshot.exists()) {
+                powerupBox = snapshot.val();
+            } else {
+                powerupBox = { x: -100, y: -100, active: false };
+            }
+        });
+
+        // Starte Gameloop & Intervall für Power-Up Spawning (Nur der Fänger steuert Server-Events wie Spawns)
+        setInterval(serverUpdate, 5000);
+        updateLoop();
+    }
+
+    // 3. Kreis-Joystick Logik (identisch mit deiner Touchscreen-Idee)
+    function setupJoystick() {
+        const circle = document.getElementById('joystick-circle');
+        const stick = document.getElementById('joystick-stick');
+        const maxRadius = 40;
+
+        function handleMove(clientX, clientY) {
+            const rect = circle.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+
+            let dx = clientX - centerX;
+            let dy = clientY - centerY;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > maxRadius) {
+                dx = (dx / distance) * maxRadius;
+                dy = (dy / distance) * maxRadius;
+            }
+
+            stick.style.transform = `translate(${dx}px, ${dy}px)`;
+            
+            // Werte normalisieren (-1 bis 1)
+            inputX = dx / maxRadius;
+            inputY = dy / maxRadius;
+        }
+
+        function resetStick() {
+            stick.style.transform = 'translate(0px, 0px)';
+            inputX = 0; inputY = 0;
+        }
+
+        circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
+        circle.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
+        circle.addEventListener('touchend', resetStick);
+
+        let isMouseDown = false;
+        circle.addEventListener('mousedown', (e) => { isMouseDown = true; handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', (e) => { if (isMouseDown) handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { if (isMouseDown) { isMouseDown = false; resetStick(); } });
+    }
+    setupJoystick();
+
+    // 4. Power-Up Benutzung
+    powerupBtn.addEventListener('click', () => {
+        if (hasPowerup) {
+            mySpeed = 8; // Schneller laufen!
+            powerupTimer = 180; // ca 3 Sekunden
+            hasPowerup = false;
+            powerupBtn.style.display = 'none';
+        }
+    });
+
+    // 5. Server-Logik (wird periodisch ausgeführt, um Spawns zu koordinieren)
+    function serverUpdate() {
+        if (!allPlayers[myUid] || !allPlayers[myUid].isIt) return; 
+        // Nur der aktuelle Fänger berechnet das neue Power-Up, damit es nicht doppelt spawnt
+        if (!powerupBox.active) {
+            set(ref(db, 'games/fangspiel/powerup'), {
+                x: Math.random() * (canvas.width - 40) + 20,
+                y: Math.random() * (canvas.height - 40) + 20,
+                active: true
+            });
+        }
+    }
+
+    // 6. Haupt-Gameloop
+    function updateLoop() {
+        if (!myUid || !allPlayers[myUid]) {
+            requestAnimationFrame(updateLoop);
+            return;
+        }
+
+        let me = allPlayers[myUid];
+
+        // Powerup Effekt abbauen
+        if (powerupTimer > 0) {
+            powerupTimer--;
+            if (powerupTimer === 0) mySpeed = 4; // Zurück auf Normalgeschwindigkeit
+        }
+
+        // Neue eigene Position lokal berechnen
+        let newX = me.x + inputX * mySpeed;
+        let newY = me.y + inputY * mySpeed;
+
+        // Ränder-Kollision
+        if (newX < 15) newX = 15;
+        if (newX > canvas.width - 15) newX = canvas.width - 15;
+        if (newY < 15) newY = 15;
+        if (newY > canvas.height - 15) newY = canvas.height - 15;
+
+        // Position direkt hochladen an Firebase
+        update(ref(db, `games/fangspiel/players/${myUid}`), { x: newX, y: newY });
+
+        // Kollisionsprüfung: Wenn ICH der Fänger bin, prüfe ob ich jemanden berühre
+        if (me.isIt) {
+            for (let playerKey in allPlayers) {
+                if (playerKey === myUid) continue;
+                let target = allPlayers[playerKey];
+                let distance = Math.hypot(newX - target.x, newY - target.y);
+                
+                if (distance < 30) { // Berührung! (Radius 15 + Radius 15)
+                    // Ich bin nicht mehr Fänger, das Opfer wird neuer Fänger
+                    let updates = {};
+                    updates[`games/fangspiel/players/${myUid}/isIt`] = false;
+                    updates[`games/fangspiel/players/${playerKey}/isIt`] = true;
+                    update(ref(db), updates);
+                    break;
+                }
+            }
+        }
+
+        // Kollisionsprüfung: Power-Up einsammeln
+        if (powerupBox.active) {
+            let pDist = Math.hypot(newX - powerupBox.x, newY - powerupBox.y);
+            if (pDist < 27) { // Spieler berührt Box
+                hasPowerup = true;
+                powerupBtn.style.display = 'block';
+                // Box in Firebase deaktivieren
+                set(ref(db, 'games/fangspiel/powerup/active'), false);
+            }
+        }
+
+        // ZEICHNEN DES SPIELBRETTS
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Power-Up zeichnen
+        if (powerupBox.active) {
+            ctx.beginPath();
+            ctx.arc(powerupBox.x, powerupBox.y, 12, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffcc00';
+            ctx.fill();
+            ctx.closePath();
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.fillText('⚡', powerupBox.x - 6, powerupBox.y + 4);
+        }
+
+        // Alle Spieler aus der Firebase-Liste zeichnen
+        let count = 0;
+        for (let playerKey in allPlayers) {
+            let p = allPlayers[playerKey];
+            count++;
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+
+            // Fänger bekommt dicken roten/weißen Puls-Rand
+            if (p.isIt) {
+                ctx.strokeStyle = '#ff0055';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+            ctx.closePath();
+
+            // Namen über dem Kopf anzeigen
+            ctx.fillStyle = '#fff';
+            ctx.font = '11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.username + (p.isIt ? " [IT]" : ""), p.x, p.y - 20);
+        }
+
+        lobbyStatus.innerText = `Spieler in der Arena: ${count} | Finde ein Opfer!`;
+
+        requestAnimationFrame(updateLoop);
+    }
+</script>
+
+</body>
+</html>
