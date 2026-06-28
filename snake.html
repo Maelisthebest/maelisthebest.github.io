@@ -17,7 +17,7 @@
         
         #game-container {
             position: relative; width: 100%; height: 55vh; background: #111; 
-            border-bottom: 4px solid #3498db; overflow: hidden;
+            border-bottom: 4px solid #3498db; overflow: hidden; cursor: crosshair;
         }
         canvas { display: block; width: 100%; height: 100%; }
         
@@ -72,6 +72,7 @@
 </header>
 
 <div id="game-container">
+    <!-- Startbildschirm -->
     <div id="start-screen">
         <div class="menu-box">
             <h2 style="margin:0; color:#3498db;">Bist du bereit?</h2>
@@ -80,6 +81,7 @@
         </div>
     </div>
 
+    <!-- Werbung bei Tod -->
     <div id="ad-overlay">
         <div class="ad-box">
             <h2>IKEA 🇸🇪</h2>
@@ -89,6 +91,7 @@
         </div>
     </div>
 
+    <!-- Leaderboard -->
     <div id="leaderboard">
         <h3>🏆 Top Snakes</h3>
         <div id="leaderboard-list">Warte auf Spieler...</div>
@@ -124,6 +127,7 @@
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    const gameContainer = document.getElementById('game-container');
     const lobbyStatus = document.getElementById('lobby-status');
     const startScreen = document.getElementById('start-screen');
     const adOverlay = document.getElementById('ad-overlay');
@@ -147,11 +151,16 @@
     
     let myHistory = []; 
     let myScore = 6; 
-    const spacing = 5; // Abstand leicht erhöht, da Schlangen dicker sind
+    const spacing = 5; 
+
+    // Variablen für Maussteuerung
+    let useMouseControl = false;
+    let mouseXInContainer = 0;
+    let mouseYInContainer = 0;
 
     function resizeCanvas() {
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
+        canvas.width = gameContainer.clientWidth;
+        canvas.height = gameContainer.clientHeight;
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
@@ -173,7 +182,7 @@
                 };
             }, { onlyOnce: true });
         } else {
-            window.location.href = "index.html";
+            window.location.href = "überleitung.html";
         }
     });
 
@@ -190,7 +199,6 @@
         });
         onDisconnect(myGameRef).remove();
 
-        // MASSIG VIEL FUTTER GENERIEREN (250 Punkte)
         const foodSnap = await get(ref(db, 'games/snake/food'));
         if (!foodSnap.exists() || Object.keys(foodSnap.val()).length < 50) {
             let initialFood = {};
@@ -205,7 +213,7 @@
         }
 
         isPlaying = true;
-        lobbyStatus.innerText = `Snake Arena | Zerquetsche die anderen!`;
+        lobbyStatus.innerText = `Snake Arena | Viel Erfolg!`;
     }
 
     onValue(ref(db, 'games/snake/players'), (snap) => {
@@ -234,11 +242,9 @@
         leaderboardList.innerHTML = html || "Keine Spieler";
     }
 
-    // Wenn man stirbt: Überbleibsel werden zu neuem Futter!
     function triggerDeath() {
         isPlaying = false;
         
-        // Futter am Todesort hinterlassen
         if (myHistory.length > 0) {
             let newFoodDrops = {};
             for (let i = 0; i < myHistory.length; i += spacing * 2) {
@@ -248,11 +254,10 @@
                     newFoodDrops[foodId] = {
                         x: segment.x + (Math.random()*16 - 8),
                         y: segment.y + (Math.random()*16 - 8),
-                        color: myColor // Das Futter leuchtet in der Farbe deiner verendeten Schlange
+                        color: myColor 
                     };
                 }
             }
-            // Über ein schnelles Update in Firebase einspeisen
             update(ref(db, `games/snake/food`), newFoodDrops);
         }
 
@@ -287,12 +292,14 @@
         });
     }, 50);
 
+    // Joystick Setup & Fehlerbehebung
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
         const maxRadius = 40;
 
         function handleMove(clientX, clientY) {
+            useMouseControl = false; // Deaktiviert Maus, wenn Joystick genutzt wird
             const rect = circle.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
@@ -304,21 +311,52 @@
             joyX = dx / maxRadius; joyY = dy / maxRadius;
         }
 
+        function endMove() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
+
         circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
         circle.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
-        circle.addEventListener('touchend', () => { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; });
+        circle.addEventListener('touchend', endMove);
+
+        let isJoystickDown = false;
+        circle.addEventListener('mousedown', (e) => { isJoystickDown = true; handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', (e) => { if(isJoystickDown) handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { if(isJoystickDown) { isJoystickDown = false; endMove(); } });
     }
     setupJoystick();
 
-    window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
+    // Tastatur Steuerung
+    window.addEventListener('keydown', (e) => { if (e.key in keys) { keys[e.key] = true; useMouseControl = false; } });
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+
+    // NEU: Maus-Event Listener für die Arena
+    gameContainer.addEventListener('mousemove', (e) => {
+        if (!isPlaying) return;
+        useMouseControl = true;
+        const rect = gameContainer.getBoundingClientRect();
+        mouseXInContainer = e.clientX - rect.left;
+        mouseYInContainer = e.clientY - rect.top;
+    });
+    gameContainer.addEventListener('mouseleave', () => {
+        useMouseControl = false; // Stoppt Maussteuerung beim Verlassen der Area
+    });
 
     function updateLoop() {
         let focusX = WORLD_WIDTH / 2;
         let focusY = WORLD_HEIGHT / 2;
 
         if (isPlaying && myHistory.length > 0) {
-            if (joyX !== 0 || joyY !== 0) {
+            let head = myHistory[0];
+
+            if (useMouseControl) {
+                // Winkel zwischen Schlangenkopf (Bildschirmmitte) und Maus berechnen
+                let screenCenterX = gameContainer.clientWidth / 2;
+                let screenCenterY = gameContainer.clientHeight / 2;
+                let dx = mouseXInContainer - screenCenterX;
+                let dy = mouseYInContainer - screenCenterY;
+                if (Math.hypot(dx, dy) > 10) { // Kleiner Totbereich
+                    angle = Math.atan2(dy, dx);
+                }
+            } else if (joyX !== 0 || joyY !== 0) {
                 angle = Math.atan2(joyY, joyX);
             } else {
                 let kX = 0, kY = 0;
@@ -329,7 +367,6 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
-            let head = myHistory[0];
             let newX = head.x + Math.cos(angle) * speed;
             let newY = head.y + Math.sin(angle) * speed;
 
@@ -337,7 +374,6 @@
                 triggerDeath();
             }
 
-            // Kollisionsradius für Futter vergrößert (da Schlange fetter ist)
             for (let key in allFood) {
                 let f = allFood[key];
                 if (f && Math.hypot(newX - f.x, newY - f.y) < 22) {
@@ -350,7 +386,6 @@
                 }
             }
 
-            // Gegner rammen -> Tod
             for (let pKey in allPlayers) {
                 if (pKey === myUid) continue;
                 let enemyBody = allPlayers[pKey].body;
@@ -373,11 +408,10 @@
             }
         }
 
-        // --- DYNAMISCHE KAMERA (Zentriert den Kopf perfekt in der Mitte) ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        let viewWidth = canvas.parentElement.clientWidth;
-        let viewHeight = canvas.parentElement.clientHeight;
+        let viewWidth = gameContainer.clientWidth;
+        let viewHeight = gameContainer.clientHeight;
         
         let camX = (viewWidth / 2) - focusX;
         let camY = (viewHeight / 2) - focusY;
@@ -385,12 +419,10 @@
         ctx.save();
         ctx.translate(camX, camY);
 
-        // Gefährlicher roter Rahmen
         ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Futter zeichnen
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
@@ -399,7 +431,6 @@
             }
         }
 
-        // Schlangen zeichnen (Jetzt viel dicker!)
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
             let segmentsToDraw = [];
@@ -418,7 +449,6 @@
                 let segment = segmentsToDraw[i];
                 if (!segment) continue;
                 ctx.beginPath();
-                // Kopf-Radius: 18px | Körper-Radius: 14px -> Das ist deutlich fetter!
                 ctx.arc(segment.x, segment.y, (i === 0) ? 18 : 14, 0, Math.PI * 2);
                 ctx.fillStyle = (i === 0) ? "#ffffff" : (p.color || "#3498db");
                 ctx.fill();
