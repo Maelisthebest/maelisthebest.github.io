@@ -28,11 +28,12 @@
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 20; transition: opacity 0.3s;
+            align-items: center; justify-content: center; z-index: 20;
         }
         .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid var(--primary); text-align: center; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
         .play-btn { background: var(--primary); color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3); }
         .play-btn:hover { transform: scale(1.05); }
+        .play-btn:disabled { background: #555; cursor: not-allowed; box-shadow: none; }
 
         /* Fake-Werbung Overlay */
         #ad-overlay {
@@ -47,7 +48,7 @@
         #leaderboard {
             position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7);
             padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            font-family: monospace; font-size: 12px; pointer-events: none; max-width: 180px;
+            font-family: monospace; font-size: 12px; pointer-events: none; max-width: 180px; z-index: 10;
         }
         #leaderboard h3 { margin: 0 0 5px 0; color: var(--primary); font-size: 13px; text-transform: uppercase; }
         .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
@@ -71,14 +72,14 @@
 
 <header>
     <h1>Maelist Riesige Snake-Welt 🐍</h1>
-    <div id="lobby-status">Bereit zum Beitritt</div>
+    <div id="lobby-status">Lade Arena...</div>
 </header>
 
 <div id="game-container">
     <div id="start-screen">
         <div class="menu-box">
             <h2 style="margin:0; color:#3498db;">Bist du bereit?</h2>
-            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Username...</p>
+            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Verbinde mit Server...</p>
             <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
         </div>
     </div>
@@ -94,7 +95,7 @@
 
     <div id="leaderboard">
         <h3>🏆 Top Snakes</h3>
-        <div id="leaderboard-list">Lade Rangliste...</div>
+        <div id="leaderboard-list">Warte auf Daten...</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -166,6 +167,7 @@
             onValue(ref(db, `users/${myUid}`), (snapshot) => {
                 if(snapshot.exists()) myUsername = snapshot.val().username;
                 document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
+                lobbyStatus.innerText = "Bereit zum Beitritt";
                 
                 const joinBtn = document.getElementById('join-btn');
                 joinBtn.disabled = false;
@@ -184,8 +186,8 @@
         myScore = 8;
         angle = Math.random() * Math.PI * 2;
         
-        let startX = Math.random() * (WORLD_WIDTH - 300) + 150;
-        let startY = Math.random() * (WORLD_HEIGHT - 300) + 150;
+        let startX = Math.random() * (WORLD_WIDTH - 400) + 200;
+        let startY = Math.random() * (WORLD_HEIGHT - 400) + 200;
         
         mySegments = [];
         for(let i=0; i < myScore * spacing; i++) {
@@ -198,14 +200,13 @@
         });
         onDisconnect(myGameRef).remove();
 
-        // Futter-Erstellung falls leer
         const foodSnap = await get(ref(db, 'games/snake/food'));
         if (!foodSnap.exists()) {
             let initialFood = {};
             for(let i=0; i<80; i++) {
                 initialFood[i] = {
-                    x: Math.random() * (WORLD_WIDTH - 40) + 20,
-                    y: Math.random() * (WORLD_HEIGHT - 40) + 20,
+                    x: Math.random() * (WORLD_WIDTH - 60) + 30,
+                    y: Math.random() * (WORLD_HEIGHT - 60) + 30,
                     color: `hsl(${Math.random()*360}, 100%, 65%)`
                 };
             }
@@ -213,10 +214,9 @@
         }
 
         isPlaying = true;
-        lobbyStatus.innerText = "In der Arena! Vorsicht vor den Rändern!";
+        lobbyStatus.innerText = "In der Arena! Berühre nicht die roten Ränder!";
     }
 
-    // Listener für Cloud Daten
     onValue(ref(db, 'games/snake/players'), (snap) => {
         if (snap.exists()) {
             allPlayers = snap.val();
@@ -230,12 +230,13 @@
         if (snap.exists()) allFood = snap.val();
     });
 
-    // Positions-Upload Ticker
     setInterval(() => {
         if (!myUid || !isPlaying || mySegments.length === 0) return;
         let bodySnapshot = [];
         for(let i=0; i<mySegments.length; i+=spacing) {
-            bodySnapshot.push({x: Math.round(mySegments[i].x), y: Math.round(mySegments[i].y)});
+            if(mySegments[i]) {
+                bodySnapshot.push({x: Math.round(mySegments[i].x), y: Math.round(mySegments[i].y)});
+            }
         }
         update(ref(db, `games/snake/players/${myUid}`), {
             x: Math.round(mySegments[0].x),
@@ -250,7 +251,6 @@
         for (let id in allPlayers) {
             playersArr.push(allPlayers[id]);
         }
-        // Nach Score sortieren (Höchste zuerst)
         playersArr.sort((a, b) => (b.score || 0) - (a.score || 0));
 
         let html = "";
@@ -263,9 +263,8 @@
 
     function triggerDeath() {
         isPlaying = false;
-        set(ref(db, `games/snake/players/${myUid}`), null); // Aus Firebase löschen
+        set(ref(db, `games/snake/players/${myUid}`), null);
         
-        // Werbung einblenden
         adOverlay.style.display = 'flex';
         let count = 3;
         document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
@@ -277,13 +276,12 @@
             } else {
                 clearInterval(counterInterval);
                 adOverlay.style.display = 'none';
-                startScreen.style.display = 'flex'; // Wieder ins Hauptmenü
+                startScreen.style.display = 'flex';
                 document.getElementById('join-btn').innerText = "Erneut versuchen";
             }
         }, 1000);
     }
 
-    // Joystick Setup
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -317,8 +315,8 @@
 
     function updateLoop() {
         if (!isPlaying || !myUid || mySegments.length === 0) {
-            // Selbst im Menü zeichnen wir die Arena im Hintergrund weiter
-            drawGame(canvas.width/2, canvas.height/2);
+            // Falls man im Menü ist, zentrieren wir auf die Mitte der Map
+            drawGame(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
             requestAnimationFrame(updateLoop);
             return;
         }
@@ -338,7 +336,7 @@
         let newX = head.x + Math.cos(angle) * speed;
         let newY = head.y + Math.sin(angle) * speed;
 
-        // CRITICAL NEU: Rand-Kollision bedeutet ab jetzt der Tod!
+        // Rand berührt -> Sofortiger Tod
         if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) {
             triggerDeath();
             requestAnimationFrame(updateLoop);
@@ -348,7 +346,7 @@
         // Futter essen
         for (let key in allFood) {
             let f = allFood[key];
-            if (Math.hypot(newX - f.x, newY - f.y) < 18) {
+            if (f && Math.hypot(newX - f.x, newY - f.y) < 18) {
                 myScore += 1;
                 set(ref(db, `games/snake/food/${key}`), {
                     x: Math.random() * (WORLD_WIDTH - 60) + 30,
@@ -358,12 +356,12 @@
             }
         }
 
-        // Crash gegen fremde Körper
+        // Kollision mit gegnerischen Körpern
         let crashed = false;
         for (let pKey in allPlayers) {
             if (pKey === myUid) continue;
             let enemy = allPlayers[pKey];
-            if (!enemy.body) continue;
+            if (!enemy || !enemy.body) continue;
 
             for (let i = 0; i < enemy.body.length; i++) {
                 if (Math.hypot(newX - enemy.body[i].x, newY - enemy.body[i].y) < 14) {
@@ -379,7 +377,6 @@
             return;
         }
 
-        // Segmente updaten
         mySegments.unshift({ x: newX, y: newY });
         if (mySegments.length > myScore * spacing) {
             mySegments.pop();
@@ -397,31 +394,37 @@
         ctx.save();
         ctx.translate(camX, camY);
 
-        // Gefährlicher roter Außenrand
+        // Gefährlicher roter Rand
         ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 10;
+        ctx.lineWidth = 12;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Hintergrund-Gitter
+        // Map-Raster
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
         ctx.lineWidth = 1;
         for(let x=0; x<WORLD_WIDTH; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
         for(let y=0; y<WORLD_HEIGHT; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
-        // Essen zeichnen
+        // Futter zeichnen
         for (let key in allFood) {
             let f = allFood[key];
-            ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI * 2);
-            ctx.fillStyle = f.color; ctx.fill(); ctx.closePath();
+            if(f) {
+                ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI * 2);
+                ctx.fillStyle = f.color; ctx.fill(); ctx.closePath();
+            }
         }
 
-        // Schlangen zeichnen
+        // Schlangen rendern
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
+            if (!p) continue;
+            
             let segmentsToDraw = [];
 
             if (isPlaying && playerKey === myUid) {
-                for(let i=0; i<mySegments.length; i+=spacing) segmentsToDraw.push(mySegments[i]);
+                for(let i=0; i<mySegments.length; i+=spacing) {
+                    if(mySegments[i]) segmentsToDraw.push(mySegments[i]);
+                }
             } else if (p.body) {
                 segmentsToDraw = p.body;
             }
@@ -433,15 +436,17 @@
                 if(!seg) continue;
                 ctx.beginPath();
                 ctx.arc(seg.x, seg.y, i === 0 ? 13 : 10, 0, Math.PI * 2);
-                ctx.fillStyle = i === 0 ? '#ffffff' : p.color;
+                ctx.fillStyle = i === 0 ? '#ffffff' : (p.color || '#3498db');
                 ctx.fill();
                 ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
                 ctx.closePath();
             }
 
             let headSeg = segmentsToDraw[0];
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(p.username + ` (${p.score || 0})`, headSeg.x, headSeg.y - 22);
+            if(headSeg) {
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText((p.username || "User") + ` (${p.score || 0})`, headSeg.x, headSeg.y - 22);
+            }
         }
 
         ctx.restore();
