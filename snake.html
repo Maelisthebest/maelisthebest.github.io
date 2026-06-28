@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍</title>
+    <title>Maelist - Snake.io 🐍 v1.2</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -133,10 +133,6 @@
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
 
-    // FIX: Virtuelle Sichtfeldgröße für absolute Fairness auf allen Geräten
-    const VIEW_WIDTH = 1000;
-    const VIEW_HEIGHT = 600;
-
     let myUid = null;
     let myUsername = "Anonym";
     let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
@@ -158,7 +154,7 @@
     let mouseXInContainer = 0;
     let mouseYInContainer = 0;
 
-    // Canvas-Größe entspricht dem echten Container-Fenster
+    // Dynamische Anpassung an die tatsächliche Fenstergröße
     function resizeCanvas() {
         canvas.width = gameContainer.clientWidth;
         canvas.height = gameContainer.clientHeight;
@@ -171,7 +167,6 @@
             myUid = user.uid;
             onValue(ref(db, `users/${myUid}`), (snapshot) => {
                 if(snapshot.exists()) myUsername = snapshot.val().username;
-                
                 document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
                 lobbyStatus.innerText = "Bereit zum Beitreten";
                 
@@ -195,9 +190,7 @@
         myHistory = [{ x: startX, y: startY }];
 
         const myGameRef = ref(db, `games/snake/players/${myUid}`);
-        await set(myGameRef, { 
-            username: myUsername, color: myColor, body: myHistory, score: myScore 
-        });
+        await set(myGameRef, { username: myUsername, color: myColor, body: myHistory, score: myScore });
         onDisconnect(myGameRef).remove();
 
         const foodSnap = await get(ref(db, 'games/snake/food'));
@@ -218,12 +211,8 @@
     }
 
     onValue(ref(db, 'games/snake/players'), (snap) => {
-        if (snap.exists()) {
-            allPlayers = snap.val();
-            updateLeaderboard();
-        } else {
-            allPlayers = {};
-        }
+        if (snap.exists()) { allPlayers = snap.val(); updateLeaderboard(); }
+        else { allPlayers = {}; }
     });
 
     onValue(ref(db, 'games/snake/food'), (snap) => {
@@ -235,7 +224,6 @@
         let list = [];
         for (let id in allPlayers) list.push(allPlayers[id]);
         list.sort((a, b) => (b.score || 0) - (a.score || 0));
-
         let html = "";
         list.slice(0, 5).forEach((p, i) => {
             html += `<div class="leaderboard-entry"><span>${i+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
@@ -245,52 +233,34 @@
 
     function triggerDeath() {
         isPlaying = false;
-        
         if (myHistory.length > 0) {
             let newFoodDrops = {};
             for (let i = 0; i < myHistory.length; i += spacing * 2) {
                 let segment = myHistory[i];
                 if (segment) {
                     let foodId = "dead_" + myUid + "_" + i + "_" + Math.round(Math.random()*1000);
-                    newFoodDrops[foodId] = {
-                        x: segment.x + (Math.random()*16 - 8),
-                        y: segment.y + (Math.random()*16 - 8),
-                        color: myColor 
-                    };
+                    newFoodDrops[foodId] = { x: segment.x + (Math.random()*16 - 8), y: segment.y + (Math.random()*16 - 8), color: myColor };
                 }
             }
             update(ref(db, `games/snake/food`), newFoodDrops);
         }
-
         set(ref(db, `games/snake/players/${myUid}`), null);
         
         adOverlay.style.display = 'flex';
         let count = 3;
         document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
-        
         let timer = setInterval(() => {
             count--;
-            if (count > 0) {
-                document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
-            } else {
-                clearInterval(timer);
-                adOverlay.style.display = 'none';
-                startScreen.style.display = 'flex';
-                document.getElementById('join-btn').innerText = "Erneut versuchen";
-            }
+            if (count > 0) { document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`; }
+            else { clearInterval(timer); adOverlay.style.display = 'none'; startScreen.style.display = 'flex'; document.getElementById('join-btn').innerText = "Erneut versuchen"; }
         }, 1000);
     }
 
     setInterval(() => {
         if (!myUid || !isPlaying || myHistory.length === 0) return;
         let bodyToSend = [];
-        for(let i = 0; i < myHistory.length; i += spacing) {
-            bodyToSend.push(myHistory[i]);
-        }
-        update(ref(db, `games/snake/players/${myUid}`), {
-            body: bodyToSend,
-            score: myScore
-        });
+        for(let i = 0; i < myHistory.length; i += spacing) { bodyToSend.push(myHistory[i]); }
+        update(ref(db, `games/snake/players/${myUid}`), { body: bodyToSend, score: myScore });
     }, 50);
 
     function setupJoystick() {
@@ -310,7 +280,6 @@
             stick.style.transform = `translate(${dx}px, ${dy}px)`;
             joyX = dx / maxRadius; joyY = dy / maxRadius;
         }
-
         function endMove() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
 
         circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
@@ -334,9 +303,7 @@
         mouseXInContainer = e.clientX - rect.left;
         mouseYInContainer = e.clientY - rect.top;
     });
-    gameContainer.addEventListener('mouseleave', () => {
-        useMouseControl = false; 
-    });
+    gameContainer.addEventListener('mouseleave', () => { useMouseControl = false; });
 
     function updateLoop() {
         let focusX = WORLD_WIDTH / 2;
@@ -346,14 +313,12 @@
             let head = myHistory[0];
 
             if (useMouseControl) {
-                // FIX: Mauswinkel berechnet sich nun auf Basis der real skalierten Bildschirmmitte
-                let screenCenterX = gameContainer.clientWidth / 2;
-                let screenCenterY = gameContainer.clientHeight / 2;
+                // ECHTE BILDSCHIRMMITTE für die Richtungsbestimmung nutzen (Behebt Verschiebungen)
+                let screenCenterX = canvas.width / 2;
+                let screenCenterY = canvas.height / 2;
                 let dx = mouseXInContainer - screenCenterX;
                 let dy = mouseYInContainer - screenCenterY;
-                if (Math.hypot(dx, dy) > 8) { 
-                    angle = Math.atan2(dy, dx);
-                }
+                if (Math.hypot(dx, dy) > 10) { angle = Math.atan2(dy, dx); }
             } else if (joyX !== 0 || joyY !== 0) {
                 angle = Math.atan2(joyY, joyX);
             } else {
@@ -368,9 +333,7 @@
             let newX = head.x + Math.cos(angle) * speed;
             let newY = head.y + Math.sin(angle) * speed;
 
-            if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) {
-                triggerDeath();
-            }
+            if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) { triggerDeath(); }
 
             for (let key in allFood) {
                 let f = allFood[key];
@@ -388,44 +351,38 @@
                 if (pKey === myUid) continue;
                 let enemyBody = allPlayers[pKey].body;
                 if (!enemyBody) continue;
-
                 for (let i = 0; i < enemyBody.length; i++) {
-                    if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 18) {
-                        triggerDeath();
-                    }
+                    if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 18) { triggerDeath(); }
                 }
             }
 
             if (isPlaying) {
                 myHistory.unshift({ x: newX, y: newY });
-                if (myHistory.length > myScore * spacing) {
-                    myHistory.pop();
-                }
-                focusX = newX;
-                focusY = newY;
+                if (myHistory.length > myScore * spacing) { myHistory.pop(); }
+                focusX = newX; focusY = newY;
             }
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
         ctx.save();
         
-        // FIX: Berechne den Skalierungsfaktor basierend auf dem echten Fenster im Vergleich zum virtuellen Sichtfeld
-        let scaleX = canvas.width / VIEW_WIDTH;
-        let scaleY = canvas.height / VIEW_HEIGHT;
-        let scale = Math.min(scaleX, scaleY); // Gleichmäßige Skalierung (Seitenverhältnis beibehalten)
-        
-        // Kamera genau in der Mitte zentrieren und skalieren
+        // NEU: Responsiver Zoomfaktor. Je kleiner das Fenster, desto mehr zoomt das Spiel heraus, 
+        // damit das Sichtfeld (Sichtweite) auf PC und Mobilgeräten identisch bleibt!
+        let baseDimension = 800; 
+        let currentDimension = Math.min(canvas.width, canvas.height);
+        let currentZoom = currentDimension / baseDimension;
+        if(currentZoom < 0.5) currentZoom = 0.5; // Verhindert extreme Mikrosicht auf Miniscreens
+
         ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.scale(scale, scale);
+        ctx.scale(currentZoom, currentZoom);
         ctx.translate(-focusX, -focusY);
 
-        // Spielfeldrand zeichnen
+        // Roter Rand
         ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Futter zeichnen
+        // Futter
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
@@ -434,15 +391,13 @@
             }
         }
 
-        // Schlangen zeichnen
+        // Spieler
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
             let segmentsToDraw = [];
 
             if (isPlaying && playerKey === myUid) {
-                for(let i = 0; i < myHistory.length; i += spacing) {
-                    segmentsToDraw.push(myHistory[i]);
-                }
+                for(let i = 0; i < myHistory.length; i += spacing) { segmentsToDraw.push(myHistory[i]); }
             } else if (p.body) {
                 segmentsToDraw = p.body;
             }
