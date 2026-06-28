@@ -3,24 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io Pro 🐍</title>
+    <title>Maelist - Snake.io 🐍</title>
     <style>
-        :root { --primary: #3498db; --danger: #e74c3c; --dark: #111; }
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        
         body {
-            margin: 0; padding: 0; background: var(--dark);
-            font-family: 'Segoe UI', sans-serif; color: #fff;
+            margin: 0; padding: 0; background: #1a1a1a;
+            font-family: sans-serif; color: #fff;
             display: flex; flex-direction: column; align-items: center;
             overflow: hidden; height: 100vh;
         }
-        
-        header { text-align: center; padding: 10px; width: 100%; background: #1c2833; border-bottom: 3px solid var(--primary); z-index: 5; }
-        h1 { margin: 0; font-size: 1.2rem; color: var(--primary); }
+        header { text-align: center; padding: 10px; width: 100%; background: #2c3e50; border-bottom: 3px solid #3498db; z-index: 5; }
+        h1 { margin: 0; font-size: 1.3rem; color: #3498db; }
         
         #game-container {
-            position: relative; width: 100%; height: 60vh; background: #000;
-            border-bottom: 4px solid var(--primary); overflow: hidden;
+            position: relative; width: 100%; height: 55vh; background: #111; 
+            border-bottom: 4px solid #3498db; overflow: hidden;
         }
         canvas { display: block; width: 100%; height: 100%; }
         
@@ -30,17 +27,16 @@
             background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 20;
         }
-        .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid var(--primary); text-align: center; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
-        .play-btn { background: var(--primary); color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3); }
-        .play-btn:hover { transform: scale(1.05); }
-        .play-btn:disabled { background: #555; cursor: not-allowed; box-shadow: none; }
+        .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid #3498db; text-align: center; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
+        .play-btn { background: #3498db; color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; }
+        .play-btn:disabled { background: #555; cursor: not-allowed; }
 
         /* Fake-Werbung Overlay */
         #ad-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 30;
         }
-        .ad-box { background: #ffcc00; color: #003399; padding: 25px; border-radius: 12px; text-align: center; font-weight: bold; width: 280px; box-shadow: 0 0 25px #ffcc00; position: relative;}
+        .ad-box { background: #ffcc00; color: #003399; padding: 25px; border-radius: 12px; text-align: center; font-weight: bold; width: 280px; box-shadow: 0 0 25px #ffcc00; }
         .ad-box h2 { margin: 0 0 10px 0; font-size: 24px; }
         .ad-timer { font-size: 11px; color: #555; margin-top: 10px; }
 
@@ -48,38 +44,38 @@
         #leaderboard {
             position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7);
             padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            font-family: monospace; font-size: 12px; pointer-events: none; max-width: 180px; z-index: 10;
+            font-family: monospace; font-size: 12px; max-width: 180px; z-index: 10;
         }
-        #leaderboard h3 { margin: 0 0 5px 0; color: var(--primary); font-size: 13px; text-transform: uppercase; }
+        #leaderboard h3 { margin: 0 0 5px 0; color: #3498db; font-size: 13px; text-transform: uppercase; }
         .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
 
         #control-panel {
-            display: flex; align-items: center; justify-content: center;
-            width: 100%; flex-grow: 1; background: #161616; padding: 10px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; flex-grow: 1; background: #222; padding: 20px;
         }
         .joycon-circle {
-            width: 120px; height: 120px; background: #222; border-radius: 50%;
-            position: relative; border: 4px solid #333; touch-action: none;
+            width: 130px; height: 130px; background: #333; border-radius: 50%;
+            position: relative; border: 4px solid #444; touch-action: none;
         }
         .joycon-stick {
-            width: 46px; height: 46px; background: #ffffff; border-radius: 50%;
-            position: absolute; top: 33px; left: 33px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            width: 50px; height: 50px; background: #ffffff; border-radius: 50%;
+            position: absolute; top: 36px; left: 36px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        #lobby-status { font-size: 13px; margin-top: 4px; color: #aaa; }
+        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>Maelist Riesige Snake-Welt 🐍</h1>
-    <div id="lobby-status">Lade Arena...</div>
+    <h1>Maelist Snake Arena 🐍</h1>
+    <div id="lobby-status">Verbinde mit Firebase...</div>
 </header>
 
 <div id="game-container">
     <div id="start-screen">
         <div class="menu-box">
             <h2 style="margin:0; color:#3498db;">Bist du bereit?</h2>
-            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Verbinde mit Server...</p>
+            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Spieldaten...</p>
             <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
         </div>
     </div>
@@ -95,10 +91,10 @@
 
     <div id="leaderboard">
         <h3>🏆 Top Snakes</h3>
-        <div id="leaderboard-list">Warte auf Daten...</div>
+        <div id="leaderboard-list">Warte auf Spieler...</div>
     </div>
 
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="gameCanvas" width="2500" height="2500" style="width: 100%; height: 100%;"></canvas>
 </div>
 
 <div id="control-panel">
@@ -133,13 +129,15 @@
     const adOverlay = document.getElementById('ad-overlay');
     const leaderboardList = document.getElementById('leaderboard-list');
 
+    // Das Riesenfeld aus deinem Wunsch
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
+    canvas.width = WORLD_WIDTH;
+    canvas.height = WORLD_HEIGHT;
 
     let myUid = null;
     let myUsername = "Anonym";
-    let myColor = "";
-    
+    let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
     let allPlayers = {};
     let allFood = {};
     let isPlaying = false;
@@ -147,33 +145,27 @@
     let joyX = 0, joyY = 0;
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     
-    let angle = 0;
-    let speed = 4;
+    let angle = 0; 
+    let speed = 5;
     
-    let mySegments = [];
-    let myScore = 8;
+    let myHistory = []; 
+    let myScore = 6; 
     const spacing = 4;
-
-    function resizeCanvas() {
-        canvas.width = canvas.parentElement.clientWidth;
-        canvas.height = canvas.parentElement.clientHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
             myUid = user.uid;
             onValue(ref(db, `users/${myUid}`), (snapshot) => {
                 if(snapshot.exists()) myUsername = snapshot.val().username;
+                
                 document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
-                lobbyStatus.innerText = "Bereit zum Beitritt";
+                lobbyStatus.innerText = "Bereit zum Beitreten";
                 
                 const joinBtn = document.getElementById('join-btn');
                 joinBtn.disabled = false;
                 joinBtn.onclick = () => {
                     startScreen.style.display = 'none';
-                    initSnakeData();
+                    startNewLife();
                 };
             }, { onlyOnce: true });
         } else {
@@ -181,42 +173,37 @@
         }
     });
 
-    async function initSnakeData() {
-        myColor = `hsl(${Math.random() * 360}, 85%, 55%)`;
-        myScore = 8;
-        angle = Math.random() * Math.PI * 2;
-        
+    async function startNewLife() {
+        myScore = 6;
         let startX = Math.random() * (WORLD_WIDTH - 400) + 200;
         let startY = Math.random() * (WORLD_HEIGHT - 400) + 200;
-        
-        mySegments = [];
-        for(let i=0; i < myScore * spacing; i++) {
-            mySegments.push({ x: startX, y: startY });
-        }
+        myHistory = [{ x: startX, y: startY }];
 
         const myGameRef = ref(db, `games/snake/players/${myUid}`);
         await set(myGameRef, { 
-            username: myUsername, color: myColor, x: startX, y: startY, score: myScore 
+            username: myUsername, color: myColor, body: myHistory, score: myScore 
         });
         onDisconnect(myGameRef).remove();
 
+        // Futter erstellen falls keins da ist
         const foodSnap = await get(ref(db, 'games/snake/food'));
         if (!foodSnap.exists()) {
             let initialFood = {};
-            for(let i=0; i<80; i++) {
+            for(let i=0; i<120; i++) { // Mehr Futterpunkte auf dem großen Feld!
                 initialFood[i] = {
-                    x: Math.random() * (WORLD_WIDTH - 60) + 30,
-                    y: Math.random() * (WORLD_HEIGHT - 60) + 30,
-                    color: `hsl(${Math.random()*360}, 100%, 65%)`
+                    x: Math.random() * (WORLD_WIDTH - 40) + 20,
+                    y: Math.random() * (WORLD_HEIGHT - 40) + 20,
+                    color: `hsl(${Math.random()*360}, 100%, 60%)`
                 };
             }
             set(ref(db, 'games/snake/food'), initialFood);
         }
 
         isPlaying = true;
-        lobbyStatus.innerText = "In der Arena! Berühre nicht die roten Ränder!";
+        lobbyStatus.innerText = `Snake Arena | Viel Erfolg!`;
     }
 
+    // Abonnements für Echtzeitdaten wie in Version 1
     onValue(ref(db, 'games/snake/players'), (snap) => {
         if (snap.exists()) {
             allPlayers = snap.val();
@@ -230,51 +217,34 @@
         if (snap.exists()) allFood = snap.val();
     });
 
-    setInterval(() => {
-        if (!myUid || !isPlaying || mySegments.length === 0) return;
-        let bodySnapshot = [];
-        for(let i=0; i<mySegments.length; i+=spacing) {
-            if(mySegments[i]) {
-                bodySnapshot.push({x: Math.round(mySegments[i].x), y: Math.round(mySegments[i].y)});
-            }
-        }
-        update(ref(db, `games/snake/players/${myUid}`), {
-            x: Math.round(mySegments[0].x),
-            y: Math.round(mySegments[0].y),
-            body: bodySnapshot,
-            score: myScore
-        });
-    }, 50);
-
+    // Scoreliste updaten
     function updateLeaderboard() {
-        let playersArr = [];
-        for (let id in allPlayers) {
-            playersArr.push(allPlayers[id]);
-        }
-        playersArr.sort((a, b) => (b.score || 0) - (a.score || 0));
+        let list = [];
+        for (let id in allPlayers) list.push(allPlayers[id]);
+        list.sort((a, b) => (b.score || 0) - (a.score || 0));
 
         let html = "";
-        let topFive = playersArr.slice(0, 5);
-        topFive.forEach((p, idx) => {
-            html += `<div class="leaderboard-entry"><span>${idx+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
+        list.slice(0, 5).forEach((p, i) => {
+            html += `<div class="leaderboard-entry"><span>${i+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
         });
         leaderboardList.innerHTML = html || "Keine Spieler";
     }
 
+    // Tod auslösen mit Werbung
     function triggerDeath() {
         isPlaying = false;
-        set(ref(db, `games/snake/players/${myUid}`), null);
+        set(ref(db, `games/snake/players/${myUid}`), null); // Aus Firebase entfernen
         
         adOverlay.style.display = 'flex';
         let count = 3;
         document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
         
-        let counterInterval = setInterval(() => {
+        let timer = setInterval(() => {
             count--;
             if (count > 0) {
                 document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
             } else {
-                clearInterval(counterInterval);
+                clearInterval(timer);
                 adOverlay.style.display = 'none';
                 startScreen.style.display = 'flex';
                 document.getElementById('join-btn').innerText = "Erneut versuchen";
@@ -282,10 +252,24 @@
         }, 1000);
     }
 
+    // Netzwerk-Ticker wie in Version 1
+    setInterval(() => {
+        if (!myUid || !isPlaying || myHistory.length === 0) return;
+        let bodyToSend = [];
+        for(let i = 0; i < myHistory.length; i += spacing) {
+            bodyToSend.push(myHistory[i]);
+        }
+        update(ref(db, `games/snake/players/${myUid}`), {
+            body: bodyToSend,
+            score: myScore
+        });
+    }, 50);
+
+    // Joystick Setup
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
-        const maxRadius = 35;
+        const maxRadius = 40;
 
         function handleMove(clientX, clientY) {
             const rect = circle.getBoundingClientRect();
@@ -299,111 +283,91 @@
             joyX = dx / maxRadius; joyY = dy / maxRadius;
         }
 
-        function resetStick() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
         circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
         circle.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
-        circle.addEventListener('touchend', resetStick);
-        let isMouseDown = false;
-        circle.addEventListener('mousedown', (e) => { isMouseDown = true; handleMove(e.clientX, e.clientY); });
-        window.addEventListener('mousemove', (e) => { if (isMouseDown) handleMove(e.clientX, e.clientY); });
-        window.addEventListener('mouseup', () => { if (isMouseDown) { isMouseDown = false; resetStick(); } });
+        circle.addEventListener('touchend', () => { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; });
     }
     setupJoystick();
 
     window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
+    // Spiel-Hauptschleife
     function updateLoop() {
-        if (!isPlaying || !myUid || mySegments.length === 0) {
-            // Falls man im Menü ist, zentrieren wir auf die Mitte der Map
-            drawGame(WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
-            requestAnimationFrame(updateLoop);
-            return;
-        }
+        let focusX = WORLD_WIDTH / 2;
+        let focusY = WORLD_HEIGHT / 2;
 
-        if (joyX !== 0 || joyY !== 0) {
-            angle = Math.atan2(joyY, joyX);
-        } else {
-            let kX = 0, kY = 0;
-            if (keys.w || keys.ArrowUp) kY -= 1;
-            if (keys.s || keys.ArrowDown) kY += 1;
-            if (keys.a || keys.ArrowLeft) kX -= 1;
-            if (keys.d || keys.ArrowRight) kX += 1;
-            if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
-        }
-
-        let head = mySegments[0];
-        let newX = head.x + Math.cos(angle) * speed;
-        let newY = head.y + Math.sin(angle) * speed;
-
-        // Rand berührt -> Sofortiger Tod
-        if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) {
-            triggerDeath();
-            requestAnimationFrame(updateLoop);
-            return;
-        }
-
-        // Futter essen
-        for (let key in allFood) {
-            let f = allFood[key];
-            if (f && Math.hypot(newX - f.x, newY - f.y) < 18) {
-                myScore += 1;
-                set(ref(db, `games/snake/food/${key}`), {
-                    x: Math.random() * (WORLD_WIDTH - 60) + 30,
-                    y: Math.random() * (WORLD_HEIGHT - 60) + 30,
-                    color: `hsl(${Math.random()*360}, 100%, 65%)`
-                });
+        if (isPlaying && myHistory.length > 0) {
+            // Richtung berechnen
+            if (joyX !== 0 || joyY !== 0) {
+                angle = Math.atan2(joyY, joyX);
+            } else {
+                let kX = 0, kY = 0;
+                if (keys.w || keys.ArrowUp) kY -= 1;
+                if (keys.s || keys.ArrowDown) kY += 1;
+                if (keys.a || keys.ArrowLeft) kX -= 1;
+                if (keys.d || keys.ArrowRight) kX += 1;
+                if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
-        }
 
-        // Kollision mit gegnerischen Körpern
-        let crashed = false;
-        for (let pKey in allPlayers) {
-            if (pKey === myUid) continue;
-            let enemy = allPlayers[pKey];
-            if (!enemy || !enemy.body) continue;
+            let head = myHistory[0];
+            let newX = head.x + Math.cos(angle) * speed;
+            let newY = head.y + Math.sin(angle) * speed;
 
-            for (let i = 0; i < enemy.body.length; i++) {
-                if (Math.hypot(newX - enemy.body[i].x, newY - enemy.body[i].y) < 14) {
-                    crashed = true; 
-                    break;
+            // WUNSCH: Am Rand stirbt man sofort!
+            if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) {
+                triggerDeath();
+            }
+
+            // Futter fressen
+            for (let key in allFood) {
+                let f = allFood[key];
+                if (f && Math.hypot(newX - f.x, newY - f.y) < 16) {
+                    myScore += 1;
+                    set(ref(db, `games/snake/food/${key}`), {
+                        x: Math.random() * (WORLD_WIDTH - 60) + 30,
+                        y: Math.random() * (WORLD_HEIGHT - 60) + 30,
+                        color: `hsl(${Math.random()*360}, 100%, 60%)`
+                    });
                 }
             }
+
+            // Gegner rammen -> Tod
+            for (let pKey in allPlayers) {
+                if (pKey === myUid) continue;
+                let enemyBody = allPlayers[pKey].body;
+                if (!enemyBody) continue;
+
+                for (let i = 0; i < enemyBody.length; i++) {
+                    if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 13) {
+                        triggerDeath();
+                    }
+                }
+            }
+
+            if (isPlaying) {
+                myHistory.unshift({ x: newX, y: newY });
+                if (myHistory.length > myScore * spacing) {
+                    myHistory.pop();
+                }
+                focusX = newX;
+                focusY = newY;
+            }
         }
 
-        if (crashed) {
-            triggerDeath();
-            requestAnimationFrame(updateLoop);
-            return;
-        }
-
-        mySegments.unshift({ x: newX, y: newY });
-        if (mySegments.length > myScore * spacing) {
-            mySegments.pop();
-        }
-
-        drawGame(newX, newY);
-        requestAnimationFrame(updateLoop);
-    }
-
-    function drawGame(focusX, focusY) {
-        let camX = canvas.width / 2 - focusX;
-        let camY = canvas.height / 2 - focusY;
-
+        // --- ZEICHNEN (1:1 wie Version 1 mit Kameraverschiebung) ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        let camX = (document.getElementById('game-container').clientWidth / 2) - focusX;
+        let camY = (document.getElementById('game-container').clientHeight / 2) - focusY;
+
         ctx.save();
         ctx.translate(camX, camY);
 
-        // Gefährlicher roter Rand
+        // Roter Todesrand
         ctx.strokeStyle = '#e74c3c';
-        ctx.lineWidth = 12;
+        ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-        // Map-Raster
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-        ctx.lineWidth = 1;
-        for(let x=0; x<WORLD_WIDTH; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
-        for(let y=0; y<WORLD_HEIGHT; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
 
         // Futter zeichnen
         for (let key in allFood) {
@@ -414,16 +378,14 @@
             }
         }
 
-        // Schlangen rendern
+        // Alle Schlangen zeichnen
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
-            if (!p) continue;
-            
             let segmentsToDraw = [];
 
             if (isPlaying && playerKey === myUid) {
-                for(let i=0; i<mySegments.length; i+=spacing) {
-                    if(mySegments[i]) segmentsToDraw.push(mySegments[i]);
+                for(let i = 0; i < myHistory.length; i += spacing) {
+                    segmentsToDraw.push(myHistory[i]);
                 }
             } else if (p.body) {
                 segmentsToDraw = p.body;
@@ -432,25 +394,28 @@
             if (segmentsToDraw.length === 0) continue;
 
             for (let i = segmentsToDraw.length - 1; i >= 0; i--) {
-                let seg = segmentsToDraw[i];
-                if(!seg) continue;
+                let segment = segmentsToDraw[i];
+                if (!segment) continue;
                 ctx.beginPath();
-                ctx.arc(seg.x, seg.y, i === 0 ? 13 : 10, 0, Math.PI * 2);
-                ctx.fillStyle = i === 0 ? '#ffffff' : (p.color || '#3498db');
+                ctx.arc(segment.x, segment.y, (i === 0) ? 13 : 10, 0, Math.PI * 2);
+                ctx.fillStyle = (i === 0) ? "#ffffff" : (p.color || "#3498db");
                 ctx.fill();
-                ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+                ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke();
                 ctx.closePath();
             }
 
             let headSeg = segmentsToDraw[0];
             if(headSeg) {
-                ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText((p.username || "User") + ` (${p.score || 0})`, headSeg.x, headSeg.y - 22);
+                ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText((p.username || "User") + ` (${p.score || 0})`, headSeg.x, headSeg.y - 20);
             }
         }
 
         ctx.restore();
+        requestAnimationFrame(updateLoop);
     }
+
+    updateLoop();
 </script>
 
 </body>
