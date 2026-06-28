@@ -72,7 +72,6 @@
 </header>
 
 <div id="game-container">
-    <!-- Startbildschirm -->
     <div id="start-screen">
         <div class="menu-box">
             <h2 style="margin:0; color:#3498db;">Bist du bereit?</h2>
@@ -81,7 +80,6 @@
         </div>
     </div>
 
-    <!-- Werbung bei Tod -->
     <div id="ad-overlay">
         <div class="ad-box">
             <h2>IKEA 🇸🇪</h2>
@@ -91,7 +89,6 @@
         </div>
     </div>
 
-    <!-- Leaderboard -->
     <div id="leaderboard">
         <h3>🏆 Top Snakes</h3>
         <div id="leaderboard-list">Warte auf Spieler...</div>
@@ -136,6 +133,10 @@
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
 
+    // FIX: Virtuelle Sichtfeldgröße für absolute Fairness auf allen Geräten
+    const VIEW_WIDTH = 1000;
+    const VIEW_HEIGHT = 600;
+
     let myUid = null;
     let myUsername = "Anonym";
     let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
@@ -153,11 +154,11 @@
     let myScore = 6; 
     const spacing = 5; 
 
-    // Variablen für Maussteuerung
     let useMouseControl = false;
     let mouseXInContainer = 0;
     let mouseYInContainer = 0;
 
+    // Canvas-Größe entspricht dem echten Container-Fenster
     function resizeCanvas() {
         canvas.width = gameContainer.clientWidth;
         canvas.height = gameContainer.clientHeight;
@@ -292,14 +293,13 @@
         });
     }, 50);
 
-    // Joystick Setup & Fehlerbehebung
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
         const maxRadius = 40;
 
         function handleMove(clientX, clientY) {
-            useMouseControl = false; // Deaktiviert Maus, wenn Joystick genutzt wird
+            useMouseControl = false; 
             const rect = circle.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
@@ -324,11 +324,9 @@
     }
     setupJoystick();
 
-    // Tastatur Steuerung
     window.addEventListener('keydown', (e) => { if (e.key in keys) { keys[e.key] = true; useMouseControl = false; } });
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
-    // NEU: Maus-Event Listener für die Arena
     gameContainer.addEventListener('mousemove', (e) => {
         if (!isPlaying) return;
         useMouseControl = true;
@@ -337,7 +335,7 @@
         mouseYInContainer = e.clientY - rect.top;
     });
     gameContainer.addEventListener('mouseleave', () => {
-        useMouseControl = false; // Stoppt Maussteuerung beim Verlassen der Area
+        useMouseControl = false; 
     });
 
     function updateLoop() {
@@ -348,12 +346,12 @@
             let head = myHistory[0];
 
             if (useMouseControl) {
-                // Winkel zwischen Schlangenkopf (Bildschirmmitte) und Maus berechnen
+                // FIX: Mauswinkel berechnet sich nun auf Basis der real skalierten Bildschirmmitte
                 let screenCenterX = gameContainer.clientWidth / 2;
                 let screenCenterY = gameContainer.clientHeight / 2;
                 let dx = mouseXInContainer - screenCenterX;
                 let dy = mouseYInContainer - screenCenterY;
-                if (Math.hypot(dx, dy) > 10) { // Kleiner Totbereich
+                if (Math.hypot(dx, dy) > 8) { 
                     angle = Math.atan2(dy, dx);
                 }
             } else if (joyX !== 0 || joyY !== 0) {
@@ -410,19 +408,24 @@
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        let viewWidth = gameContainer.clientWidth;
-        let viewHeight = gameContainer.clientHeight;
-        
-        let camX = (viewWidth / 2) - focusX;
-        let camY = (viewHeight / 2) - focusY;
-
         ctx.save();
-        ctx.translate(camX, camY);
+        
+        // FIX: Berechne den Skalierungsfaktor basierend auf dem echten Fenster im Vergleich zum virtuellen Sichtfeld
+        let scaleX = canvas.width / VIEW_WIDTH;
+        let scaleY = canvas.height / VIEW_HEIGHT;
+        let scale = Math.min(scaleX, scaleY); // Gleichmäßige Skalierung (Seitenverhältnis beibehalten)
+        
+        // Kamera genau in der Mitte zentrieren und skalieren
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(scale, scale);
+        ctx.translate(-focusX, -focusY);
 
+        // Spielfeldrand zeichnen
         ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
+        // Futter zeichnen
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
@@ -431,6 +434,7 @@
             }
         }
 
+        // Schlangen zeichnen
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
             let segmentsToDraw = [];
