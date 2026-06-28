@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Maelist - Snake.io 🐍</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 0; background: #1a1a1a;
+            font-family: sans-serif; color: #fff;
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; height: 100vh;
+        }
+        header { text-align: center; padding: 10px; width: 100%; background: #2c3e50; border-bottom: 3px solid #3498db; }
+        h1 { margin: 0; font-size: 1.3rem; color: #3498db; }
+        #game-container {
+            position: relative; width: 100%; max-width: 800px;
+            height: 55vh; background: #111; border-bottom: 4px solid #3498db;
+            background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 40px 40px; /* Leichtes Gittermuster für das Snake-Feeling */
+        }
+        canvas { width: 100%; height: 100%; display: block; }
+        #control-panel {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; max-width: 800px; flex-grow: 1; background: #222; padding: 20px;
+        }
+        .joycon-circle {
+            width: 130px; height: 130px; background: #333; border-radius: 50%;
+            position: relative; border: 4px solid #444; touch-action: none;
+        }
+        .joycon-stick {
+            width: 50px; height: 50px; background: #ffffff; border-radius: 50%;
+            position: absolute; top: 36px; left: 36px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Maelist Snake Arena 🐍</h1>
+    <div id="lobby-status">Verbinde mit Firebase...</div>
+</header>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+</div>
+
+<div id="control-panel">
+    <div class="joycon-circle" id="joystick-circle">
+        <div class="joycon-stick" id="joystick-stick"></div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue, update, onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const lobbyStatus = document.getElementById('lobby-status');
+
+    let myUid = null;
+    let myUsername = "Anonym";
+    let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`; // Zufällige Farbe für jeden Spieler
+    let allPlayers = {};
+    let allFood = {};
+
+    // Steuerung und Snake-Logik
+    let joyX = 0, joyY = 0;
+    let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    
+    let angle = 0; // Bewegungsrichtung in Radiant (360 Grad)
+    let speed = 3.5;
+    
+    // Die Historie merkt sich jeden Schritt. Aus ihr bauen wir den Körper.
+    let myHistory = []; 
+    let myScore = 5; // Startlänge
+    const spacing = 4; // Abstand zwischen den angezeigten Körperteilen
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            myUid = user.uid;
+            onValue(ref(db, `users/${myUid}`), (snapshot) => {
+                if(snapshot.exists()) myUsername = snapshot.val().username;
+                startGameSession();
+            }, { onlyOnce: true });
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+
+    async function startGameSession() {
+        lobbyStatus.innerText = `Snake Arena | ${myUsername}`;
+        const myGameRef = ref(db, `games/snake/players/${myUid}`);
+
+        // Startposition in die Mitte
+        myHistory = [{ x: canvas.width/2, y: canvas.height/2 }];
+
+        await set(myGameRef, { 
+            username: myUsername, color: myColor, body: myHistory, score: myScore 
+        });
+        onDisconnect(myGameRef).remove();
+
+        // 20 Futterstücke generieren, falls noch keine da sind
+        const foodSnap = await get(ref(db, 'games/snake/food'));
+        if (!foodSnap.exists()) {
+            let initialFood = {};
+            for(let i=0; i<20; i++) {
+                initialFood[i] = {
+                    x: Math.random() * (canvas.width - 20) + 10,
+                    y: Math.random() * (canvas.height - 20) + 10,
+                    color: `hsl(${Math.random()*360}, 100%, 60%)`
+                };
+            }
+            set(ref(db, 'games/snake/food'), initialFood);
+        }
+
+        // Live-Daten von Server abonnieren
+        onValue(ref(db, 'games/snake/players'), (snap) => {
+            if (snap.exists()) allPlayers = snap.val();
+            else allPlayers = {};
+        });
+
+        onValue(ref(db, 'games/snake/food'), (snap) => {
+            if (snap.exists()) allFood = snap.val();
+        });
+
+        // Wir updaten Firebase nicht jeden einzelnen Frame, um Bandbreite zu sparen. 
+        // 20x pro Sekunde reicht für die Cloud völlig, lokal läuft es mit 60 FPS weiter.
+        setInterval(uploadMySnake, 50);
+
+        updateLoop();
+    }
+
+    function uploadMySnake() {
+        if (!myUid) return;
+        let bodyToSend = [];
+        // Nur jeden "spacing"-ten Punkt an Firebase senden, um Daten zu sparen
+        for(let i = 0; i < myHistory.length; i += spacing) {
+            bodyToSend.push(myHistory[i]);
+        }
+        update(ref(db, `games/snake/players/${myUid}`), {
+            body: bodyToSend,
+            score: myScore
+        });
+    }
+
+    function setupJoystick() {
+        const circle = document.getElementById('joystick-circle');
+        const stick = document.getElementById('joystick-stick');
+        const maxRadius = 40;
+
+        function handleMove(clientX, clientY) {
+            const rect = circle.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = clientX - centerX;
+            let dy = clientY - centerY;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > maxRadius) { dx = (dx / distance) * maxRadius; dy = (dy / distance) * maxRadius; }
+            stick.style.transform = `translate(${dx}px, ${dy}px)`;
+            joyX = dx / maxRadius; joyY = dy / maxRadius;
+        }
+
+        function resetStick() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
+        circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
+        circle.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
+        circle.addEventListener('touchend', resetStick);
+        let isMouseDown = false;
+        circle.addEventListener('mousedown', (e) => { isMouseDown = true; handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', (e) => { if (isMouseDown) handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { if (isMouseDown) { isMouseDown = false; resetStick(); } });
+    }
+    setupJoystick();
+
+    window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
+    window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+
+    function updateLoop() {
+        if (!myUid || myHistory.length === 0) {
+            requestAnimationFrame(updateLoop);
+            return;
+        }
+
+        // 1. Richtung bestimmen
+        if (joyX !== 0 || joyY !== 0) {
+            angle = Math.atan2(joyY, joyX);
+        } else {
+            let kX = 0, kY = 0;
+            if (keys.w || keys.ArrowUp) kY -= 1;
+            if (keys.s || keys.ArrowDown) kY += 1;
+            if (keys.a || keys.ArrowLeft) kX -= 1;
+            if (keys.d || keys.ArrowRight) kX += 1;
+            if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
+        }
+
+        let head = myHistory[0];
+        let newX = head.x + Math.cos(angle) * speed;
+        let newY = head.y + Math.sin(angle) * speed;
+
+        // 2. Rand-Kollision (Bounce)
+        if (newX < 10 || newX > canvas.width - 10) angle = Math.PI - angle;
+        if (newY < 10 || newY > canvas.height - 10) angle = -angle;
+        newX = head.x + Math.cos(angle) * speed;
+        newY = head.y + Math.sin(angle) * speed;
+
+        // 3. Futter essen
+        for (let key in allFood) {
+            let f = allFood[key];
+            if (Math.hypot(newX - f.x, newY - f.y) < 15) {
+                myScore += 3; // Schlange wächst
+                set(ref(db, `games/snake/food/${key}`), { // Futter neu platzieren
+                    x: Math.random() * (canvas.width - 40) + 20,
+                    y: Math.random() * (canvas.height - 40) + 20,
+                    color: `hsl(${Math.random()*360}, 100%, 60%)`
+                });
+            }
+        }
+
+        // 4. Feind-Kollision (Wenn mein Kopf einen anderen Körper berührt)
+        let died = false;
+        for (let pKey in allPlayers) {
+            if (pKey === myUid) continue; // Mich selbst ignorieren
+            let enemyBody = allPlayers[pKey].body;
+            if (!enemyBody) continue;
+
+            for (let i = 0; i < enemyBody.length; i++) {
+                if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 12) {
+                    died = true; break;
+                }
+            }
+        }
+
+        if (died) {
+            // Tot! Zurück auf Startlänge setzen
+            myScore = 5;
+            newX = Math.random() * (canvas.width - 60) + 30;
+            newY = Math.random() * (canvas.height - 60) + 30;
+            myHistory = [{ x: newX, y: newY }];
+        } else {
+            // Weiterleben: Neue Position zur Historie hinzufügen
+            myHistory.unshift({ x: newX, y: newY });
+            
+            // Historie abschneiden basierend auf dem Score
+            let maxHistoryLength = myScore * spacing;
+            if (myHistory.length > maxHistoryLength) {
+                myHistory.length = maxHistoryLength;
+            }
+        }
+
+        // --- DRAW ---
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Futter zeichnen
+        for (let key in allFood) {
+            let f = allFood[key];
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = f.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = f.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+        ctx.shadowBlur = 0; // Schatten resetten
+
+        // Alle Spieler zeichnen
+        for (let playerKey in allPlayers) {
+            let p = allPlayers[playerKey];
+            if (!p.body || p.body.length === 0) continue;
+
+            // Körper zeichnen (von hinten nach vorne)
+            for (let i = p.body.length - 1; i >= 0; i--) {
+                let segment = p.body[i];
+                ctx.beginPath();
+                // Der Kopf (i=0) ist etwas größer
+                let radius = (i === 0) ? 12 : 10; 
+                ctx.arc(segment.x, segment.y, radius, 0, Math.PI * 2);
+                
+                if (i === 0) {
+                    ctx.fillStyle = "#fff"; // Kopf ist immer weiß zur Orientierung
+                } else {
+                    ctx.fillStyle = p.color; // Körper hat die Spielerfarbe
+                }
+                
+                ctx.fill();
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.closePath();
+            }
+
+            // Name über dem Kopf
+            ctx.fillStyle = '#fff';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.username + ` (${p.score})`, p.body[0].x, p.body[0].y - 20);
+        }
+
+        requestAnimationFrame(updateLoop);
+    }
+</script>
+
+</body>
+</html>
