@@ -94,7 +94,7 @@
         <div id="leaderboard-list">Warte auf Spieler...</div>
     </div>
 
-    <canvas id="gameCanvas" width="2500" height="2500" style="width: 100%; height: 100%;"></canvas>
+    <canvas id="gameCanvas"></canvas>
 </div>
 
 <div id="control-panel">
@@ -129,11 +129,8 @@
     const adOverlay = document.getElementById('ad-overlay');
     const leaderboardList = document.getElementById('leaderboard-list');
 
-    // Das Riesenfeld aus deinem Wunsch
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
-    canvas.width = WORLD_WIDTH;
-    canvas.height = WORLD_HEIGHT;
 
     let myUid = null;
     let myUsername = "Anonym";
@@ -146,11 +143,18 @@
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     
     let angle = 0; 
-    let speed = 5;
+    let speed = 4.5;
     
     let myHistory = []; 
     let myScore = 6; 
-    const spacing = 4;
+    const spacing = 5; // Abstand leicht erhöht, da Schlangen dicker sind
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -175,8 +179,9 @@
 
     async function startNewLife() {
         myScore = 6;
-        let startX = Math.random() * (WORLD_WIDTH - 400) + 200;
-        let startY = Math.random() * (WORLD_HEIGHT - 400) + 200;
+        myColor = `hsl(${Math.random() * 360}, 85%, 50%)`;
+        let startX = Math.random() * (WORLD_WIDTH - 600) + 300;
+        let startY = Math.random() * (WORLD_HEIGHT - 600) + 300;
         myHistory = [{ x: startX, y: startY }];
 
         const myGameRef = ref(db, `games/snake/players/${myUid}`);
@@ -185,14 +190,14 @@
         });
         onDisconnect(myGameRef).remove();
 
-        // Futter erstellen falls keins da ist
+        // MASSIG VIEL FUTTER GENERIEREN (250 Punkte)
         const foodSnap = await get(ref(db, 'games/snake/food'));
-        if (!foodSnap.exists()) {
+        if (!foodSnap.exists() || Object.keys(foodSnap.val()).length < 50) {
             let initialFood = {};
-            for(let i=0; i<120; i++) { // Mehr Futterpunkte auf dem großen Feld!
-                initialFood[i] = {
-                    x: Math.random() * (WORLD_WIDTH - 40) + 20,
-                    y: Math.random() * (WORLD_HEIGHT - 40) + 20,
+            for(let i=0; i<250; i++) { 
+                initialFood[Date.now() + "_" + i] = {
+                    x: Math.random() * (WORLD_WIDTH - 60) + 30,
+                    y: Math.random() * (WORLD_HEIGHT - 60) + 30,
                     color: `hsl(${Math.random()*360}, 100%, 60%)`
                 };
             }
@@ -200,10 +205,9 @@
         }
 
         isPlaying = true;
-        lobbyStatus.innerText = `Snake Arena | Viel Erfolg!`;
+        lobbyStatus.innerText = `Snake Arena | Zerquetsche die anderen!`;
     }
 
-    // Abonnements für Echtzeitdaten wie in Version 1
     onValue(ref(db, 'games/snake/players'), (snap) => {
         if (snap.exists()) {
             allPlayers = snap.val();
@@ -215,9 +219,9 @@
 
     onValue(ref(db, 'games/snake/food'), (snap) => {
         if (snap.exists()) allFood = snap.val();
+        else allFood = {};
     });
 
-    // Scoreliste updaten
     function updateLeaderboard() {
         let list = [];
         for (let id in allPlayers) list.push(allPlayers[id]);
@@ -230,10 +234,29 @@
         leaderboardList.innerHTML = html || "Keine Spieler";
     }
 
-    // Tod auslösen mit Werbung
+    // Wenn man stirbt: Überbleibsel werden zu neuem Futter!
     function triggerDeath() {
         isPlaying = false;
-        set(ref(db, `games/snake/players/${myUid}`), null); // Aus Firebase entfernen
+        
+        // Futter am Todesort hinterlassen
+        if (myHistory.length > 0) {
+            let newFoodDrops = {};
+            for (let i = 0; i < myHistory.length; i += spacing * 2) {
+                let segment = myHistory[i];
+                if (segment) {
+                    let foodId = "dead_" + myUid + "_" + i + "_" + Math.round(Math.random()*1000);
+                    newFoodDrops[foodId] = {
+                        x: segment.x + (Math.random()*16 - 8),
+                        y: segment.y + (Math.random()*16 - 8),
+                        color: myColor // Das Futter leuchtet in der Farbe deiner verendeten Schlange
+                    };
+                }
+            }
+            // Über ein schnelles Update in Firebase einspeisen
+            update(ref(db, `games/snake/food`), newFoodDrops);
+        }
+
+        set(ref(db, `games/snake/players/${myUid}`), null);
         
         adOverlay.style.display = 'flex';
         let count = 3;
@@ -252,7 +275,6 @@
         }, 1000);
     }
 
-    // Netzwerk-Ticker wie in Version 1
     setInterval(() => {
         if (!myUid || !isPlaying || myHistory.length === 0) return;
         let bodyToSend = [];
@@ -265,7 +287,6 @@
         });
     }, 50);
 
-    // Joystick Setup
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -292,13 +313,11 @@
     window.addEventListener('keydown', (e) => { if (e.key in keys) keys[e.key] = true; });
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
-    // Spiel-Hauptschleife
     function updateLoop() {
         let focusX = WORLD_WIDTH / 2;
         let focusY = WORLD_HEIGHT / 2;
 
         if (isPlaying && myHistory.length > 0) {
-            // Richtung berechnen
             if (joyX !== 0 || joyY !== 0) {
                 angle = Math.atan2(joyY, joyX);
             } else {
@@ -314,15 +333,14 @@
             let newX = head.x + Math.cos(angle) * speed;
             let newY = head.y + Math.sin(angle) * speed;
 
-            // WUNSCH: Am Rand stirbt man sofort!
             if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) {
                 triggerDeath();
             }
 
-            // Futter fressen
+            // Kollisionsradius für Futter vergrößert (da Schlange fetter ist)
             for (let key in allFood) {
                 let f = allFood[key];
-                if (f && Math.hypot(newX - f.x, newY - f.y) < 16) {
+                if (f && Math.hypot(newX - f.x, newY - f.y) < 22) {
                     myScore += 1;
                     set(ref(db, `games/snake/food/${key}`), {
                         x: Math.random() * (WORLD_WIDTH - 60) + 30,
@@ -339,7 +357,7 @@
                 if (!enemyBody) continue;
 
                 for (let i = 0; i < enemyBody.length; i++) {
-                    if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 13) {
+                    if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 18) {
                         triggerDeath();
                     }
                 }
@@ -355,16 +373,19 @@
             }
         }
 
-        // --- ZEICHNEN (1:1 wie Version 1 mit Kameraverschiebung) ---
+        // --- DYNAMISCHE KAMERA (Zentriert den Kopf perfekt in der Mitte) ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        let camX = (document.getElementById('game-container').clientWidth / 2) - focusX;
-        let camY = (document.getElementById('game-container').clientHeight / 2) - focusY;
+        let viewWidth = canvas.parentElement.clientWidth;
+        let viewHeight = canvas.parentElement.clientHeight;
+        
+        let camX = (viewWidth / 2) - focusX;
+        let camY = (viewHeight / 2) - focusY;
 
         ctx.save();
         ctx.translate(camX, camY);
 
-        // Roter Todesrand
+        // Gefährlicher roter Rahmen
         ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -378,7 +399,7 @@
             }
         }
 
-        // Alle Schlangen zeichnen
+        // Schlangen zeichnen (Jetzt viel dicker!)
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
             let segmentsToDraw = [];
@@ -397,17 +418,18 @@
                 let segment = segmentsToDraw[i];
                 if (!segment) continue;
                 ctx.beginPath();
-                ctx.arc(segment.x, segment.y, (i === 0) ? 13 : 10, 0, Math.PI * 2);
+                // Kopf-Radius: 18px | Körper-Radius: 14px -> Das ist deutlich fetter!
+                ctx.arc(segment.x, segment.y, (i === 0) ? 18 : 14, 0, Math.PI * 2);
                 ctx.fillStyle = (i === 0) ? "#ffffff" : (p.color || "#3498db");
                 ctx.fill();
-                ctx.strokeStyle = "#000"; ctx.lineWidth = 1; ctx.stroke();
+                ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.stroke();
                 ctx.closePath();
             }
 
             let headSeg = segmentsToDraw[0];
             if(headSeg) {
-                ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText((p.username || "User") + ` (${p.score || 0})`, headSeg.x, headSeg.y - 20);
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText((p.username || "User") + ` (${p.score || 0})`, headSeg.x, headSeg.y - 25);
             }
         }
 
