@@ -3,49 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍</title>
+    <title>Maelist - Snake.io Pro 🐍</title>
     <style>
+        :root { --primary: #3498db; --danger: #e74c3c; --dark: #111; }
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        
         body {
-            margin: 0; padding: 0; background: #1a1a1a;
-            font-family: sans-serif; color: #fff;
+            margin: 0; padding: 0; background: var(--dark);
+            font-family: 'Segoe UI', sans-serif; color: #fff;
             display: flex; flex-direction: column; align-items: center;
             overflow: hidden; height: 100vh;
         }
-        header { text-align: center; padding: 10px; width: 100%; background: #2c3e50; border-bottom: 3px solid #3498db; }
-        h1 { margin: 0; font-size: 1.3rem; color: #3498db; }
+        
+        header { text-align: center; padding: 10px; width: 100%; background: #1c2833; border-bottom: 3px solid var(--primary); z-index: 5; }
+        h1 { margin: 0; font-size: 1.2rem; color: var(--primary); }
+        
         #game-container {
-            position: relative; width: 100%; max-width: 800px;
-            height: 55vh; background: #111; border-bottom: 4px solid #3498db;
-            background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-            background-size: 40px 40px; /* Leichtes Gittermuster für das Snake-Feeling */
+            position: relative; width: 100%; height: 60vh; background: #000;
+            border-bottom: 4px solid var(--primary); overflow: hidden;
         }
-        canvas { width: 100%; height: 100%; display: block; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* Startbildschirm Overlay */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 20; transition: opacity 0.3s;
+        }
+        .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid var(--primary); text-align: center; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
+        .play-btn { background: var(--primary); color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3); }
+        .play-btn:hover { transform: scale(1.05); }
+
+        /* Fake-Werbung Overlay */
+        #ad-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 30;
+        }
+        .ad-box { background: #ffcc00; color: #003399; padding: 25px; border-radius: 12px; text-align: center; font-weight: bold; width: 280px; box-shadow: 0 0 25px #ffcc00; position: relative;}
+        .ad-box h2 { margin: 0 0 10px 0; font-size: 24px; }
+        .ad-timer { font-size: 11px; color: #555; margin-top: 10px; }
+
+        /* Live Scoreliste / Leaderboard */
+        #leaderboard {
+            position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+            font-family: monospace; font-size: 12px; pointer-events: none; max-width: 180px;
+        }
+        #leaderboard h3 { margin: 0 0 5px 0; color: var(--primary); font-size: 13px; text-transform: uppercase; }
+        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
+
         #control-panel {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            width: 100%; max-width: 800px; flex-grow: 1; background: #222; padding: 20px;
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; flex-grow: 1; background: #161616; padding: 10px;
         }
         .joycon-circle {
-            width: 130px; height: 130px; background: #333; border-radius: 50%;
-            position: relative; border: 4px solid #444; touch-action: none;
+            width: 120px; height: 120px; background: #222; border-radius: 50%;
+            position: relative; border: 4px solid #333; touch-action: none;
         }
         .joycon-stick {
-            width: 50px; height: 50px; background: #ffffff; border-radius: 50%;
-            position: absolute; top: 36px; left: 36px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            width: 46px; height: 46px; background: #ffffff; border-radius: 50%;
+            position: absolute; top: 33px; left: 33px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; }
+        #lobby-status { font-size: 13px; margin-top: 4px; color: #aaa; }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>Maelist Snake Arena 🐍</h1>
-    <div id="lobby-status">Verbinde mit Firebase...</div>
+    <h1>Maelist Riesige Snake-Welt 🐍</h1>
+    <div id="lobby-status">Bereit zum Beitritt</div>
 </header>
 
 <div id="game-container">
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <div id="start-screen">
+        <div class="menu-box">
+            <h2 style="margin:0; color:#3498db;">Bist du bereit?</h2>
+            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Username...</p>
+            <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
+        </div>
+    </div>
+
+    <div id="ad-overlay">
+        <div class="ad-box">
+            <h2>IKEA 🇸🇪</h2>
+            <p>Wohnst du noch oder schlangst du schon?</p>
+            <div style="background:#003399; color:white; padding:8px; border-radius:5px; font-size:13px;">Klippan Sofa jetzt nur 199€!</div>
+            <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+        </div>
+    </div>
+
+    <div id="leaderboard">
+        <h3>🏆 Top Snakes</h3>
+        <div id="leaderboard-list">Lade Rangliste...</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
 </div>
 
 <div id="control-panel">
@@ -76,104 +128,172 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const lobbyStatus = document.getElementById('lobby-status');
+    const startScreen = document.getElementById('start-screen');
+    const adOverlay = document.getElementById('ad-overlay');
+    const leaderboardList = document.getElementById('leaderboard-list');
+
+    const WORLD_WIDTH = 2500;
+    const WORLD_HEIGHT = 2500;
 
     let myUid = null;
     let myUsername = "Anonym";
-    let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`; // Zufällige Farbe für jeden Spieler
+    let myColor = "";
+    
     let allPlayers = {};
     let allFood = {};
+    let isPlaying = false;
 
-    // Steuerung und Snake-Logik
     let joyX = 0, joyY = 0;
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     
-    let angle = 0; // Bewegungsrichtung in Radiant (360 Grad)
-    let speed = 3.5;
+    let angle = 0;
+    let speed = 4;
     
-    // Die Historie merkt sich jeden Schritt. Aus ihr bauen wir den Körper.
-    let myHistory = []; 
-    let myScore = 5; // Startlänge
-    const spacing = 4; // Abstand zwischen den angezeigten Körperteilen
+    let mySegments = [];
+    let myScore = 8;
+    const spacing = 4;
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
             myUid = user.uid;
             onValue(ref(db, `users/${myUid}`), (snapshot) => {
                 if(snapshot.exists()) myUsername = snapshot.val().username;
-                startGameSession();
+                document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
+                
+                const joinBtn = document.getElementById('join-btn');
+                joinBtn.disabled = false;
+                joinBtn.onclick = () => {
+                    startScreen.style.display = 'none';
+                    initSnakeData();
+                };
             }, { onlyOnce: true });
         } else {
             window.location.href = "index.html";
         }
     });
 
-    async function startGameSession() {
-        lobbyStatus.innerText = `Snake Arena | ${myUsername}`;
+    async function initSnakeData() {
+        myColor = `hsl(${Math.random() * 360}, 85%, 55%)`;
+        myScore = 8;
+        angle = Math.random() * Math.PI * 2;
+        
+        let startX = Math.random() * (WORLD_WIDTH - 300) + 150;
+        let startY = Math.random() * (WORLD_HEIGHT - 300) + 150;
+        
+        mySegments = [];
+        for(let i=0; i < myScore * spacing; i++) {
+            mySegments.push({ x: startX, y: startY });
+        }
+
         const myGameRef = ref(db, `games/snake/players/${myUid}`);
-
-        // Startposition in die Mitte
-        myHistory = [{ x: canvas.width/2, y: canvas.height/2 }];
-
         await set(myGameRef, { 
-            username: myUsername, color: myColor, body: myHistory, score: myScore 
+            username: myUsername, color: myColor, x: startX, y: startY, score: myScore 
         });
         onDisconnect(myGameRef).remove();
 
-        // 20 Futterstücke generieren, falls noch keine da sind
+        // Futter-Erstellung falls leer
         const foodSnap = await get(ref(db, 'games/snake/food'));
         if (!foodSnap.exists()) {
             let initialFood = {};
-            for(let i=0; i<20; i++) {
+            for(let i=0; i<80; i++) {
                 initialFood[i] = {
-                    x: Math.random() * (canvas.width - 20) + 10,
-                    y: Math.random() * (canvas.height - 20) + 10,
-                    color: `hsl(${Math.random()*360}, 100%, 60%)`
+                    x: Math.random() * (WORLD_WIDTH - 40) + 20,
+                    y: Math.random() * (WORLD_HEIGHT - 40) + 20,
+                    color: `hsl(${Math.random()*360}, 100%, 65%)`
                 };
             }
             set(ref(db, 'games/snake/food'), initialFood);
         }
 
-        // Live-Daten von Server abonnieren
-        onValue(ref(db, 'games/snake/players'), (snap) => {
-            if (snap.exists()) allPlayers = snap.val();
-            else allPlayers = {};
-        });
-
-        onValue(ref(db, 'games/snake/food'), (snap) => {
-            if (snap.exists()) allFood = snap.val();
-        });
-
-        // Wir updaten Firebase nicht jeden einzelnen Frame, um Bandbreite zu sparen. 
-        // 20x pro Sekunde reicht für die Cloud völlig, lokal läuft es mit 60 FPS weiter.
-        setInterval(uploadMySnake, 50);
-
-        updateLoop();
+        isPlaying = true;
+        lobbyStatus.innerText = "In der Arena! Vorsicht vor den Rändern!";
     }
 
-    function uploadMySnake() {
-        if (!myUid) return;
-        let bodyToSend = [];
-        // Nur jeden "spacing"-ten Punkt an Firebase senden, um Daten zu sparen
-        for(let i = 0; i < myHistory.length; i += spacing) {
-            bodyToSend.push(myHistory[i]);
+    // Listener für Cloud Daten
+    onValue(ref(db, 'games/snake/players'), (snap) => {
+        if (snap.exists()) {
+            allPlayers = snap.val();
+            updateLeaderboard();
+        } else {
+            allPlayers = {};
+        }
+    });
+
+    onValue(ref(db, 'games/snake/food'), (snap) => {
+        if (snap.exists()) allFood = snap.val();
+    });
+
+    // Positions-Upload Ticker
+    setInterval(() => {
+        if (!myUid || !isPlaying || mySegments.length === 0) return;
+        let bodySnapshot = [];
+        for(let i=0; i<mySegments.length; i+=spacing) {
+            bodySnapshot.push({x: Math.round(mySegments[i].x), y: Math.round(mySegments[i].y)});
         }
         update(ref(db, `games/snake/players/${myUid}`), {
-            body: bodyToSend,
+            x: Math.round(mySegments[0].x),
+            y: Math.round(mySegments[0].y),
+            body: bodySnapshot,
             score: myScore
         });
+    }, 50);
+
+    function updateLeaderboard() {
+        let playersArr = [];
+        for (let id in allPlayers) {
+            playersArr.push(allPlayers[id]);
+        }
+        // Nach Score sortieren (Höchste zuerst)
+        playersArr.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+        let html = "";
+        let topFive = playersArr.slice(0, 5);
+        topFive.forEach((p, idx) => {
+            html += `<div class="leaderboard-entry"><span>${idx+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
+        });
+        leaderboardList.innerHTML = html || "Keine Spieler";
     }
 
+    function triggerDeath() {
+        isPlaying = false;
+        set(ref(db, `games/snake/players/${myUid}`), null); // Aus Firebase löschen
+        
+        // Werbung einblenden
+        adOverlay.style.display = 'flex';
+        let count = 3;
+        document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
+        
+        let counterInterval = setInterval(() => {
+            count--;
+            if (count > 0) {
+                document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
+            } else {
+                clearInterval(counterInterval);
+                adOverlay.style.display = 'none';
+                startScreen.style.display = 'flex'; // Wieder ins Hauptmenü
+                document.getElementById('join-btn').innerText = "Erneut versuchen";
+            }
+        }, 1000);
+    }
+
+    // Joystick Setup
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
-        const maxRadius = 40;
+        const maxRadius = 35;
 
         function handleMove(clientX, clientY) {
             const rect = circle.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
-            let dx = clientX - centerX;
-            let dy = clientY - centerY;
+            let dx = clientX - centerX; let dy = clientY - centerY;
             let distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance > maxRadius) { dx = (dx / distance) * maxRadius; dy = (dy / distance) * maxRadius; }
@@ -196,12 +316,13 @@
     window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
 
     function updateLoop() {
-        if (!myUid || myHistory.length === 0) {
+        if (!isPlaying || !myUid || mySegments.length === 0) {
+            // Selbst im Menü zeichnen wir die Arena im Hintergrund weiter
+            drawGame(canvas.width/2, canvas.height/2);
             requestAnimationFrame(updateLoop);
             return;
         }
 
-        // 1. Richtung bestimmen
         if (joyX !== 0 || joyY !== 0) {
             angle = Math.atan2(joyY, joyX);
         } else {
@@ -213,110 +334,117 @@
             if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
         }
 
-        let head = myHistory[0];
+        let head = mySegments[0];
         let newX = head.x + Math.cos(angle) * speed;
         let newY = head.y + Math.sin(angle) * speed;
 
-        // 2. Rand-Kollision (Bounce)
-        if (newX < 10 || newX > canvas.width - 10) angle = Math.PI - angle;
-        if (newY < 10 || newY > canvas.height - 10) angle = -angle;
-        newX = head.x + Math.cos(angle) * speed;
-        newY = head.y + Math.sin(angle) * speed;
+        // CRITICAL NEU: Rand-Kollision bedeutet ab jetzt der Tod!
+        if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) {
+            triggerDeath();
+            requestAnimationFrame(updateLoop);
+            return;
+        }
 
-        // 3. Futter essen
+        // Futter essen
         for (let key in allFood) {
             let f = allFood[key];
-            if (Math.hypot(newX - f.x, newY - f.y) < 15) {
-                myScore += 3; // Schlange wächst
-                set(ref(db, `games/snake/food/${key}`), { // Futter neu platzieren
-                    x: Math.random() * (canvas.width - 40) + 20,
-                    y: Math.random() * (canvas.height - 40) + 20,
-                    color: `hsl(${Math.random()*360}, 100%, 60%)`
+            if (Math.hypot(newX - f.x, newY - f.y) < 18) {
+                myScore += 1;
+                set(ref(db, `games/snake/food/${key}`), {
+                    x: Math.random() * (WORLD_WIDTH - 60) + 30,
+                    y: Math.random() * (WORLD_HEIGHT - 60) + 30,
+                    color: `hsl(${Math.random()*360}, 100%, 65%)`
                 });
             }
         }
 
-        // 4. Feind-Kollision (Wenn mein Kopf einen anderen Körper berührt)
-        let died = false;
+        // Crash gegen fremde Körper
+        let crashed = false;
         for (let pKey in allPlayers) {
-            if (pKey === myUid) continue; // Mich selbst ignorieren
-            let enemyBody = allPlayers[pKey].body;
-            if (!enemyBody) continue;
+            if (pKey === myUid) continue;
+            let enemy = allPlayers[pKey];
+            if (!enemy.body) continue;
 
-            for (let i = 0; i < enemyBody.length; i++) {
-                if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 12) {
-                    died = true; break;
+            for (let i = 0; i < enemy.body.length; i++) {
+                if (Math.hypot(newX - enemy.body[i].x, newY - enemy.body[i].y) < 14) {
+                    crashed = true; 
+                    break;
                 }
             }
         }
 
-        if (died) {
-            // Tot! Zurück auf Startlänge setzen
-            myScore = 5;
-            newX = Math.random() * (canvas.width - 60) + 30;
-            newY = Math.random() * (canvas.height - 60) + 30;
-            myHistory = [{ x: newX, y: newY }];
-        } else {
-            // Weiterleben: Neue Position zur Historie hinzufügen
-            myHistory.unshift({ x: newX, y: newY });
-            
-            // Historie abschneiden basierend auf dem Score
-            let maxHistoryLength = myScore * spacing;
-            if (myHistory.length > maxHistoryLength) {
-                myHistory.length = maxHistoryLength;
-            }
+        if (crashed) {
+            triggerDeath();
+            requestAnimationFrame(updateLoop);
+            return;
         }
 
-        // --- DRAW ---
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Segmente updaten
+        mySegments.unshift({ x: newX, y: newY });
+        if (mySegments.length > myScore * spacing) {
+            mySegments.pop();
+        }
 
-        // Futter zeichnen
+        drawGame(newX, newY);
+        requestAnimationFrame(updateLoop);
+    }
+
+    function drawGame(focusX, focusY) {
+        let camX = canvas.width / 2 - focusX;
+        let camY = canvas.height / 2 - focusY;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(camX, camY);
+
+        // Gefährlicher roter Außenrand
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        // Hintergrund-Gitter
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 1;
+        for(let x=0; x<WORLD_WIDTH; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_HEIGHT); ctx.stroke(); }
+        for(let y=0; y<WORLD_HEIGHT; y+=50) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_WIDTH,y); ctx.stroke(); }
+
+        // Essen zeichnen
         for (let key in allFood) {
             let f = allFood[key];
-            ctx.beginPath();
-            ctx.arc(f.x, f.y, 6, 0, Math.PI * 2);
-            ctx.fillStyle = f.color;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = f.color;
-            ctx.fill();
-            ctx.closePath();
+            ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI * 2);
+            ctx.fillStyle = f.color; ctx.fill(); ctx.closePath();
         }
-        ctx.shadowBlur = 0; // Schatten resetten
 
-        // Alle Spieler zeichnen
+        // Schlangen zeichnen
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
-            if (!p.body || p.body.length === 0) continue;
+            let segmentsToDraw = [];
 
-            // Körper zeichnen (von hinten nach vorne)
-            for (let i = p.body.length - 1; i >= 0; i--) {
-                let segment = p.body[i];
+            if (isPlaying && playerKey === myUid) {
+                for(let i=0; i<mySegments.length; i+=spacing) segmentsToDraw.push(mySegments[i]);
+            } else if (p.body) {
+                segmentsToDraw = p.body;
+            }
+
+            if (segmentsToDraw.length === 0) continue;
+
+            for (let i = segmentsToDraw.length - 1; i >= 0; i--) {
+                let seg = segmentsToDraw[i];
+                if(!seg) continue;
                 ctx.beginPath();
-                // Der Kopf (i=0) ist etwas größer
-                let radius = (i === 0) ? 12 : 10; 
-                ctx.arc(segment.x, segment.y, radius, 0, Math.PI * 2);
-                
-                if (i === 0) {
-                    ctx.fillStyle = "#fff"; // Kopf ist immer weiß zur Orientierung
-                } else {
-                    ctx.fillStyle = p.color; // Körper hat die Spielerfarbe
-                }
-                
+                ctx.arc(seg.x, seg.y, i === 0 ? 13 : 10, 0, Math.PI * 2);
+                ctx.fillStyle = i === 0 ? '#ffffff' : p.color;
                 ctx.fill();
-                ctx.strokeStyle = "#000";
-                ctx.lineWidth = 1;
-                ctx.stroke();
+                ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
                 ctx.closePath();
             }
 
-            // Name über dem Kopf
-            ctx.fillStyle = '#fff';
-            ctx.font = '10px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(p.username + ` (${p.score})`, p.body[0].x, p.body[0].y - 20);
+            let headSeg = segmentsToDraw[0];
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(p.username + ` (${p.score || 0})`, headSeg.x, headSeg.y - 22);
         }
 
-        requestAnimationFrame(updateLoop);
+        ctx.restore();
     }
 </script>
 
