@@ -133,8 +133,8 @@
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
 
-    // Futter-Regulierung
-    const MAX_TOTAL_FOOD = 400; // Absolute Obergrenze für Futterpunkte
+    // Futter-Regulierung (Strikte Obergrenze)
+    const MAX_TOTAL_FOOD = 400; 
 
     let myUid = null;
     let myUsername = "Anonym";
@@ -196,7 +196,7 @@
         await set(myGameRef, { username: myUsername, color: myColor, body: myHistory, score: myScore });
         onDisconnect(myGameRef).remove();
 
-        // Erstbefüllung beim Joinen NUR, wenn das Limit von 400 nicht erreicht ist
+        // Erstbefüllung beim Beitreten NUR, wenn das globale Limit von 400 nicht erreicht ist
         const foodSnap = await get(ref(db, 'games/snake/food'));
         let currentFoodCount = foodSnap.exists() ? Object.keys(foodSnap.val()).length : 0;
 
@@ -250,7 +250,6 @@
                     newFoodDrops[foodId] = { x: segment.x + (Math.random()*16 - 8), y: segment.y + (Math.random()*16 - 8), color: myColor };
                 }
             }
-            // Beim Tod gelöschte Teile werden als Futter gedroppt (unabhängig vom Limit, als Belohnung)
             update(ref(db, `games/snake/food`), newFoodDrops);
         }
         set(ref(db, `games/snake/players/${myUid}`), null);
@@ -389,6 +388,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         
+        // REAKTIVER RESPONSIVER ZOOM: Garantiert identische Sichtweiten auf allen Bildschirmen
         let baseDimension = 800; 
         let currentDimension = Math.min(canvas.width, canvas.height);
         currentZoom = currentDimension / baseDimension;
