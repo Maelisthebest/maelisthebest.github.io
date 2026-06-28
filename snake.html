@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍 v1.2</title>
+    <title>Maelist - Snake.io 🐍</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -133,6 +133,9 @@
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
 
+    // Futter-Regulierung
+    const MAX_TOTAL_FOOD = 400; // Absolute Obergrenze für Futterpunkte
+
     let myUid = null;
     let myUsername = "Anonym";
     let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
@@ -153,8 +156,8 @@
     let useMouseControl = false;
     let mouseXInContainer = 0;
     let mouseYInContainer = 0;
+    let currentZoom = 1;
 
-    // Dynamische Anpassung an die tatsächliche Fenstergröße
     function resizeCanvas() {
         canvas.width = gameContainer.clientWidth;
         canvas.height = gameContainer.clientHeight;
@@ -193,11 +196,16 @@
         await set(myGameRef, { username: myUsername, color: myColor, body: myHistory, score: myScore });
         onDisconnect(myGameRef).remove();
 
+        // Erstbefüllung beim Joinen NUR, wenn das Limit von 400 nicht erreicht ist
         const foodSnap = await get(ref(db, 'games/snake/food'));
-        if (!foodSnap.exists() || Object.keys(foodSnap.val()).length < 50) {
-            let initialFood = {};
-            for(let i=0; i<250; i++) { 
-                initialFood[Date.now() + "_" + i] = {
+        let currentFoodCount = foodSnap.exists() ? Object.keys(foodSnap.val()).length : 0;
+
+        if (currentFoodCount < MAX_TOTAL_FOOD) {
+            let initialFood = foodSnap.exists() ? foodSnap.val() : {};
+            let amountToSpawn = Math.min(200, MAX_TOTAL_FOOD - currentFoodCount);
+            
+            for(let i=0; i < amountToSpawn; i++) { 
+                initialFood[Date.now() + "_" + i + "_" + Math.round(Math.random()*100)] = {
                     x: Math.random() * (WORLD_WIDTH - 60) + 30,
                     y: Math.random() * (WORLD_HEIGHT - 60) + 30,
                     color: `hsl(${Math.random()*360}, 100%, 60%)`
@@ -242,6 +250,7 @@
                     newFoodDrops[foodId] = { x: segment.x + (Math.random()*16 - 8), y: segment.y + (Math.random()*16 - 8), color: myColor };
                 }
             }
+            // Beim Tod gelöschte Teile werden als Futter gedroppt (unabhängig vom Limit, als Belohnung)
             update(ref(db, `games/snake/food`), newFoodDrops);
         }
         set(ref(db, `games/snake/players/${myUid}`), null);
@@ -313,7 +322,6 @@
             let head = myHistory[0];
 
             if (useMouseControl) {
-                // ECHTE BILDSCHIRMMITTE für die Richtungsbestimmung nutzen (Behebt Verschiebungen)
                 let screenCenterX = canvas.width / 2;
                 let screenCenterY = canvas.height / 2;
                 let dx = mouseXInContainer - screenCenterX;
@@ -335,15 +343,30 @@
 
             if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) { triggerDeath(); }
 
+            let totalFoodCount = Object.keys(allFood).length;
+
             for (let key in allFood) {
                 let f = allFood[key];
-                if (f && Math.hypot(newX - f.x, newY - f.y) < 22) {
-                    myScore += 1;
-                    set(ref(db, `games/snake/food/${key}`), {
-                        x: Math.random() * (WORLD_WIDTH - 60) + 30,
-                        y: Math.random() * (WORLD_HEIGHT - 60) + 30,
-                        color: `hsl(${Math.random()*360}, 100%, 60%)`
-                    });
+                if (f) {
+                    // Kollision / Fressen
+                    if (Math.hypot(newX - f.x, newY - f.y) < 22) {
+                        myScore += 1;
+                        
+                        // NUR neues Futter spawnen, wenn das Gesamte Spielfeld-Limit unter 400 liegt
+                        if (totalFoodCount < MAX_TOTAL_FOOD) {
+                            let newFoodX = Math.random() * (WORLD_WIDTH - 60) + 30;
+                            let newFoodY = Math.random() * (WORLD_HEIGHT - 60) + 30;
+
+                            set(ref(db, `games/snake/food/${key}`), {
+                                x: newFoodX,
+                                y: newFoodY,
+                                color: `hsl(${Math.random()*360}, 100%, 60%)`
+                            });
+                        } else {
+                            // Wenn 400 oder mehr erreicht sind, wird das gefressene Futter restlos gelöscht
+                            set(ref(db, `games/snake/food/${key}`), null);
+                        }
+                    }
                 }
             }
 
@@ -366,23 +389,21 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         
-        // NEU: Responsiver Zoomfaktor. Je kleiner das Fenster, desto mehr zoomt das Spiel heraus, 
-        // damit das Sichtfeld (Sichtweite) auf PC und Mobilgeräten identisch bleibt!
         let baseDimension = 800; 
         let currentDimension = Math.min(canvas.width, canvas.height);
-        let currentZoom = currentDimension / baseDimension;
-        if(currentZoom < 0.5) currentZoom = 0.5; // Verhindert extreme Mikrosicht auf Miniscreens
+        currentZoom = currentDimension / baseDimension;
+        if(currentZoom < 0.5) currentZoom = 0.5; 
 
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.scale(currentZoom, currentZoom);
         ctx.translate(-focusX, -focusY);
 
-        // Roter Rand
+        // Spielfeld-Begrenzung
         ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Futter
+        // Futter zeichnen
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
@@ -391,7 +412,7 @@
             }
         }
 
-        // Spieler
+        // Spieler zeichnen
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
             let segmentsToDraw = [];
