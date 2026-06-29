@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍</title>
+    <title>Maelist - Snake.io 🐍v1.8</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -163,9 +163,10 @@
     let myScore = 6; 
     const spacing = 5; 
 
-    let useMouseControl = false;
-    let mouseXInContainer = 0;
-    let mouseYInContainer = 0;
+    // Steuerungs-Modi trennen
+    let controlMode = "keyboard"; // "keyboard", "joystick", "area"
+    let areaTargetX = 0;
+    let areaTargetY = 0;
     let currentZoom = 1;
 
     function resizeCanvas() {
@@ -281,14 +282,14 @@
         update(ref(db, `games/snake/players/${myUid}`), { body: bodyToSend, score: myScore });
     }, 50);
 
-    // JOYSTICK SETUP (Unverändert und voll funktionsfähig)
+    // JOYSTICK SETUP
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
         const maxRadius = 40;
 
         function handleMove(clientX, clientY) {
-            useMouseControl = false; 
+            controlMode = "joystick";
             const rect = circle.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
@@ -303,7 +304,7 @@
 
         circle.addEventListener('touchstart', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
         circle.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
-        circle.addEventListener('touchend', endMove);
+        circle.addEventListener('touchend', (e) => { e.preventDefault(); endMove(); });
 
         let isJoystickDown = false;
         circle.addEventListener('mousedown', (e) => { isJoystickDown = true; handleMove(e.clientX, e.clientY); });
@@ -315,13 +316,13 @@
     // BOOST BUTTON SETUP
     const boostBtn = document.getElementById('boost-button');
     boostBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isBoosting = true; }, { passive: false });
-    boostBtn.addEventListener('touchend', () => { isBoosting = false; });
+    boostBtn.addEventListener('touchend', (e) => { e.preventDefault(); isBoosting = false; });
     boostBtn.addEventListener('mousedown', (e) => { if(e.button === 0) isBoosting = true; });
     window.addEventListener('mouseup', () => { isBoosting = false; });
 
     // PC Keys
     window.addEventListener('keydown', (e) => { 
-        if (e.key in keys) { keys[e.key] = true; useMouseControl = false; }
+        if (e.key in keys) { keys[e.key] = true; controlMode = "keyboard"; }
         if (e.code === 'Space') isBoosting = true;
     });
     window.addEventListener('keyup', (e) => { 
@@ -329,26 +330,26 @@
         if (e.code === 'Space') isBoosting = false;
     });
 
-    // FLÜSSIGE REAKTION FÜR ANKLICKEN / TIPPEN IN DER AREA (Touch & Maus vereint)
-    function handleAreaInput(clientX, clientY) {
+    // REINES SPIELFELD (AREA) TOUCH- & MAUS-MANAGEMENT
+    function updateAreaCoordinates(clientX, clientY) {
         if (!isPlaying) return;
-        useMouseControl = true;
+        controlMode = "area";
         const rect = gameContainer.getBoundingClientRect();
-        mouseXInContainer = clientX - rect.left;
-        mouseYInContainer = clientY - rect.top;
+        areaTargetX = clientX - rect.left;
+        areaTargetY = clientY - rect.top;
     }
 
-    gameContainer.addEventListener('mousemove', (e) => { handleAreaInput(e.clientX, e.clientY); });
-    gameContainer.addEventListener('mouseleave', () => { useMouseControl = false; });
-
-    // Jetzt klappt auch gedrückt halten und flüssig über die Area wischen auf dem Smartphone!
+    // Maus-Steuerung auf PC
+    gameContainer.addEventListener('mousemove', (e) => { updateAreaCoordinates(e.clientX, e.clientY); });
+    
+    // Unterbrechungsfreie Smartphone-Steuerung direkt in der Area (isoliert von Multitouch-Bugs!)
     gameContainer.addEventListener('touchstart', (e) => {
-        handleAreaInput(e.touches[0].clientX, e.touches[0].clientY);
+        updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
+
     gameContainer.addEventListener('touchmove', (e) => {
-        handleAreaInput(e.touches[0].clientX, e.touches[0].clientY);
+        updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY);
     }, { passive: true });
-    gameContainer.addEventListener('touchend', () => { useMouseControl = false; });
 
     function updateLoop() {
         let focusX = WORLD_WIDTH / 2;
@@ -357,15 +358,16 @@
         if (isPlaying && myHistory.length > 0) {
             let head = myHistory[0];
 
-            if (useMouseControl) {
+            // Richtungsberechnung je nach aktivem Steuerungstyp
+            if (controlMode === "area") {
                 let screenCenterX = canvas.width / 2;
                 let screenCenterY = canvas.height / 2;
-                let dx = mouseXInContainer - screenCenterX;
-                let dy = mouseYInContainer - screenCenterY;
+                let dx = areaTargetX - screenCenterX;
+                let dy = areaTargetY - screenCenterY;
                 if (Math.hypot(dx, dy) > 10) { angle = Math.atan2(dy, dx); }
-            } else if (joyX !== 0 || joyY !== 0) {
+            } else if (controlMode === "joystick" && (joyX !== 0 || joyY !== 0)) {
                 angle = Math.atan2(joyY, joyX);
-            } else {
+            } else if (controlMode === "keyboard") {
                 let kX = 0, kY = 0;
                 if (keys.w || keys.ArrowUp) kY -= 1;
                 if (keys.s || keys.ArrowDown) kY += 1;
