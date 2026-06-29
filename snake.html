@@ -89,12 +89,34 @@
     </div>
 
     <div id="ad-overlay">
-        <div class="ad-box">
-            <h2>IKEA 🇸🇪</h2>
-            <p>Wohnst du noch oder schlangst du schon?</p>
-            <div style="background:#003399; color:white; padding:8px; border-radius:5px; font-size:13px;">Klippan Sofa jetzt nur 199€!</div>
-            <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+        <div class="adbox"; style="
+                background: linear-gradient(45deg, #ff007f, #ffaa00);
+                color: white;
+                font-family: 'Comic Sans MS', 'Impact', sans-serif;
+                font-size: 24px;
+                font-weight: bold;
+                text-align: center;
+                padding: 30px;
+                border: 8px dashed #ffffff;
+                border-radius: 15px;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                margin: 20px auto;
+                max-width: 500px;
+                cursor: pointer;
+                transition: transform 0.2s, box-shadow 0.2s;
+            " 
+            onmouseover="this.style.transform='scale(1.05) rotate(-2deg)'; this.style.box-shadow='0 15px 30px rgba(0,0,0,0.5)';" 
+            onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.box-shadow='0 10px 20px rgba(0,0,0,0.3)';"
+            onclick="alert('Glückwunsch! Sie haben den unsichtbaren Werbeplatz entdeckt. Das kostet Sie jetzt ein Lächeln (oder 500€).');">
+                
+                ✨ <u>Hier könnte Ihre Werbung stehen!</u> ✨
+                <span style="display: block; font-size: 14px; margin-top: 10px; font-weight: normal; font-style: italic; opacity: 0.9;">
+                    (Oder ein Bild von Ihrer Katze. Wir sind da flexibel.)
+                </span>
         </div>
+        <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
     </div>
 
     <div id="leaderboard">
