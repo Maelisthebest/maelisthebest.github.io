@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍v1.8</title>
+    <title>Maelist - Snake.io 🐍</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -163,8 +163,7 @@
     let myScore = 6; 
     const spacing = 5; 
 
-    // Steuerungs-Modi trennen
-    let controlMode = "keyboard"; // "keyboard", "joystick", "area"
+    let controlMode = "keyboard"; 
     let areaTargetX = 0;
     let areaTargetY = 0;
     let currentZoom = 1;
@@ -330,7 +329,7 @@
         if (e.code === 'Space') isBoosting = false;
     });
 
-    // REINES SPIELFELD (AREA) TOUCH- & MAUS-MANAGEMENT
+    // AREA CONTROLS
     function updateAreaCoordinates(clientX, clientY) {
         if (!isPlaying) return;
         controlMode = "area";
@@ -339,17 +338,9 @@
         areaTargetY = clientY - rect.top;
     }
 
-    // Maus-Steuerung auf PC
     gameContainer.addEventListener('mousemove', (e) => { updateAreaCoordinates(e.clientX, e.clientY); });
-    
-    // Unterbrechungsfreie Smartphone-Steuerung direkt in der Area (isoliert von Multitouch-Bugs!)
-    gameContainer.addEventListener('touchstart', (e) => {
-        updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
-
-    gameContainer.addEventListener('touchmove', (e) => {
-        updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
+    gameContainer.addEventListener('touchstart', (e) => { updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    gameContainer.addEventListener('touchmove', (e) => { updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
 
     function updateLoop() {
         let focusX = WORLD_WIDTH / 2;
@@ -358,7 +349,6 @@
         if (isPlaying && myHistory.length > 0) {
             let head = myHistory[0];
 
-            // Richtungsberechnung je nach aktivem Steuerungstyp
             if (controlMode === "area") {
                 let screenCenterX = canvas.width / 2;
                 let screenCenterY = canvas.height / 2;
@@ -376,20 +366,26 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
-            // Speed Boost Punkteabzug
+            // Speed Boost Logik mit Futterspur
             if (isBoosting && myScore > 6) {
                 currentSpeed = 8.0; 
                 let now = Date.now();
+
                 if (now - lastBoostLossTime > 200) { 
                     myScore -= 1;
                     lastBoostLossTime = now;
 
+                    // Echtes, fressbares Futter genau am Schwanzende der eigenen Schlange abwerfen
                     let totalFoodCount = Object.keys(allFood).length;
                     if (totalFoodCount < MAX_TOTAL_FOOD) {
                         let lastSeg = myHistory[myHistory.length - 1] || head;
                         let dropId = "boost_" + myUid + "_" + now;
                         let newDrops = {};
-                        newDrops[dropId] = { x: lastSeg.x + (Math.random() * 12 - 6), y: lastSeg.y + (Math.random() * 12 - 6), color: myColor };
+                        newDrops[dropId] = { 
+                            x: lastSeg.x + (Math.random() * 10 - 5), 
+                            y: lastSeg.y + (Math.random() * 10 - 5), 
+                            color: myColor // In deiner Schlangenfarbe!
+                        };
                         update(ref(db, `games/snake/food`), newDrops);
                     }
                 }
@@ -439,7 +435,6 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         
-        // Identische Sichtweite auf allen Bildschirmen
         let baseWidth = 1100;
         let baseHeight = 650;
         currentZoom = Math.max(canvas.width / baseWidth, canvas.height / baseHeight);
@@ -453,7 +448,7 @@
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Futter zeichnen
+        // Futter zeichnen (inklusive der abgeworfenen Boost-Spur)
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
