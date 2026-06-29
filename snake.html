@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍 v 1.10</title>
+    <title>Maelist - Snake.io 🐍 v 1.11</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -90,8 +90,8 @@
 
     <div id="ad-overlay">
         <div class="ad-box">
-            <h2>IKEA 🇸🇪</h2>
-            <p>Wohnst du noch oder schlangst du schon?</p>
+            <h2>Werbung</h2>
+            <p>Hier könnte ihre Werbung stehen</p>
             <div style="background:#003399; color:white; padding:8px; border-radius:5px; font-size:13px;">Klippan Sofa jetzt nur 199€!</div>
             <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
         </div>
@@ -350,7 +350,7 @@
         controlMode = "area";
         const rect = gameContainer.getBoundingClientRect();
         areaTargetX = clientX - rect.left;
-        areaTargetY = clientY - rect.top;
+        areaTargetY = clientY - top;
     }
 
     gameContainer.addEventListener('mousemove', (e) => { updateAreaCoordinates(e.clientX, e.clientY); });
@@ -387,7 +387,7 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
-            // Korrekte Speed-Boost Logik: Schlange verliert Punkte und hinterlässt Futterspur
+            // Reparierte Boost-Logik: Zieht Score ab und hinterlässt direkt eine Spur
             if (isBoosting && myScore > 6) {
                 currentSpeed = 8.0; 
                 let now = Date.now();
@@ -396,18 +396,19 @@
                     myScore -= 1;
                     lastBoostLossTime = now;
 
-                    let totalFoodCount = Object.keys(allFood).length;
-                    if (totalFoodCount < MAX_TOTAL_FOOD) {
-                        let lastSeg = myHistory[myHistory.length - 1] || head;
-                        let dropId = "boost_" + myUid + "_" + now;
-                        let newDrops = {};
-                        newDrops[dropId] = { 
-                            x: lastSeg.x + (Math.random() * 10 - 5), 
-                            y: lastSeg.y + (Math.random() * 10 - 5), 
-                            color: myColor 
-                        };
-                        update(ref(db, `games/snake/food`), newDrops);
-                    }
+                    // Erzeugt direkt Futter an der Position des letzten Glieds (Schlanzende)
+                    let lastSeg = myHistory[myHistory.length - 1] || head;
+                    let dropId = "boost_" + myUid + "_" + now;
+                    
+                    // Lokales Hinzufügen, damit es SOFORT sichtbar ist ohne Firebase-Verzögerung
+                    allFood[dropId] = { 
+                        x: lastSeg.x + (Math.random() * 12 - 6), 
+                        y: lastSeg.y + (Math.random() * 12 - 6), 
+                        color: myColor 
+                    };
+                    
+                    // Synchronisation mit Firebase im Hintergrund
+                    update(ref(db, `games/snake/food`), { [dropId]: allFood[dropId] });
                 }
             } else {
                 currentSpeed = baseSpeed;
@@ -431,6 +432,7 @@
                             set(ref(db, `games/snake/food/${key}`), { x: newFoodX, y: newFoodY, color: `hsl(${Math.random()*360}, 100%, 60%)` });
                         } else {
                             set(ref(db, `games/snake/food/${key}`), null);
+                            delete allFood[key];
                         }
                     }
                 }
@@ -447,7 +449,12 @@
 
             if (isPlaying) {
                 myHistory.unshift({ x: newX, y: newY });
-                if (myHistory.length > myScore * spacing) { myHistory.pop(); }
+                
+                // Repariertes aktives Kürzen der Schlange: Schneidet alte Glieder sofort ab, wenn der Score sinkt
+                while (myHistory.length > myScore * spacing) { 
+                    myHistory.pop(); 
+                }
+                
                 focusX = newX; focusY = newY;
             }
         }
