@@ -168,6 +168,10 @@
     let areaTargetY = 0;
     let currentZoom = 1;
 
+    // Zeitvariablen für das Drosseln der Framerate (60 FPS)
+    let lastFrameTime = 0;
+    const fpsInterval = 1000 / 60; // ~16.67ms pro Frame
+
     function resizeCanvas() {
         canvas.width = gameContainer.clientWidth;
         canvas.height = gameContainer.clientHeight;
@@ -342,7 +346,14 @@
     gameContainer.addEventListener('touchstart', (e) => { updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
     gameContainer.addEventListener('touchmove', (e) => { updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
 
-    function updateLoop() {
+    function updateLoop(timestamp) {
+        requestAnimationFrame(updateLoop);
+
+        // Framerate-Drosselung auf maximal 60 FPS
+        let elapsed = timestamp - lastFrameTime;
+        if (elapsed < fpsInterval) return;
+        lastFrameTime = timestamp - (elapsed % fpsInterval);
+
         let focusX = WORLD_WIDTH / 2;
         let focusY = WORLD_HEIGHT / 2;
 
@@ -375,7 +386,6 @@
                     myScore -= 1;
                     lastBoostLossTime = now;
 
-                    // Echtes, fressbares Futter genau am Schwanzende der eigenen Schlange abwerfen
                     let totalFoodCount = Object.keys(allFood).length;
                     if (totalFoodCount < MAX_TOTAL_FOOD) {
                         let lastSeg = myHistory[myHistory.length - 1] || head;
@@ -384,7 +394,7 @@
                         newDrops[dropId] = { 
                             x: lastSeg.x + (Math.random() * 10 - 5), 
                             y: lastSeg.y + (Math.random() * 10 - 5), 
-                            color: myColor // In deiner Schlangenfarbe!
+                            color: myColor 
                         };
                         update(ref(db, `games/snake/food`), newDrops);
                     }
@@ -448,7 +458,7 @@
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Futter zeichnen (inklusive der abgeworfenen Boost-Spur)
+        // Futter zeichnen
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
@@ -489,10 +499,13 @@
         }
 
         ctx.restore();
-        requestAnimationFrame(updateLoop);
     }
 
-    updateLoop();
+    // Starten der Schleife mit Timestamp
+    requestAnimationFrame((timestamp) => {
+        lastFrameTime = timestamp;
+        updateLoop(timestamp);
+    });
 </script>
 
 </body>
