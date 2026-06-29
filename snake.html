@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io v1.6🐍</title>
+    <title>Maelist - Snake.io 🐍</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -282,7 +281,7 @@
         update(ref(db, `games/snake/players/${myUid}`), { body: bodyToSend, score: myScore });
     }, 50);
 
-    // Joystick Setup
+    // JOYSTICK SETUP (Unverändert und voll funktionsfähig)
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -313,7 +312,7 @@
     }
     setupJoystick();
 
-    // Boost Button Setup (Touch + Maus)
+    // BOOST BUTTON SETUP
     const boostBtn = document.getElementById('boost-button');
     boostBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isBoosting = true; }, { passive: false });
     boostBtn.addEventListener('touchend', () => { isBoosting = false; });
@@ -330,15 +329,26 @@
         if (e.code === 'Space') isBoosting = false;
     });
 
-    // Optionale PC Maussteuerung im Game-Fenster
-    gameContainer.addEventListener('mousemove', (e) => {
+    // FLÜSSIGE REAKTION FÜR ANKLICKEN / TIPPEN IN DER AREA (Touch & Maus vereint)
+    function handleAreaInput(clientX, clientY) {
         if (!isPlaying) return;
         useMouseControl = true;
         const rect = gameContainer.getBoundingClientRect();
-        mouseXInContainer = e.clientX - rect.left;
-        mouseYInContainer = e.clientY - rect.top;
-    });
+        mouseXInContainer = clientX - rect.left;
+        mouseYInContainer = clientY - rect.top;
+    }
+
+    gameContainer.addEventListener('mousemove', (e) => { handleAreaInput(e.clientX, e.clientY); });
     gameContainer.addEventListener('mouseleave', () => { useMouseControl = false; });
+
+    // Jetzt klappt auch gedrückt halten und flüssig über die Area wischen auf dem Smartphone!
+    gameContainer.addEventListener('touchstart', (e) => {
+        handleAreaInput(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    gameContainer.addEventListener('touchmove', (e) => {
+        handleAreaInput(e.touches[0].clientX, e.touches[0].clientY);
+    }, { passive: true });
+    gameContainer.addEventListener('touchend', () => { useMouseControl = false; });
 
     function updateLoop() {
         let focusX = WORLD_WIDTH / 2;
@@ -364,7 +374,7 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
-            // Speed Boost Logik
+            // Speed Boost Punkteabzug
             if (isBoosting && myScore > 6) {
                 currentSpeed = 8.0; 
                 let now = Date.now();
@@ -427,7 +437,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         
-        // Identische Sichtweite auf allen Bildschirmen über kalkuliertes Skalierungs-Maximum
+        // Identische Sichtweite auf allen Bildschirmen
         let baseWidth = 1100;
         let baseHeight = 650;
         currentZoom = Math.max(canvas.width / baseWidth, canvas.height / baseHeight);
