@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍</title>
+    <title>Maelist - Snake.io 🐍v 1.10</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -255,13 +255,11 @@
         isPlaying = false;
         isBoosting = false;
         
-        // Erst sofort den Spieler löschen, damit er unsterblichkeitsfrei raus ist
         set(ref(db, `games/snake/players/${myUid}`), null);
 
         if (myHistory.length > 0) {
             let chunk = {};
             let count = 0;
-            // In kleine Pakete (max 40) splitten, um Firebase-Verbindungsabbrüche bei Riesenschlangen zu verhindern
             for (let i = 0; i < myHistory.length; i += spacing * 2) {
                 let segment = myHistory[i];
                 if (segment) {
@@ -389,6 +387,7 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
+            // Korrekte Speed-Boost Logik: Schlange verliert Punkte und hinterlässt Futterspur
             if (isBoosting && myScore > 6) {
                 currentSpeed = 8.0; 
                 let now = Date.now();
