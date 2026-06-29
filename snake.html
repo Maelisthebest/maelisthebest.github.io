@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍 v1.5</title>
+    <title>Maelist - Snake.io v1.6🐍</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -17,7 +18,7 @@
         
         #game-container {
             position: relative; width: 100%; height: 55vh; background: #111; 
-            border-bottom: 4px solid #3498db; overflow: hidden; cursor: crosshair;
+            border-bottom: 4px solid #3498db; overflow: hidden;
         }
         canvas { display: block; width: 100%; height: 100%; }
         
@@ -49,9 +50,10 @@
         #leaderboard h3 { margin: 0 0 5px 0; color: #3498db; font-size: 13px; text-transform: uppercase; }
         .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
 
+        /* Control Panel für Joystick und Boost-Button */
         #control-panel {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            width: 100%; flex-grow: 1; background: #222; padding: 20px;
+            display: flex; align-items: center; justify-content: center; gap: 40px;
+            width: 100%; flex-grow: 1; background: #222; padding: 10px;
         }
         .joycon-circle {
             width: 130px; height: 130px; background: #333; border-radius: 50%;
@@ -61,15 +63,22 @@
             width: 50px; height: 50px; background: #ffffff; border-radius: 50%;
             position: absolute; top: 36px; left: 36px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; }
+        .boost-btn {
+            width: 80px; height: 80px; background: #e74c3c; border: 4px solid #c0392b;
+            border-radius: 50%; color: white; font-weight: bold; font-size: 14px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4); touch-action: none; cursor: pointer;
+        }
+        .boost-btn:active { background: #c0392b; transform: scale(0.95); }
+        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; text-align: center; width: 100%; padding: 5px; background: #222;}
     </style>
 </head>
 <body>
 
 <header>
     <h1>Maelist Snake Arena 🐍</h1>
-    <div id="lobby-status">Verbinde mit Firebase...</div>
 </header>
+<div id="lobby-status">Verbinde mit Firebase...</div>
 
 <div id="game-container">
     <div id="start-screen">
@@ -101,6 +110,7 @@
     <div class="joycon-circle" id="joystick-circle">
         <div class="joycon-stick" id="joystick-stick"></div>
     </div>
+    <div class="boost-btn" id="boost-button">BOOST</div>
 </div>
 
 <script type="module">
@@ -132,8 +142,6 @@
 
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
-
-    // Futter-Regulierung (Strikte Obergrenze)
     const MAX_TOTAL_FOOD = 400; 
 
     let myUid = null;
@@ -147,7 +155,10 @@
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     
     let angle = 0; 
-    let speed = 4.5;
+    let baseSpeed = 4.5;
+    let currentSpeed = baseSpeed;
+    let isBoosting = false;
+    let lastBoostLossTime = 0;
     
     let myHistory = []; 
     let myScore = 6; 
@@ -196,7 +207,6 @@
         await set(myGameRef, { username: myUsername, color: myColor, body: myHistory, score: myScore });
         onDisconnect(myGameRef).remove();
 
-        // Erstbefüllung beim Beitreten NUR, wenn das globale Limit von 400 nicht erreicht ist
         const foodSnap = await get(ref(db, 'games/snake/food'));
         let currentFoodCount = foodSnap.exists() ? Object.keys(foodSnap.val()).length : 0;
 
@@ -241,6 +251,7 @@
 
     function triggerDeath() {
         isPlaying = false;
+        isBoosting = false;
         if (myHistory.length > 0) {
             let newFoodDrops = {};
             for (let i = 0; i < myHistory.length; i += spacing * 2) {
@@ -271,6 +282,7 @@
         update(ref(db, `games/snake/players/${myUid}`), { body: bodyToSend, score: myScore });
     }, 50);
 
+    // Joystick Setup
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -290,8 +302,8 @@
         }
         function endMove() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
 
-        circle.addEventListener('touchstart', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
-        circle.addEventListener('touchmove', (e) => handleMove(e.touches[0].clientX, e.touches[0].clientY));
+        circle.addEventListener('touchstart', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        circle.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
         circle.addEventListener('touchend', endMove);
 
         let isJoystickDown = false;
@@ -301,9 +313,24 @@
     }
     setupJoystick();
 
-    window.addEventListener('keydown', (e) => { if (e.key in keys) { keys[e.key] = true; useMouseControl = false; } });
-    window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+    // Boost Button Setup (Touch + Maus)
+    const boostBtn = document.getElementById('boost-button');
+    boostBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isBoosting = true; }, { passive: false });
+    boostBtn.addEventListener('touchend', () => { isBoosting = false; });
+    boostBtn.addEventListener('mousedown', (e) => { if(e.button === 0) isBoosting = true; });
+    window.addEventListener('mouseup', () => { isBoosting = false; });
 
+    // PC Keys
+    window.addEventListener('keydown', (e) => { 
+        if (e.key in keys) { keys[e.key] = true; useMouseControl = false; }
+        if (e.code === 'Space') isBoosting = true;
+    });
+    window.addEventListener('keyup', (e) => { 
+        if (e.key in keys) keys[e.key] = false; 
+        if (e.code === 'Space') isBoosting = false;
+    });
+
+    // Optionale PC Maussteuerung im Game-Fenster
     gameContainer.addEventListener('mousemove', (e) => {
         if (!isPlaying) return;
         useMouseControl = true;
@@ -337,8 +364,29 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
-            let newX = head.x + Math.cos(angle) * speed;
-            let newY = head.y + Math.sin(angle) * speed;
+            // Speed Boost Logik
+            if (isBoosting && myScore > 6) {
+                currentSpeed = 8.0; 
+                let now = Date.now();
+                if (now - lastBoostLossTime > 200) { 
+                    myScore -= 1;
+                    lastBoostLossTime = now;
+
+                    let totalFoodCount = Object.keys(allFood).length;
+                    if (totalFoodCount < MAX_TOTAL_FOOD) {
+                        let lastSeg = myHistory[myHistory.length - 1] || head;
+                        let dropId = "boost_" + myUid + "_" + now;
+                        let newDrops = {};
+                        newDrops[dropId] = { x: lastSeg.x + (Math.random() * 12 - 6), y: lastSeg.y + (Math.random() * 12 - 6), color: myColor };
+                        update(ref(db, `games/snake/food`), newDrops);
+                    }
+                }
+            } else {
+                currentSpeed = baseSpeed;
+            }
+
+            let newX = head.x + Math.cos(angle) * currentSpeed;
+            let newY = head.y + Math.sin(angle) * currentSpeed;
 
             if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) { triggerDeath(); }
 
@@ -347,22 +395,13 @@
             for (let key in allFood) {
                 let f = allFood[key];
                 if (f) {
-                    // Kollision / Fressen
                     if (Math.hypot(newX - f.x, newY - f.y) < 22) {
                         myScore += 1;
-                        
-                        // NUR neues Futter spawnen, wenn das Gesamte Spielfeld-Limit unter 400 liegt
                         if (totalFoodCount < MAX_TOTAL_FOOD) {
                             let newFoodX = Math.random() * (WORLD_WIDTH - 60) + 30;
                             let newFoodY = Math.random() * (WORLD_HEIGHT - 60) + 30;
-
-                            set(ref(db, `games/snake/food/${key}`), {
-                                x: newFoodX,
-                                y: newFoodY,
-                                color: `hsl(${Math.random()*360}, 100%, 60%)`
-                            });
+                            set(ref(db, `games/snake/food/${key}`), { x: newFoodX, y: newFoodY, color: `hsl(${Math.random()*360}, 100%, 60%)` });
                         } else {
-                            // Wenn 400 oder mehr erreicht sind, wird das gefressene Futter restlos gelöscht
                             set(ref(db, `games/snake/food/${key}`), null);
                         }
                     }
@@ -388,11 +427,10 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         
-        // REAKTIVER RESPONSIVER ZOOM: Garantiert identische Sichtweiten auf allen Bildschirmen
-        let baseDimension = 800; 
-        let currentDimension = Math.min(canvas.width, canvas.height);
-        currentZoom = currentDimension / baseDimension;
-        if(currentZoom < 0.5) currentZoom = 0.5; 
+        // Identische Sichtweite auf allen Bildschirmen über kalkuliertes Skalierungs-Maximum
+        let baseWidth = 1100;
+        let baseHeight = 650;
+        currentZoom = Math.max(canvas.width / baseWidth, canvas.height / baseHeight);
 
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.scale(currentZoom, currentZoom);
