@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Snake.io 🐍 v 1.9</title>
+    <title>Maelist - Snake.io 🐍</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -168,9 +168,8 @@
     let areaTargetY = 0;
     let currentZoom = 1;
 
-    // Zeitvariablen für das Drosseln der Framerate (60 FPS)
     let lastFrameTime = 0;
-    const fpsInterval = 1000 / 60; // ~16.67ms pro Frame
+    const fpsInterval = 1000 / 60; 
 
     function resizeCanvas() {
         canvas.width = gameContainer.clientWidth;
@@ -255,18 +254,32 @@
     function triggerDeath() {
         isPlaying = false;
         isBoosting = false;
+        
+        // Erst sofort den Spieler löschen, damit er unsterblichkeitsfrei raus ist
+        set(ref(db, `games/snake/players/${myUid}`), null);
+
         if (myHistory.length > 0) {
-            let newFoodDrops = {};
+            let chunk = {};
+            let count = 0;
+            // In kleine Pakete (max 40) splitten, um Firebase-Verbindungsabbrüche bei Riesenschlangen zu verhindern
             for (let i = 0; i < myHistory.length; i += spacing * 2) {
                 let segment = myHistory[i];
                 if (segment) {
                     let foodId = "dead_" + myUid + "_" + i + "_" + Math.round(Math.random()*1000);
-                    newFoodDrops[foodId] = { x: segment.x + (Math.random()*16 - 8), y: segment.y + (Math.random()*16 - 8), color: myColor };
+                    chunk[foodId] = { x: segment.x + (Math.random()*16 - 8), y: segment.y + (Math.random()*16 - 8), color: myColor };
+                    count++;
+
+                    if (count >= 40) {
+                        update(ref(db, `games/snake/food`), chunk);
+                        chunk = {};
+                        count = 0;
+                    }
                 }
             }
-            update(ref(db, `games/snake/food`), newFoodDrops);
+            if (count > 0) {
+                update(ref(db, `games/snake/food`), chunk);
+            }
         }
-        set(ref(db, `games/snake/players/${myUid}`), null);
         
         adOverlay.style.display = 'flex';
         let count = 3;
@@ -349,7 +362,6 @@
     function updateLoop(timestamp) {
         requestAnimationFrame(updateLoop);
 
-        // Framerate-Drosselung auf maximal 60 FPS
         let elapsed = timestamp - lastFrameTime;
         if (elapsed < fpsInterval) return;
         lastFrameTime = timestamp - (elapsed % fpsInterval);
@@ -377,7 +389,6 @@
                 if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
             }
 
-            // Speed Boost Logik mit Futterspur
             if (isBoosting && myScore > 6) {
                 currentSpeed = 8.0; 
                 let now = Date.now();
@@ -453,12 +464,10 @@
         ctx.scale(currentZoom, currentZoom);
         ctx.translate(-focusX, -focusY);
 
-        // Spielfeld-Begrenzung
         ctx.strokeStyle = '#e74c3c';
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Futter zeichnen
         for (let key in allFood) {
             let f = allFood[key];
             if(f) {
@@ -467,7 +476,6 @@
             }
         }
 
-        // Spieler zeichnen
         for (let playerKey in allPlayers) {
             let p = allPlayers[playerKey];
             let segmentsToDraw = [];
@@ -501,7 +509,6 @@
         ctx.restore();
     }
 
-    // Starten der Schleife mit Timestamp
     requestAnimationFrame((timestamp) => {
         lastFrameTime = timestamp;
         updateLoop(timestamp);
