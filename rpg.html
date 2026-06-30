@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Maelist - Pixel RPG World ⚔️</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 0; background: #111;
+            font-family: 'Courier New', Courier, monospace; color: #fff;
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; height: 100vh;
+        }
+        header { text-align: center; padding: 10px; width: 100%; background: #222; border-bottom: 4px solid #ff4757; z-index: 5; }
+        h1 { margin: 0; font-size: 1.3rem; color: #ff4757; text-transform: uppercase; letter-spacing: 2px; }
+        
+        #game-container {
+            position: relative; width: 100%; height: 55vh; background: #1a1a1a; 
+            border-bottom: 4px solid #ff4757; overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+            width: 100%; 
+            height: 100%; 
+            image-rendering: pixelated; /* Knackige Pixel-Kanten */
+        }
+        
+        /* Startbildschirm Overlay */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 20;
+        }
+        .menu-box { background: #222; padding: 30px; border-radius: 0px; border: 4px solid #ff4757; text-align: center; box-shadow: 0 0 20px rgba(255, 71, 87, 0.4); }
+        .play-btn { background: #ff4757; color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; font-family: inherit; cursor: pointer; margin-top: 15px; text-transform: uppercase;}
+        .play-btn:disabled { background: #555; cursor: not-allowed; color: #888; }
+
+        /* Game Over Overlay */
+        #death-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 30;
+        }
+        .death-box { background: #111; border: 4px solid #ff4757; padding: 30px; text-align: center; box-shadow: 0 0 30px #ff4757; }
+
+        /* Live Scoreliste / Leaderboard */
+        #leaderboard {
+            position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.85);
+            padding: 10px 15px; border: 2px solid #ff4757;
+            font-family: monospace; font-size: 12px; max-width: 220px; z-index: 10;
+        }
+        #leaderboard h3 { margin: 0 0 5px 0; color: #ff4757; font-size: 13px; text-transform: uppercase; }
+        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
+
+        /* Control Panel */
+        #control-panel {
+            display: flex; align-items: center; justify-content: center; gap: 40px;
+            width: 100%; flex-grow: 1; background: #161616; padding: 10px;
+        }
+        .joycon-circle {
+            width: 120px; height: 120px; background: #222; border-radius: 50%;
+            position: relative; border: 4px solid #444; touch-action: none;
+        }
+        .joycon-stick {
+            width: 44px; height: 44px; background: #ff4757; border-radius: 50%;
+            position: absolute; top: 34px; left: 34px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .action-btn {
+            width: 80px; height: 80px; background: #ffa502; border: 4px solid #ff7f50;
+            border-radius: 50%; color: white; font-weight: bold; font-size: 14px; font-family: inherit;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4); touch-action: none; cursor: pointer;
+        }
+        .action-btn:active { background: #ff7f50; transform: scale(0.95); }
+        #lobby-status { font-size: 14px; margin-top: 5px; color: #888; text-align: center; width: 100%; padding: 5px; background: #111;}
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Pixel RPG World ⚔️</h1>
+</header>
+<div id="lobby-status">Verbinde mit Firebase...</div>
+
+<div id="game-container">
+    <div id="start-screen">
+        <div class="menu-box">
+            <h2 style="margin:0; color:#ff4757; text-transform: uppercase;">Wähle dein Schicksal</h2>
+            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Spieldaten...</p>
+            <button class="play-btn" id="join-btn" disabled>WELT BETRETEN</button>
+        </div>
+    </div>
+
+    <div id="death-overlay">
+        <div class="death-box">
+            <h2 style="color: #ff4757; margin: 0 0 10px 0; font-size: 28px;">DU BIST GEFALLEN!</h2>
+            <p style="color: #aaa; margin-bottom: 20px;">Die Monster waren zu stark.</p>
+            <button class="play-btn" onclick="location.reload();">RESPAWN</button>
+        </div>
+    </div>
+
+    <div id="leaderboard">
+        <h3>🏆 TOP HELDEN</h3>
+        <div id="leaderboard-list">Warte auf Daten...</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="control-panel">
+    <div class="joycon-circle" id="joystick-circle">
+        <div class="joycon-stick" id="joystick-stick"></div>
+    </div>
+    <div class="action-btn" id="attack-button">ANGRIFF</div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue, update, onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameContainer = document.getElementById('game-container');
+    const lobbyStatus = document.getElementById('lobby-status');
+    const startScreen = document.getElementById('start-screen');
+    const deathOverlay = document.getElementById('death-overlay');
+    const leaderboardList = document.getElementById('leaderboard-list');
+
+    // RIESIGE OPEN WORLD
+    const WORLD_WIDTH = 4000;
+    const WORLD_HEIGHT = 4000;
+
+    let myUid = null;
+    let myUsername = "Anonym";
+    let allPlayers = {};
+    let isPlaying = false;
+
+    // Spieler-Status
+    let player = {
+        x: 2000, y: 2000,
+        hp: 100, maxHp: 100,
+        level: 1, exp: 0, nextLevelExp: 100,
+        color: '#3498db',
+        isAttacking: false, attackTimer: 0,
+        dirX: 0, dirY: 1
+    };
+
+    // Gegner- & Loot-Listen (Lokal emuliert + synchronisiert)
+    let enemies = [];
+    let lootKristalle = [];
+
+    let joyX = 0, joyY = 0;
+    let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    let controlMode = "keyboard"; 
+    let currentZoom = 1;
+    let lastFrameTime = 0;
+
+    function resizeCanvas() {
+        canvas.width = gameContainer.clientWidth;
+        canvas.height = gameContainer.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Firebase Auth & Initialisierung
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            myUid = user.uid;
+            onValue(ref(db, `users/${myUid}`), (snapshot) => {
+                if(snapshot.exists()) myUsername = snapshot.val().username;
+                document.getElementById('player-welcome').innerText = `Krieger-ID: ${myUsername}`;
+                lobbyStatus.innerText = "Welt instanziiert.";
+                
+                const joinBtn = document.getElementById('join-btn');
+                joinBtn.disabled = false;
+                joinBtn.onclick = () => {
+                    startScreen.style.display = 'none';
+                    spawnInWorld();
+                };
+            }, { onlyOnce: true });
+        } else {
+            window.location.href = "überleitung.html";
+        }
+    });
+
+    function spawnInWorld() {
+        player.x = Math.random() * (WORLD_WIDTH - 1000) + 500;
+        player.y = Math.random() * (WORLD_HEIGHT - 1000) + 500;
+        player.hp = 100;
+        player.level = 1;
+        player.exp = 0;
+
+        // Erzeuge ein paar feindliche Monster in der Nähe
+        for(let i=0; i<30; i++) {
+            spawnEnemy();
+        }
+
+        const myGameRef = ref(db, `games/rpg/players/${myUid}`);
+        set(myGameRef, { username: myUsername, x: player.x, y: player.y, level: player.level, hp: player.hp });
+        onDisconnect(myGameRef).remove();
+
+        isPlaying = true;
+        lobbyStatus.innerText = `Open World betreten!`;
+        requestAnimationFrame(gameLoop);
+    }
+
+    function spawnEnemy() {
+        enemies.push({
+            id: Math.random().toString(36),
+            x: Math.random() * WORLD_WIDTH,
+            y: Math.random() * WORLD_HEIGHT,
+            hp: 30, maxHp: 30,
+            speed: 1.5 + Math.random(),
+            type: Math.random() > 0.3 ? 'slime' : 'orc'
+        });
+    }
+
+    // Multiplayer Synchronisation
+    onValue(ref(db, `games/rpg/players`), (snap) => {
+        if (snap.exists()) { allPlayers = snap.val(); updateLeaderboard(); }
+        else { allPlayers = {}; }
+    });
+
+    setInterval(() => {
+        if (!myUid || !isPlaying) return;
+        update(ref(db, `games/rpg/players/${myUid}`), { x: player.x, y: player.y, level: player.level, hp: player.hp });
+    }, 80);
+
+    function updateLeaderboard() {
+        let list = [];
+        for (let id in allPlayers) list.push(allPlayers[id]);
+        list.sort((a, b) => (b.level || 1) - (a.level || 1));
+        let html = "";
+        list.slice(0, 5).forEach((p, i) => {
+            html += `<div class="leaderboard-entry"><span>${i+1}. ${p.username}</span><b>LVL ${p.level || 1}</b></div>`;
+        });
+        leaderboardList.innerHTML = html || "Keine Helden";
+    }
+
+    // STEUERUNG
+    function setupJoystick() {
+        const circle = document.getElementById('joystick-circle');
+        const stick = document.getElementById('joystick-stick');
+        const maxRadius = 40;
+
+        function handleMove(clientX, clientY) {
+            controlMode = "joystick";
+            const rect = circle.getBoundingClientRect();
+            let dx = clientX - (rect.left + rect.width / 2);
+            let dy = clientY - (rect.top + rect.height / 2);
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > maxRadius) { dx = (dx / distance) * maxRadius; dy = (dy / distance) * maxRadius; }
+            stick.style.transform = `translate(${dx}px, ${dy}px)`;
+            joyX = dx / maxRadius; joyY = dy / maxRadius;
+        }
+        function endMove() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
+
+        circle.addEventListener('touchstart', (e) => { handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+        circle.addEventListener('touchmove', (e) => { handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+        circle.addEventListener('touchend', endMove);
+    }
+    setupJoystick();
+
+    // ANGRIFFS-FUNKTION
+    function performAttack() {
+        if (player.attackTimer > 0) return;
+        player.isAttacking = true;
+        player.attackTimer = 15; // Frames des Angriffs-Animation
+
+        // Hitbox vor dem Spieler berechnen
+        let hitX = player.x + player.dirX * 40;
+        let hitY = player.y + player.dirY * 40;
+
+        // Prüfen, ob Monster getroffen wurden
+        enemies.forEach(e => {
+            let dist = Math.hypot(hitX - e.x, hitY - e.y);
+            if (dist < 35) {
+                e.hp -= 15; // Schaden zufügen
+                // Knockback-Effekt
+                e.x += player.dirX * 25;
+                e.y += player.dirY * 25;
+            }
+        });
+    }
+
+    document.getElementById('attack-button').addEventListener('touchstart', (e) => { e.preventDefault(); performAttack(); });
+    document.getElementById('attack-button').addEventListener('mousedown', performAttack);
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key in keys) { keys[e.key] = true; controlMode = "keyboard"; }
+        if (e.code === 'Space') performAttack();
+    });
+    window.addEventListener('keyup', (e) => { if (e.key in keys) keys[e.key] = false; });
+
+    // GAME LOOP
+    function gameLoop(timestamp) {
+        if (!isPlaying) return;
+        requestAnimationFrame(gameLoop);
+
+        // Bewegung berechnen
+        let moveX = 0, moveY = 0;
+        if (controlMode === "keyboard") {
+            if (keys.w || keys.ArrowUp) moveY = -1;
+            if (keys.s || keys.ArrowDown) moveY = 1;
+            if (keys.a || keys.ArrowLeft) moveX = -1;
+            if (keys.d || keys.ArrowRight) moveX = 1;
+        } else if (controlMode === "joystick") {
+            moveX = joyX; moveY = joyY;
+        }
+
+        // Spieler-Position aktualisieren & Richtung speichern
+        if (moveX !== 0 || moveY !== 0) {
+            let len = Math.hypot(moveX, moveY);
+            player.dirX = moveX / len;
+            player.dirY = moveY / len;
+            
+            player.x += player.dirX * 3.5;
+            player.y += player.dirY * 3.5;
+            
+            // Grenzen absichern
+            player.x = Math.max(20, Math.min(WORLD_WIDTH - 20, player.x));
+            player.y = Math.max(20, Math.min(WORLD_HEIGHT - 20, player.y));
+        }
+
+        // Angriffs-Timer verarbeiten
+        if (player.attackTimer > 0) {
+            player.attackTimer--;
+            if (player.attackTimer === 0) player.isAttacking = false;
+        }
+
+        // KI & Kollision für Monster
+        enemies.forEach((e, index) => {
+            let distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
+            
+            // Monster jagt Spieler, wenn er nahe genug ist
+            if (distToPlayer < 300) {
+                let dx = player.x - e.x;
+                let dy = player.y - e.y;
+                let len = Math.hypot(dx, dy);
+                e.x += (dx / len) * e.speed;
+                e.y += (dy / len) * e.speed;
+
+                // Schaden am Spieler verursachen
+                if (distToPlayer < 20 && Math.random() < 0.05) {
+                    player.hp -= 4;
+                    if (player.hp <= 0) {
+                        isPlaying = false;
+                        set(ref(db, `games/rpg/players/${myUid}`), null);
+                        deathOverlay.style.display = 'flex';
+                    }
+                }
+            }
+
+            // Wenn Monster tot ist -> Loot spawnen
+            if (e.hp <= 0) {
+                lootKristalle.push({ x: e.x, y: e.y, expValue: 25 });
+                enemies.splice(index, 1);
+                // Neues Monster am Rand der Welt nachspawnen
+                spawnEnemy();
+            }
+        });
+
+        // Loot einsammeln (EXP Kristalle)
+        lootKristalle.forEach((k, index) => {
+            if (Math.hypot(player.x - k.x, player.y - k.y) < 25) {
+                player.exp += k.expValue;
+                lootKristalle.splice(index, 1);
+
+                // Level Up Check
+                if (player.exp >= player.nextLevelExp) {
+                    player.level++;
+                    player.exp = 0;
+                    player.maxHp += 15;
+                    player.hp = player.maxHp; // Volle Heilung bei Level Up
+                }
+            }
+        });
+
+        // RENDER PIPELINE
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+
+        // Kamera auf Spieler zentrieren
+        let baseWidth = 1000;
+        let baseHeight = 600;
+        currentZoom = Math.max(canvas.width / baseWidth, canvas.height / baseHeight);
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(currentZoom, currentZoom);
+        ctx.translate(-player.x, -player.y);
+
+        // Open World Gras-Boden mit Retro-Grid fluten
+        ctx.fillStyle = '#26af5f';
+        ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+        ctx.fillStyle = '#2ed573';
+        for (let x = 0; x < WORLD_WIDTH; x += 50) {
+            ctx.fillRect(x, 0, 2, WORLD_HEIGHT);
+        }
+        for (let y = 0; y < WORLD_HEIGHT; y += 50) {
+            ctx.fillRect(0, y, WORLD_WIDTH, 2);
+        }
+
+        // Welt-Grenzlinie
+        ctx.strokeStyle = '#d63031';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        // Loot zeichnen (Quadratische Diamanten)
+        lootKristalle.forEach(k => {
+            ctx.fillStyle = '#00ced1';
+            ctx.fillRect(k.x - 5, k.y - 5, 10, 10);
+        });
+
+        // Feindliche Monster zeichnen
+        enemies.forEach(e => {
+            ctx.fillStyle = e.type === 'slime' ? '#7bed9f' : '#ffa502';
+            ctx.fillRect(e.x - 12, e.y - 12, 24, 24);
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.strokeRect(e.x - 12, e.y - 12, 24, 24);
+            
+            // Monster HP Leiste
+            ctx.fillStyle = '#ff4757';
+            ctx.fillRect(e.x - 15, e.y - 20, 30, 4);
+            ctx.fillStyle = '#2ed573';
+            ctx.fillRect(e.x - 15, e.y - 20, (e.hp / e.maxHp) * 30, 4);
+        });
+
+        // Andere Online-Spieler zeichnen
+        for (let pKey in allPlayers) {
+            if (pKey === myUid) continue;
+            let p = allPlayers[pKey];
+            ctx.fillStyle = '#eccc68';
+            ctx.fillRect(p.x - 15, p.y - 15, 30, 30);
+            ctx.strokeStyle = '#000'; ctx.strokeRect(p.x - 15, p.y - 15, 30, 30);
+
+            ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textAlign = 'center';
+            ctx.fillText(`${p.username} (LVL ${p.level || 1})`, p.x, p.y - 25);
+        }
+
+        // EIGENEN SPIELER ZEICHNEN
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x - 16, player.y - 16, 32, 32);
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.strokeRect(player.x - 16, player.y - 16, 32, 32);
+
+        // Angriffs-Slash Effekt (Pixel-Schwert-Schwung)
+        if (player.isAttacking) {
+            ctx.fillStyle = '#ffffff';
+            let slashX = player.x + player.dirX * 24;
+            let slashY = player.y + player.dirY * 24;
+            ctx.fillRect(slashX - 10, slashY - 10, 20, 20);
+        }
+
+        // UI Über dem Spielerkopf
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(`${myUsername} [LVL ${player.level}]`, player.x, player.y - 32);
+
+        // Eigene Lebensleiste über dem Kopf
+        ctx.fillStyle = '#ff4757';
+        ctx.fillRect(player.x - 20, player.y - 25, 40, 5);
+        ctx.fillStyle = '#2ed573';
+        ctx.fillRect(player.x - 20, player.y - 25, (player.hp / player.maxHp) * 40, 5);
+
+        ctx.restore();
+
+        // Statisches HUD am oberen Spielfeldrand rendern
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(10, 10, 200, 45);
+        ctx.fillStyle = '#fff'; ctx.font = '12px monospace'; ctx.textAlign = 'left';
+        ctx.fillText(`HP: ${player.hp}/${player.maxHp}`, 15, 25);
+        ctx.fillText(`EXP: ${player.exp}/${player.nextLevelExp}`, 15, 42);
+    }
+</script>
+
+</body>
+</html>
