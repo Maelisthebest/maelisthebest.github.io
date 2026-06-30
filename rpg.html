@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Pixel RPG MMO v 0.2⚔️</title>
+    <title>Maelist - Pixel RPG MMO ⚔️ v 0.2</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
@@ -251,7 +251,7 @@
     function enterWorld() {
         startScreen.style.display = 'none';
         deathOverlay.style.display = 'none';
-        player.hp = player.maxHp;/chat.html
+        player.hp = player.maxHp;
         player.x = 1500 + (Math.random() * 100 - 50);
         player.y = 1550 + (Math.random() * 100 - 50);
 
@@ -314,7 +314,7 @@
 
     // SHOP LOGIK
     window.buyUpgrade = async function(type) {
-        if (type === 'dmg' && player.gold >= 50) {/chat.html
+        if (type === 'dmg' && player.gold >= 50) {
             player.gold -= 50; player.dmg += 8;
             alert("Schwert verbessert! Schaden erhöht.");
         } else if (type === 'heal' && player.gold >= 15) {
@@ -335,7 +335,7 @@
         player.isAttacking = true;
         player.attackTimer = 12;
 
-        let hitX = player.x + player.dirX * 45;/chat.html
+        let hitX = player.x + player.dirX * 45;
         let hitY = player.y + player.dirY * 45;
 
         // Lokale Mobs treffen
@@ -377,7 +377,7 @@
     }
 
     // Controls Event-Hooks
-    document.getElementById('attack-button').onmousedown = performAttack;/chat.html
+    document.getElementById('attack-button').onmousedown = performAttack;
     window.addEventListener('keydown', (e) => { if(e.key in keys){ keys[e.key]=true; controlMode="keyboard";} if(e.code==='Space') performAttack(); });
     window.addEventListener('keyup', (e) => { if(e.key in keys) keys[e.key]=false; });
 
@@ -393,7 +393,7 @@
         if(dist > 40) { dx=(dx/dist)*40; dy=(dy/dist)*40; }
         stick.style.transform = `translate(${dx}px, ${dy}px)`;
         joyX = dx/40; joyY = dy/40;
-    });/chat.html
+    });
     circle.addEventListener('touchend', () => { stick.style.transform = 'translate(0px, 0px)'; joyX=0; joyY=0; });
 
     // ENGINE-TICK & GAME LOOP
@@ -435,7 +435,7 @@
         // Bosse schlagen zurück
         for (let bKey in serverBosses) {
             let boss = serverBosses[bKey];
-            if (boss.hp > 0) {/chat.html
+            if (boss.hp > 0) {
                 let d = Math.hypot(player.x - boss.x, player.y - boss.y);
                 if (d < boss.r + 15 && Math.random() < 0.05) {
                     player.hp -= 10;
