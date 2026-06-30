@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Maelist - Snake.io 🐍</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 0; background: #1a1a1a;
+            font-family: sans-serif; color: #fff;
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; height: 100vh;
+        }
+        header { text-align: center; padding: 10px; width: 100%; background: #2c3e50; border-bottom: 3px solid #3498db; z-index: 5; }
+        h1 { margin: 0; font-size: 1.3rem; color: #3498db; }
+        
+        #game-container {
+            position: relative; width: 100%; height: 55vh; background: #111; 
+            border-bottom: 4px solid #3498db; overflow: hidden;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* Startbildschirm Overlay */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 20;
+        }
+        .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid #3498db; text-align: center; box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); }
+        .play-btn { background: #3498db; color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; }
+        .play-btn:disabled { background: #555; cursor: not-allowed; }
+
+        /* Fake-Werbung Overlay */
+        #ad-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 30;
+        }
+        .ad-box { background: #ffcc00; color: #003399; padding: 25px; border-radius: 12px; text-align: center; font-weight: bold; width: 280px; box-shadow: 0 0 25px #ffcc00; }
+        .ad-box h2 { margin: 0 0 10px 0; font-size: 24px; }
+        .ad-timer { font-size: 11px; color: #555; margin-top: 10px; }
+
+        /* Live Scoreliste / Leaderboard */
+        #leaderboard {
+            position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+            font-family: monospace; font-size: 12px; max-width: 180px; z-index: 10;
+        }
+        #leaderboard h3 { margin: 0 0 5px 0; color: #3498db; font-size: 13px; text-transform: uppercase; }
+        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
+
+        /* Control Panel für Joystick und Boost-Button */
+        #control-panel {
+            display: flex; align-items: center; justify-content: center; gap: 40px;
+            width: 100%; flex-grow: 1; background: #222; padding: 10px;
+        }
+        .joycon-circle {
+            width: 130px; height: 130px; background: #333; border-radius: 50%;
+            position: relative; border: 4px solid #444; touch-action: none;
+        }
+        .joycon-stick {
+            width: 50px; height: 50px; background: #ffffff; border-radius: 50%;
+            position: absolute; top: 36px; left: 36px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .boost-btn {
+            width: 80px; height: 80px; background: #e74c3c; border: 4px solid #c0392b;
+            border-radius: 50%; color: white; font-weight: bold; font-size: 14px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4); touch-action: none; cursor: pointer;
+        }
+        .boost-btn:active { background: #c0392b; transform: scale(0.95); }
+        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; text-align: center; width: 100%; padding: 5px; background: #222;}
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Maelist Snake Arena 🐍</h1>
+</header>
+<div id="lobby-status">Verbinde mit Firebase...</div>
+
+<div id="game-container">
+    <div id="start-screen">
+        <div class="menu-box">
+            <h2 style="margin:0; color:#3498db;">Bist du bereit?</h2>
+            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Spieldaten...</p>
+            <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
+        </div>
+    </div>
+
+    <div id="ad-overlay">
+        <div style="
+                background: linear-gradient(45deg, #ff007f, #ffaa00);
+                color: white;
+                font-family: 'Comic Sans MS', 'Impact', sans-serif;
+                font-size: 24px;
+                font-weight: bold;
+                text-align: center;
+                padding: 30px;
+                border: 8px dashed #ffffff;
+                border-radius: 15px;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                margin: 20px auto;
+                max-width: 500px;
+                cursor: pointer;
+                transition: transform 0.2s, box-shadow 0.2s;
+            " 
+            onmouseover="this.style.transform='scale(1.05) rotate(-2deg)'; this.style.box-shadow='0 15px 30px rgba(0,0,0,0.5)';" 
+            onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.box-shadow='0 10px 20px rgba(0,0,0,0.3)';"
+            onclick="alert('Glückwunsch! Sie haben den unsichtbaren Werbeplatz entdeckt. Das kostet Sie jetzt ein Lächeln (oder 500€).');">
+                
+                ✨ <u>Hier könnte Ihre Werbung stehen!</u> ✨
+                <span style="display: block; font-size: 14px; margin-top: 10px; font-weight: normal; font-style: italic; opacity: 0.9;">
+                    (Oder ein Bild von Ihrer Katze. Wir sind da flexibel.)
+                </span>
+            
+                <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+        </div>
+    </div>
+
+    <div id="leaderboard">
+        <h3>🏆 Top Snakes</h3>
+        <div id="leaderboard-list">Warte auf Spieler...</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="control-panel">
+    <div class="joycon-circle" id="joystick-circle">
+        <div class="joycon-stick" id="joystick-stick"></div>
+    </div>
+    <div class="boost-btn" id="boost-button">BOOST</div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue, update, onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameContainer = document.getElementById('game-container');
+    const lobbyStatus = document.getElementById('lobby-status');
+    const startScreen = document.getElementById('start-screen');
+    const adOverlay = document.getElementById('ad-overlay');
+    const leaderboardList = document.getElementById('leaderboard-list');
+
+    const WORLD_WIDTH = 2500;
+    const WORLD_HEIGHT = 2500;
+    const MAX_TOTAL_FOOD = 600; // Leicht reduziert für bessere Performance
+
+    let myUid = null;
+    let myUsername = "Anonym";
+    let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
+    let allPlayers = {};
+    let allFood = {};
+    let isPlaying = false;
+    let isHost = false; // Gibt an, ob DIESER Client der Server/Host ist
+
+    let joyX = 0, joyY = 0;
+    let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    
+    let angle = 0; 
+    let baseSpeed = 4.5;
+    let currentSpeed = baseSpeed;
+    let isBoosting = false;
+    let lastBoostLossTime = 0;
+    
+    let myHistory = []; 
+    let myScore = 6; 
+    const spacing = 5; 
+
+    let controlMode = "keyboard"; 
+    let areaTargetX = 0;
+    let areaTargetY = 0;
+    let currentZoom = 1;
+
+    let lastFrameTime = 0;
+    const fpsInterval = 1000 / 60; 
+
+    function resizeCanvas() {
+        canvas.width = gameContainer.clientWidth;
+        canvas.height = gameContainer.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ----------------------------------------------------
+    // NEU: HOST-WÄHLER LOGIK
+    // ----------------------------------------------------
+    function setupHostElection() {
+        // Wir lauschen permanent auf die Spielerliste
+        onValue(ref(db, 'games/snake/players'), (snap) => {
+            if (snap.exists()) {
+                allPlayers = snap.val();
+                updateLeaderboard();
+
+                // Der Spieler, dessen UID alphabetisch an erster Stelle steht, wird Host
+                const playerIds = Object.keys(allPlayers).sort();
+                if (playerIds[0] === myUid) {
+                    if (!isHost) {
+                        isHost = true;
+                        lobbyStatus.innerText = "Du bist der Arena-Host (Server) 👑";
+                        lobbyStatus.style.color = "#2ecc71";
+                        // Startet die Server-Verwaltungsschleife für Futter
+                        startHostLogic();
+                    }
+                } else {
+                    if (isHost) {
+                        isHost = false;
+                        lobbyStatus.innerText = "Verbunden | Client-Modus";
+                        lobbyStatus.style.color = "#aaa";
+                    }
+                }
+            } else {
+                allPlayers = {};
+                isHost = false;
+            }
+        });
+    }
+
+    // Server-Logik: Wird nur ausgeführt, wenn man der Host ist
+    function startHostLogic() {
+        // Intervall prüft alle 2 Sekunden, ob Futter nachgefüllt werden muss
+        const hostInterval = setInterval(() => {
+            if (!isHost) {
+                clearInterval(hostInterval);
+                return;
+            }
+
+            let currentFoodCount = Object.keys(allFood).length;
+            if (currentFoodCount < MAX_TOTAL_FOOD) {
+                let amountToSpawn = Math.min(50, MAX_TOTAL_FOOD - currentFoodCount);
+                let newFoodChunk = {};
+                
+                for(let i=0; i < amountToSpawn; i++) { 
+                    let foodId = "server_" + Date.now() + "_" + Math.round(Math.random()*1000);
+                    newFoodChunk[foodId] = {
+                        x: Math.random() * (WORLD_WIDTH - 60) + 30,
+                        y: Math.random() * (WORLD_HEIGHT - 60) + 30,
+                        color: `hsl(${Math.random()*360}, 100%, 60%)`
+                    };
+                }
+                update(ref(db, 'games/snake/food'), newFoodChunk);
+            }
+        }, 2000);
+    }
+    // ----------------------------------------------------
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            myUid = user.uid;
+            onValue(ref(db, `users/${myUid}`), (snapshot) => {
+                if(snapshot.exists()) myUsername = snapshot.val().username;
+                document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
+                
+                // Host-Ermittlung aktivieren
+                setupHostElection();
+                
+                const joinBtn = document.getElementById('join-btn');
+                joinBtn.disabled = false;
+                joinBtn.onclick = () => {
+                    startScreen.style.display = 'none';
+                    startNewLife();
+                };
+            }, { onlyOnce: true });
+        } else {
+            window.location.href = "überleitung.html";
+        }
+    });
+
+    async function startNewLife() {
+        myScore = 6;
+        myColor = `hsl(${Math.random() * 360}, 85%, 50%)`;
+        let startX = Math.random() * (WORLD_WIDTH - 600) + 300;
+        let startY = Math.random() * (WORLD_HEIGHT - 600) + 300;
+        myHistory = [{ x: startX, y: startY }];
+
+        const myGameRef = ref(db, `games/snake/players/${myUid}`);
+        
+        // Erstbelegung registriert den Spieler in der Liste (wichtig für die Host-Wahl)
+        await set(myGameRef, { username: myUsername, color: myColor, body: myHistory, score: myScore });
+        onDisconnect(myGameRef).remove();
+
+        isPlaying = true;
+        if(!isHost) lobbyStatus.innerText = `Snake Arena | Viel Erfolg!`;
+    }
+
+    onValue(ref(db, 'games/snake/food'), (snap) => {
+        if (snap.exists()) allFood = snap.val();
+        else allFood = {};
+    });
+
+    function updateLeaderboard() {
+        let list = [];
+        for (let id in allPlayers) list.push(allPlayers[id]);
+        list.sort((a, b) => (b.score || 0) - (a.score || 0));
+        let html = "";
+        list.slice(0, 5).forEach((p, i) => {
+            html += `<div class="leaderboard-entry"><span>${i+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
+        });
+        leaderboardList.innerHTML = html || "Keine Spieler";
+    }
+
+    function triggerDeath() {
+        isPlaying = false;
+        isBoosting = false;
+        
+        set(ref(db, `games/snake/players/${myUid}`), null);
+
+        // Überbleibsel als Futter hinterlassen (optimiert)
+        if (myHistory.length > 0) {
+            let chunk = {};
+            let count = 0;
+            for (let i = 0; i < myHistory.length; i += spacing * 2) {
+                let segment = myHistory[i];
+                if (segment) {
+                    let foodId = "dead_" + myUid + "_" + i + "_" + Math.round(Math.random()*100);
+                    chunk[foodId] = { x: segment.x + (Math.random()*16 - 8), y: segment.y + (Math.random()*16 - 8), color: myColor };
+                    count++;
+
+                    if (count >= 20) {
+                        update(ref(db, `games/snake/food`), chunk);
+                        chunk = {};
+                        count = 0;
+                    }
+                }
+            }
+            if (count > 0) update(ref(db, `games/snake/food`), chunk);
+        }
+        
+        adOverlay.style.display = 'flex';
+        let count = 3;
+        document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
+        let timer = setInterval(() => {
+            count--;
+            if (count > 0) { document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`; }
+            else { clearInterval(timer); adOverlay.style.display = 'none'; startScreen.style.display = 'flex'; document.getElementById('join-btn').innerText = "Erneut versuchen"; }
+        }, 1000);
+    }
+
+    // Sende-Intervall der eigenen Position (50ms = 20 Ticks/Sekunde)
+    setInterval(() => {
+        if (!myUid || !isPlaying || myHistory.length === 0) return;
+        let bodyToSend = [];
+        for(let i = 0; i < myHistory.length; i += spacing) { bodyToSend.push(myHistory[i]); }
+        update(ref(db, `games/snake/players/${myUid}`), { body: bodyToSend, score: myScore });
+    }, 50);
+
+    // JOYSTICK SETUP
+    function setupJoystick() {
+        const circle = document.getElementById('joystick-circle');
+        const stick = document.getElementById('joystick-stick');
+        const maxRadius = 40;
+
+        function handleMove(clientX, clientY) {
+            controlMode = "joystick";
+            const rect = circle.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = clientX - centerX; let dy = clientY - centerY;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > maxRadius) { dx = (dx / distance) * maxRadius; dy = (dy / distance) * maxRadius; }
+            stick.style.transform = `translate(${dx}px, ${dy}px)`;
+            joyX = dx / maxRadius; joyY = dy / maxRadius;
+        }
+        function endMove() { stick.style.transform = 'translate(0px, 0px)'; joyX = 0; joyY = 0; }
+
+        circle.addEventListener('touchstart', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        circle.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+        circle.addEventListener('touchend', (e) => { e.preventDefault(); endMove(); });
+
+        let isJoystickDown = false;
+        circle.addEventListener('mousedown', (e) => { isJoystickDown = true; handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', (e) => { if(isJoystickDown) handleMove(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { if(isJoystickDown) { isJoystickDown = false; endMove(); } });
+    }
+    setupJoystick();
+
+    // BOOST BUTTON SETUP
+    const boostBtn = document.getElementById('boost-button');
+    boostBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isBoosting = true; }, { passive: false });
+    boostBtn.addEventListener('touchend', (e) => { e.preventDefault(); isBoosting = false; });
+    boostBtn.addEventListener('mousedown', (e) => { if(e.button === 0) isBoosting = true; });
+    window.addEventListener('mouseup', () => { isBoosting = false; });
+
+    // PC Keys
+    window.addEventListener('keydown', (e) => { 
+        if (e.key in keys) { keys[e.key] = true; controlMode = "keyboard"; }
+        if (e.code === 'Space') isBoosting = true;
+    });
+    window.addEventListener('keyup', (e) => { 
+        if (e.key in keys) keys[e.key] = false; 
+        if (e.code === 'Space') isBoosting = false;
+    });
+
+    // AREA CONTROLS
+    function updateAreaCoordinates(clientX, clientY) {
+        if (!isPlaying) return;
+        controlMode = "area";
+        const rect = gameContainer.getBoundingClientRect();
+        areaTargetX = clientX - rect.left;
+        areaTargetY = clientY - rect.top;
+    }
+
+    gameContainer.addEventListener('mousemove', (e) => { updateAreaCoordinates(e.clientX, e.clientY); });
+    gameContainer.addEventListener('touchstart', (e) => { updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    gameContainer.addEventListener('touchmove', (e) => { updateAreaCoordinates(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+
+    function updateLoop(timestamp) {
+        requestAnimationFrame(updateLoop);
+
+        let elapsed = timestamp - lastFrameTime;
+        if (elapsed < fpsInterval) return;
+        lastFrameTime = timestamp - (elapsed % fpsInterval);
+
+        let focusX = WORLD_WIDTH / 2;
+        let focusY = WORLD_HEIGHT / 2;
+
+        if (isPlaying && myHistory.length > 0) {
+            let head = myHistory[0];
+
+            if (controlMode === "area") {
+                let screenCenterX = canvas.width / 2;
+                let screenCenterY = canvas.height / 2;
+                let dx = areaTargetX - screenCenterX;
+                let dy = areaTargetY - screenCenterY;
+                if (Math.hypot(dx, dy) > 10) { angle = Math.atan2(dy, dx); }
+            } else if (controlMode === "joystick" && (joyX !== 0 || joyY !== 0)) {
+                angle = Math.atan2(joyY, joyX);
+            } else if (controlMode === "keyboard") {
+                let kX = 0, kY = 0;
+                if (keys.w || keys.ArrowUp) kY -= 1;
+                if (keys.s || keys.ArrowDown) kY += 1;
+                if (keys.a || keys.ArrowLeft) kX -= 1;
+                if (keys.d || keys.ArrowRight) kX += 1;
+                if (kX !== 0 || kY !== 0) angle = Math.atan2(kY, kX);
+            }
+
+            if (isBoosting && myScore > 6) {
+                currentSpeed = 8.0; 
+                let now = Date.now();
+
+                if (now - lastBoostLossTime > 200) { 
+                    myScore -= 1;
+                    lastBoostLossTime = now;
+
+                    let lastSeg = myHistory[myHistory.length - 1] || head;
+                    let dropId = "boost_" + myUid + "_" + now;
+                    
+                    let newDrop = { [dropId]: { x: lastSeg.x + (Math.random() * 12 - 6), y: lastSeg.y + (Math.random() * 12 - 6), color: myColor } };
+                    update(ref(db, `games/snake/food`), newDrop);
+                }
+            } else {
+                currentSpeed = baseSpeed;
+            }
+
+            let newX = head.x + Math.cos(angle) * currentSpeed;
+            let newY = head.y + Math.sin(angle) * currentSpeed;
+
+            if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) { triggerDeath(); }
+
+            // Futter fressen (Lokale Kollision, Löschen an DB gesendet)
+            for (let key in allFood) {
+                let f = allFood[key];
+                if (f) {
+                    if (Math.hypot(newX - f.x, newY - f.y) < 22) {
+                        myScore += 1;
+                        // Client fordert das Löschen des gefressenen Futters an
+                        set(ref(db, `games/snake/food/${key}`), null);
+                        delete allFood[key];
+                    }
+                }
+            }
+
+            // Kollisionsabfrage mit anderen Schlangen
+            for (let pKey in allPlayers) {
+                if (pKey === myUid) continue;
+                let enemyBody = allPlayers[pKey].body;
+                if (!enemyBody) continue;
+                for (let i = 0; i < enemyBody.length; i++) {
+                    if (Math.hypot(newX - enemyBody[i].x, newY - enemyBody[i].y) < 18) { triggerDeath(); }
+                }
+            }
+
+            if (isPlaying) {
+                myHistory.unshift({ x: newX, y: newY });
+                while (myHistory.length > myScore * spacing) { myHistory.pop(); }
+                focusX = newX; focusY = newY;
+            }
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        
+        let baseWidth = 1100;
+        let baseHeight = 650;
+        currentZoom = Math.max(canvas.width / baseWidth, canvas.height / baseHeight);
+
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(currentZoom, currentZoom);
+        ctx.translate(-focusX, -focusY);
+
+        ctx.strokeStyle = '#e74c3c';
+        ctx.lineWidth = 15;
+        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        for (let key in allFood) {
+            let f = allFood[key];
+            if(f) {
+                ctx.beginPath(); ctx.arc(f.x, f.y, 7, 0, Math.PI * 2);
+                ctx.fillStyle = f.color; ctx.fill(); ctx.closePath();
+            }
+        }
+
+        for (let playerKey in allPlayers) {
+            let p = allPlayers[playerKey];
+            let segmentsToDraw = [];
+
+            if (isPlaying && playerKey === myUid) {
+                for(let i = 0; i < myHistory.length; i += spacing) { segmentsToDraw.push(myHistory[i]); }
+            } else if (p.body) {
+                segmentsToDraw = p.body;
+            }
+
+            if (segmentsToDraw.length === 0) continue;
+
+            for (let i = segmentsToDraw.length - 1; i >= 0; i--) {
+                let segment = segmentsToDraw[i];
+                if (!segment) continue;
+                ctx.beginPath();
+                ctx.arc(segment.x, segment.y, (i === 0) ? 18 : 14, 0, Math.PI * 2);
+                ctx.fillStyle = (i === 0) ? "#ffffff" : (p.color || "#3498db");
+                ctx.fill();
+                ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.stroke();
+                ctx.closePath();
+            }
+
+            let headSeg = segmentsToDraw[0];
+            if(headSeg) {
+                ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText((p.username || "User") + ` (${p.score || 0})`, headSeg.x, headSeg.y - 25);
+            }
+        }
+
+        ctx.restore();
+    }
+
+    requestAnimationFrame((timestamp) => {
+        lastFrameTime = timestamp;
+        updateLoop(timestamp);
+    });
+</script>
+
+</body>
+</html>
