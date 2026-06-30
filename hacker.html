@@ -11,46 +11,19 @@
             font-family: 'Courier New', Courier, monospace;
             padding: 20px;
             margin: 0;
-            overflow-x: hidden;
         }
-
-        #terminal {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .output-line {
-            line-height: 1.5;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            margin-bottom: 5px;
-        }
-
+        #terminal { max-width: 900px; margin: 0 auto; }
+        .output-line { line-height: 1.5; white-space: pre-wrap; margin-bottom: 5px; }
         .system-msg { color: #5555ff; }
         .success-msg { color: #00ff00; font-weight: bold; }
         .error-msg { color: #ff3333; }
         .warning-msg { color: #ffff00; }
-
-        .input-line {
-            display: flex;
-            align-items: center;
-            margin-top: 15px;
-        }
-
-        .prompt {
-            color: #00ff00;
-            margin-right: 10px;
-            white-space: nowrap;
-        }
-
+        .input-line { display: flex; align-items: center; margin-top: 15px; }
+        .prompt { color: #00ff00; margin-right: 10px; white-space: nowrap; }
         #cmd-input {
-            background: transparent;
-            border: none;
-            color: #00ff00;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 16px;
-            width: 100%;
-            outline: none;
+            background: transparent; border: none; color: #00ff00;
+            font-family: 'Courier New', Courier, monospace; font-size: 16px;
+            width: 100%; outline: none;
         }
     </style>
 </head>
@@ -59,39 +32,43 @@
 <div id="terminal">
     <div id="history">
         <div class="output-line system-msg">==================================================</div>
-        <div class="output-line system-msg">MAELIST MAINFRAME v2.46 - SECURE FIREBASE CONNECTION</div>
-        <div class="output-line system-msg">Type 'help' to view available bypass protocols.</div>
+        <div class="output-line system-msg">MAELIST MAINFRAME v4.0 - MASTERKEY BYPASS ENABLED</div>
+        <div class="output-line system-msg">Type 'help' to view available protocols.</div>
         <div class="output-line system-msg">==================================================</div>
     </div>
     
     <div class="input-line">
-        <span class="prompt">maelist@firebase:~#</span>
+        <span class="prompt">maelist@realtime-db:~#</span>
         <input type="text" id="cmd-input" autofocus autocomplete="off" spellcheck="false">
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    // Deine Firebase-Konfiguration
     const firebaseConfig = {
         apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
         authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com", 
         projectId: "maelist-chat",
         storageBucket: "maelist-chat.appspot.com",
         messagingSenderId: "33887033580",
         appId: "1:33887033580:web:4f6d4dbe9dc17a807d4b4a"
     };
 
-    // Firebase initialisieren
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
 
+    // DIESER SCHLÜSSEL MUSS MIT DEM IN DEINEN FIREBASE RULES ÜBEREINSTIMMEN!
+    const BYPASS_KEY = "mael1337"; 
+
+    let currentUserUid = null;
     const history = document.getElementById('history');
     const cmdInput = document.getElementById('cmd-input');
 
-    // Hilfsfunktion, um Text im Terminal auszugeben
     function logToTerminal(text, type = '') {
         const line = document.createElement('div');
         line.className = `output-line ${type}`;
@@ -100,82 +77,78 @@
         window.scrollTo(0, document.body.scrollHeight);
     }
 
-    // Konsolenbefehle verarbeiten
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUserUid = user.uid;
+            logToTerminal(`[AUTH] Erfolgreich verbunden als: ${user.uid}`, 'success-msg');
+        } else {
+            currentUserUid = null;
+            logToTerminal(`[AUTH WARN] Kein Login erkannt. Logge dich auf der Hauptseite ein!`, 'warning-msg');
+        }
+    });
+
     cmdInput.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
             const input = cmdInput.value.trim();
             cmdInput.value = '';
-
             if (!input) return;
 
-            // Zeige den eingegebenen Befehl im Verlauf an
-            logToTerminal(`maelist@firebase:~# ${input}`);
+            logToTerminal(`maelist@realtime-db:~# ${input}`);
 
-            // Befehl parsen
-            const lowerInput = input.toLowerCase();
-
-            // 1. HILFE-MENÜ
-            if (lowerInput === 'help') {
-                logToTerminal('\nVerfügbare Overrides:', 'warning-msg');
-                logToTerminal('  clicksofmael=[Zahl]     - Setzt den globalen Klick-Zustand auf den Wert X');
-                logToTerminal('  getclicks               - Fragt den aktuellen Klick-Wert ab');
-                logToTerminal('  clear                   - Leert den Bildschirm');
-                logToTerminal('  exit                    - Schließt das Terminal (Zwei Schritte zurück)\n');
+            if (input.toLowerCase() === 'help') {
+                logToTerminal('\nProtokolle:', 'warning-msg');
+                logToTerminal('  getclicks             - Zeigt aktuelle Klicks');
+                logToTerminal('  clicksofmael=[Zahl]   - Injiziert Klicks mithilfe des Masterkeys');
+                logToTerminal('  clear                 - Terminal leeren\n');
             } 
-            
-            // 2. TERMINAL LEEREN
-            else if (lowerInput === 'clear') {
+            else if (input.toLowerCase() === 'clear') {
                 history.innerHTML = '';
-            }
-
-            // 3. ABFRAGE DER KLICKS
-            else if (lowerInput === 'getclicks') {
-                logToTerminal('Verbindung zur Datenbank wird aufgebaut...', 'system-msg');
+            } 
+            else if (input.toLowerCase() === 'getclicks') {
+                if (!currentUserUid) { logToTerminal('[ERR] Nicht eingeloggt.', 'error-msg'); return; }
                 try {
-                    const snap = await getDoc(doc(db, "system", "clickstate"));
-                    if (snap.exists()) {
-                        logToTerminal(`[INFO] Aktueller Wert in Firebase: ${snap.data().count}`, 'success-msg');
+                    const snapshot = await get(ref(db, `clickStats/${currentUserUid}`));
+                    if (snapshot.exists()) {
+                        logToTerminal(`[DATA] Clicks: ${snapshot.val().clicks}`, 'success-msg');
                     } else {
-                        logToTerminal('[WARN] Dokument existiert nicht. Nutze Set-Befehl zum Erstellen.', 'warning-msg');
+                        logToTerminal('[INFO] Keine Daten vorhanden.', 'warning-msg');
                     }
-                } catch (err) {
-                    logToTerminal(`[FEHLER] Zugriff verweigert: ${err.message}`, 'error-msg');
-                }
-            }
-
-            // 4. DEIN WUNSCH: "clicksofmael=100000"
+                } catch (err) { logToTerminal(`[FAIL] ${err.message}`, 'error-msg'); }
+            } 
             else if (input.startsWith('clicksofmael=')) {
-                const valueStr = input.split('=')[1];
-                const value = parseInt(valueStr, 10);
-
+                if (!currentUserUid) { logToTerminal('[ERR] Nicht eingeloggt.', 'error-msg'); return; }
+                const value = parseInt(input.split('=')[1], 10);
+                
                 if (isNaN(value)) {
-                    logToTerminal('[SYNTAX ERROR] Wert muss eine Ganzzahl sein! Beispiel: clicksofmael=500', 'error-msg');
-                } else {
-                    logToTerminal(`Injiziere neuen Datenpunkt in Datenbank...`, 'system-msg');
-                    try {
-                        // Ändert das Dokument "clickstate" in der Sammlung "system"
-                        await setDoc(doc(db, "system", "clickstate"), { 
-                            count: value 
-                        }, { merge: true });
-                        
-                        logToTerminal(`[SUCCESS] Exploit erfolgreich. 'count' wurde auf ${value} manipuliert!`, 'success-msg');
-                    } catch (err) {
-                        logToTerminal(`[DATABASE ERROR] Fehler beim Schreiben: ${err.message}`, 'error-msg');
-                    }
+                    logToTerminal('[ERR] Ungültige Zahl.', 'error-msg');
+                    return;
+                }
+
+                logToTerminal(`Sende Overwrite-Protokoll mit Masterkey an Firebase...`, 'system-msg');
+                
+                try {
+                    const clickRef = ref(db, `clickStats/${currentUserUid}`);
+                    
+                    // Hier passiert die Magie: Wir senden 'masterkey' mit.
+                    // Firebase sieht das, vergleicht es in den Rules und erlaubt den Sprung!
+                    await set(clickRef, {
+                        name: "mael",
+                        clicks: value,
+                        masterkey: BYPASS_KEY 
+                    });
+                    
+                    logToTerminal(`[SUCCESS] Exploit erfolgreich! Wert direkt auf ${value} manipuliert.`, 'success-msg');
+                } catch (err) {
+                    logToTerminal(`[CRITICAL] Abgewiesen! Fehler: ${err.message}`, 'error-msg');
                 }
             } 
-            
-            // 5. UNBEKANNTER BEFEHL
             else {
-                logToTerminal(`[CRITICAL] Befehl '${input}' nicht erkannt. Tippe 'help' für Befehle.`, 'error-msg');
+                logToTerminal(`Befehl '${input}' nicht gefunden.`, 'error-msg');
             }
         }
     });
 
-    // Fokus immer auf das Input-Feld halten, wenn man irgendwo hinklickt
-    document.addEventListener('click', () => {
-        cmdInput.focus();
-    });
+    document.addEventListener('click', () => cmdInput.focus());
 </script>
 </body>
 </html>
