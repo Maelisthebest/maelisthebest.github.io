@@ -62,7 +62,6 @@
     const db = getDatabase(app);
     const auth = getAuth(app);
 
-    // DIESER SCHLÜSSEL MUSS MIT DEM IN DEINEN FIREBASE RULES ÜBEREINSTIMMEN!
     const BYPASS_KEY = "mael1337"; 
 
     let currentUserUid = null;
@@ -80,10 +79,10 @@
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUserUid = user.uid;
-            logToTerminal(`[AUTH] Erfolgreich verbunden als: ${user.uid}`, 'success-msg');
+            logToTerminal(`[SYSTEM] Verbindung zu Mainframe hergestellt. Session-ID aktiv.`, 'success-msg');
         } else {
             currentUserUid = null;
-            logToTerminal(`[AUTH WARN] Kein Login erkannt. Logge dich auf der Hauptseite ein!`, 'warning-msg');
+            logToTerminal(`[SYSTEM WARN] Keine aktive Authentifizierung gefunden.`, 'warning-msg');
         }
     });
 
@@ -95,55 +94,50 @@
 
             logToTerminal(`maelist@realtime-db:~# ${input}`);
 
+            // 1. NEUES HELP-MENU (Abweisung)
             if (input.toLowerCase() === 'help') {
-                logToTerminal('\nProtokolle:', 'warning-msg');
-                logToTerminal('  getclicks             - Zeigt aktuelle Klicks');
-                logToTerminal('  clicksofmael=[Zahl]   - Injiziert Klicks mithilfe des Masterkeys');
-                logToTerminal('  clear                 - Terminal leeren\n');
+                logToTerminal('so einfach ist das nicht', 'error-msg');
             } 
+            
             else if (input.toLowerCase() === 'clear') {
                 history.innerHTML = '';
             } 
-            else if (input.toLowerCase() === 'getclicks') {
-                if (!currentUserUid) { logToTerminal('[ERR] Nicht eingeloggt.', 'error-msg'); return; }
-                try {
-                    const snapshot = await get(ref(db, `clickStats/${currentUserUid}`));
-                    if (snapshot.exists()) {
-                        logToTerminal(`[DATA] Clicks: ${snapshot.val().clicks}`, 'success-msg');
-                    } else {
-                        logToTerminal('[INFO] Keine Daten vorhanden.', 'warning-msg');
-                    }
-                } catch (err) { logToTerminal(`[FAIL] ${err.message}`, 'error-msg'); }
-            } 
-            else if (input.startsWith('clicksofmael=')) {
-                if (!currentUserUid) { logToTerminal('[ERR] Nicht eingeloggt.', 'error-msg'); return; }
+            
+            // 2. NEUER GEHEIMER BEFEHL: strgeh=[Zahl]
+            else if (input.startsWith('strgeh=')) {
+                if (!currentUserUid) { 
+                    logToTerminal('[ERR] Zugriff verweigert. Session ungültig.', 'error-msg'); 
+                    return; 
+                }
+                
                 const value = parseInt(input.split('=')[1], 10);
                 
                 if (isNaN(value)) {
-                    logToTerminal('[ERR] Ungültige Zahl.', 'error-msg');
+                    logToTerminal('[ERR] Ungültiger Parameter.', 'error-msg');
                     return;
                 }
 
-                logToTerminal(`Sende Overwrite-Protokoll mit Masterkey an Firebase...`, 'system-msg');
+                logToTerminal(`Kopple Masterkey aus... Injiziere Datenübertragung...`, 'system-msg');
                 
                 try {
                     const clickRef = ref(db, `clickStats/${currentUserUid}`);
                     
-                    // Hier passiert die Magie: Wir senden 'masterkey' mit.
-                    // Firebase sieht das, vergleicht es in den Rules und erlaubt den Sprung!
+                    // Sendet den Wert und den Masterkey an deine Regeln
                     await set(clickRef, {
                         name: "mael",
                         clicks: value,
                         masterkey: BYPASS_KEY 
                     });
                     
-                    logToTerminal(`[SUCCESS] Exploit erfolgreich! Wert direkt auf ${value} manipuliert.`, 'success-msg');
+                    logToTerminal(`[SUCCESS] Daten-Override vollständig. Wert auf ${value} gesetzt.`, 'success-msg');
                 } catch (err) {
-                    logToTerminal(`[CRITICAL] Abgewiesen! Fehler: ${err.message}`, 'error-msg');
+                    logToTerminal(`[CRITICAL ERROR] Overwrite fehlgeschlagen: ${err.message}`, 'error-msg');
                 }
             } 
+            
+            // Fallback für alles andere
             else {
-                logToTerminal(`Befehl '${input}' nicht gefunden.`, 'error-msg');
+                logToTerminal(`Befehl nicht gefunden.`, 'error-msg');
             }
         }
     });
