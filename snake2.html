@@ -88,37 +88,189 @@
         </div>
     </div>
 
-    <div id="ad-overlay">
-        <div style="
-                background: linear-gradient(45deg, #ff007f, #ffaa00);
-                color: white;
-                font-family: 'Comic Sans MS', 'Impact', sans-serif;
-                font-size: 24px;
-                font-weight: bold;
-                text-align: center;
-                padding: 30px;
-                border: 8px dashed #ffffff;
-                border-radius: 15px;
-                box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-                text-transform: uppercase;
-                letter-spacing: 2px;
-                margin: 20px auto;
-                max-width: 500px;
-                cursor: pointer;
-                transition: transform 0.2s, box-shadow 0.2s;
-            " 
-            onmouseover="this.style.transform='scale(1.05) rotate(-2deg)'; this.style.box-shadow='0 15px 30px rgba(0,0,0,0.5)';" 
-            onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.box-shadow='0 10px 20px rgba(0,0,0,0.3)';"
-            onclick="alert('Glückwunsch! Sie haben den unsichtbaren Werbeplatz entdeckt. Das kostet Sie jetzt ein Lächeln (oder 500€).');">
-                
-                ✨ <u>Hier könnte Ihre Werbung stehen!</u> ✨
-                <span style="display: block; font-size: 14px; margin-top: 10px; font-weight: normal; font-style: italic; opacity: 0.9;">
-                    (Oder ein Bild von Ihrer Katze. Wir sind da flexibel.)
-                </span>
+<div id="ad-overlay" class="wh-ad-wrapper">
+    
+    <div class="wh-ad-card" onclick="openWhModal()">
+        <div class="wh-ad-badge">LGH Additum</div>
+        <h3 class="wh-ad-title">⚔️ Warhammer AG ⚔️</h3>
+        <p class="wh-ad-concept">Strategie, Kunst & Logistik im 41. Jahrtausend.</p>
+        
+        <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+    </div>
+
+    <div id="whModal" class="wh-modal">
+        <div class="wh-modal-content">
+            <h2>Das Warhammer-Additum am LGH</h2>
+            <div class="wh-divider"></div>
             
-                <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+            <p>Willkommen im strategischen Oberstufen-Additum! Hier verbinden wir Kreativität mit analytischem Denken.</p>
+            
+            <h4>Was dich im Additum erwartet:</h4>
+            <ul>
+                <li><strong>Modellbau & Airbrush:</strong> Geduld und Feinmotorik beim Zusammenbau und Bemalen der Miniaturen.</li>
+                <li><strong>Spieldesign & Stochastik:</strong> Wahrscheinlichkeitsberechnung bei komplexen Würfelentscheidungen.</li>
+                <li><strong>Lore & Storytelling:</strong> Analyse der tiefgründigen "Grimdark"-Hintergrundgeschichte.</li>
+            </ul>
+            
+            <p class="wh-footer-note">Treffpunkt: Jeden Donnerstag im Freizeitbereich / Werkraum.</p>
         </div>
     </div>
+
+    <style>
+        .wh-ad-wrapper {
+            font-family: 'Georgia', serif;
+            --wh-gold: #c5a043;
+            --wh-darkgold: #8e7431;
+            --wh-bg: #141414;
+            margin: 20px auto;
+            max-width: 500px;
+        }
+
+        /* Banner Design */
+        .wh-ad-card {
+            background: linear-gradient(135deg, #1c1c1c 0%, #0f0f0f 100%);
+            border: 4px dashed var(--wh-darkgold);
+            padding: 30px;
+            border-radius: 15px;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+        }
+
+        /* Hover-Effekt (Dezent rotierte Animation wie im Original, nur edler) */
+        .wh-ad-card:hover {
+            transform: scale(1.03) rotate(-1.5deg);
+            border-color: var(--wh-gold);
+            box-shadow: 0 15px 30px rgba(197, 160, 67, 0.25);
+        }
+
+        .wh-ad-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            color: var(--wh-gold);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border: 1px solid var(--wh-darkgold);
+            padding: 4px 10px;
+            margin-bottom: 12px;
+            border-radius: 3px;
+            font-family: sans-serif;
+        }
+
+        .wh-ad-title {
+            color: #ffffff;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .wh-ad-concept {
+            color: #aaaaaa;
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 0 0 15px 0;
+            font-family: sans-serif;
+        }
+
+        /* Der Timer-Text unten im Banner */
+        .ad-timer {
+            font-size: 13px;
+            font-weight: normal;
+            font-style: italic;
+            color: var(--wh-gold);
+            opacity: 0.8;
+            border-top: 1px dashed #333;
+            padding-top: 10px;
+            font-family: sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Popup / Modal Hintergrund */
+        .wh-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Popup Inhalt Box */
+        .wh-modal-content {
+            background-color: var(--wh-bg);
+            color: #e0e0e0;
+            padding: 30px;
+            border: 3px solid var(--wh-gold);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.8);
+            animation: whFadeIn 0.3s ease-out;
+            text-align: left;
+        }
+
+        .wh-modal-content h2 {
+            color: #fff;
+            margin-top: 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .wh-divider {
+            height: 2px;
+            background: linear-gradient(to right, transparent, var(--wh-gold), transparent);
+            margin: 15px 0;
+        }
+
+        .wh-modal-content h4 {
+            color: var(--wh-gold);
+            margin: 20px 0 10px 0;
+        }
+
+        .wh-modal-content ul {
+            padding-left: 20px;
+            margin-bottom: 20px;
+            font-family: sans-serif;
+        }
+
+        .wh-modal-content li {
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+        }
+
+        .wh-footer-note {
+            font-size: 0.85rem;
+            color: #888;
+            font-style: italic;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+            margin-bottom: 0;
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        @keyframes whFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+
+    <script>
+        function openWhModal() {
+            document.getElementById('whModal').style.display = 'flex';
+        }
+    </script>
+</div>
 
     <div id="leaderboard">
         <h3>🏆 Top Snakes</h3>
