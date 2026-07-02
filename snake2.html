@@ -88,9 +88,9 @@
         </div>
     </div>
 
-<div id="ad-overlay" class="wh-ad-wrapper">
+<div id="ad-overlay">
     
-    <div class="wh-ad-card" onclick="openWhModal()">
+    <div class="wh-ad-card" onclick="openWhAlert()">
         <div class="wh-ad-badge">LGH Additum</div>
         <h3 class="wh-ad-title">⚔️ Warhammer AG ⚔️</h3>
         <p class="wh-ad-concept">Strategie, Kunst & Logistik im 41. Jahrtausend.</p>
@@ -98,23 +98,102 @@
         <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
     </div>
 
-    <div id="whModal" class="wh-modal">
-        <div class="wh-modal-content">
-            <h2>Das Warhammer-Additum am LGH</h2>
-            <div class="wh-divider"></div>
-            
-            <p>Willkommen im strategischen Oberstufen-Additum! Hier verbinden wir Kreativität mit analytischem Denken.</p>
-            
-            <h4>Was dich im Additum erwartet:</h4>
-            <ul>
-                <li><strong>Modellbau & Airbrush:</strong> Geduld und Feinmotorik beim Zusammenbau und Bemalen der Miniaturen.</li>
-                <li><strong>Spieldesign & Stochastik:</strong> Wahrscheinlichkeitsberechnung bei komplexen Würfelentscheidungen.</li>
-                <li><strong>Lore & Storytelling:</strong> Analyse der tiefgründigen "Grimdark"-Hintergrundgeschichte.</li>
-            </ul>
-            
-            <p class="wh-footer-note">Treffpunkt: Jeden Donnerstag im Freizeitbereich / Werkraum.</p>
-        </div>
-    </div>
+    <style>
+        /* Zentriert das komplette Overlay exakt in der Mitte des Bildschirms */
+        #ad-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.5); /* Leicht abgedunkelter Hintergrund */
+            z-index: 9999;
+            font-family: 'Georgia', serif;
+        }
+
+        /* Banner Design */
+        .wh-ad-card {
+            background: linear-gradient(135deg, #1c1c1c 0%, #0f0f0f 100%);
+            border: 4px dashed #8e7431;
+            padding: 30px;
+            border-radius: 15px;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        /* Hover-Effekt */
+        .wh-ad-card:hover {
+            transform: scale(1.03) rotate(-1.5deg);
+            border-color: #c5a043;
+            box-shadow: 0 15px 30px rgba(197, 160, 67, 0.3);
+        }
+
+        .wh-ad-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            color: #c5a043;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border: 1px solid #8e7431;
+            padding: 4px 10px;
+            margin-bottom: 12px;
+            border-radius: 3px;
+            font-family: sans-serif;
+        }
+
+        .wh-ad-title {
+            color: #ffffff;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .wh-ad-concept {
+            color: #aaaaaa;
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 0 0 15px 0;
+            font-family: sans-serif;
+        }
+
+        /* Der Timer-Text unten im Banner */
+        .ad-timer {
+            font-size: 13px;
+            font-weight: normal;
+            font-style: italic;
+            color: #c5a043;
+            opacity: 0.8;
+            border-top: 1px dashed #333;
+            padding-top: 10px;
+            font-family: sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+
+    <script>
+        function openWhAlert() {
+            // Der Alert öffnet sich, ist automatisch zentriert und FRIERT den 3-Sekunden-Timer ein!
+            alert(
+                "Das Warhammer-Additum am LGH\n" +
+                "========================================\n\n" +
+                "Willkommen im strategischen Additum von samuel mayer! " +
+                "Hier verbinden wir Kreativität mit analytischem Denken.\n\n" +
+                "Was dich im Additum erwartet:\n" +
+                "• Modellbau & Airbrush: Basteln und Bemalen der Miniaturen.\n" +
+                "• Lore & Storytelling: Analyse der düsteren Hintergrundgeschichte.\n\n" +
+            );
+        }
+    </script>
+</div>
 
     <style>
         .wh-ad-wrapper {
