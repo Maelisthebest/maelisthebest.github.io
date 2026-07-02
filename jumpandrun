@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Maelist - Platformer Arena 🎮</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 0; background: #1a1a1a;
+            font-family: sans-serif; color: #fff;
+            display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; height: 100vh;
+        }
+        header { text-align: center; padding: 10px; width: 100%; background: #2c3e50; border-bottom: 3px solid #e74c3c; z-index: 5; }
+        h1 { margin: 0; font-size: 1.3rem; color: #e74c3c; }
+        
+        #game-container {
+            position: relative; width: 100%; height: 60vh; background: #111; 
+            border-bottom: 4px solid #e74c3c; overflow: hidden;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* Startbildschirm Overlay */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 20;
+        }
+        .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid #e74c3c; text-align: center; box-shadow: 0 0 20px rgba(231, 76, 60, 0.4); }
+        .play-btn { background: #e74c3c; color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; }
+        .play-btn:disabled { background: #555; cursor: not-allowed; }
+
+        /* Fake-Werbung Overlay */
+        #ad-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 30;
+        }
+        .ad-timer { font-size: 11px; color: #555; margin-top: 10px; }
+
+        /* Live Scoreliste / Leaderboard */
+        #leaderboard {
+            position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+            font-family: monospace; font-size: 12px; max-width: 180px; z-index: 10;
+        }
+        #leaderboard h3 { margin: 0 0 5px 0; color: #e74c3c; font-size: 13px; text-transform: uppercase; }
+        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
+
+        /* Control Panel angepasst für Jump & Run */
+        #control-panel {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 100%; flex-grow: 1; background: #222; padding: 20px; box-shadow: inset 0 5px 10px rgba(0,0,0,0.5);
+        }
+        .dpad { display: flex; gap: 15px; }
+        .ctrl-btn {
+            width: 75px; height: 75px; background: #34495e; border: 3px solid #2c3e50;
+            border-radius: 12px; color: white; font-weight: bold; font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 5px rgba(0,0,0,0.4); touch-action: none; cursor: pointer;
+        }
+        .ctrl-btn:active { background: #2c3e50; transform: scale(0.95); }
+        .jump-btn { background: #2ecc71; border-color: #27ae60; border-radius: 50%; width: 90px; height: 90px; font-size: 16px; }
+        .jump-btn:active { background: #27ae60; }
+        
+        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; text-align: center; width: 100%; padding: 5px; background: #222;}
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Maelist Platformer Arena 🎮</h1>
+</header>
+<div id="lobby-status">Verbinde mit Firebase...</div>
+
+<div id="game-container">
+    <div id="start-screen">
+        <div class="menu-box">
+            <h2 style="margin:0; color:#e74c3c;">Bereit zum Springen?</h2>
+            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Spieldaten...</p>
+            <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
+        </div>
+    </div>
+
+    <div id="ad-overlay">
+        <div style="
+                background: linear-gradient(45deg, #ff007f, #ffaa00);
+                color: white;
+                font-family: sans-serif;
+                font-size: 22px;
+                font-weight: bold;
+                text-align: center;
+                padding: 30px;
+                border: 6px dashed #ffffff;
+                border-radius: 15px;
+                box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+                text-transform: uppercase;
+                margin: 20px auto;
+                max-width: 450px;
+                cursor: pointer;
+            " 
+            onclick="alert('Klick gerettet! Reagiere schneller beim nächsten Abgrund.');">
+            
+            ✨ <u>Hier könnte Ihre Werbung stehen!</u> ✨
+            <span style="display: block; font-size: 13px; margin-top: 10px; font-weight: normal; font-style: italic; opacity: 0.9;">
+                (Oder Tipps wie man Monstern gekonnt auf den Kopf springt.)
+            </span>
+        
+            <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+        </div>
+    </div>
+
+    <div id="leaderboard">
+        <h3>🏆 Top Player</h3>
+        <div id="leaderboard-list">Warte auf Spieler...</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="control-panel">
+    <div class="dpad">
+        <div class="ctrl-btn" id="btn-left">◀</div>
+        <div class="ctrl-btn" id="btn-right">▶</div>
+    </div>
+    <div class="ctrl-btn jump-btn" id="btn-jump">JUMP</div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameContainer = document.getElementById('game-container');
+    const lobbyStatus = document.getElementById('lobby-status');
+    const startScreen = document.getElementById('start-screen');
+    const adOverlay = document.getElementById('ad-overlay');
+    const leaderboardList = document.getElementById('leaderboard-list');
+
+    // WELT PARAMETER
+    const WORLD_WIDTH = 3000;
+    const WORLD_HEIGHT = 1600;
+    const GRAVITY = 0.5;
+    const MAX_MONSTERS = 15;
+
+    // Statische Plattformen (X, Y, Breite, Höhe)
+    const PLATFORMS = [
+        { x: 0, y: 1500, w: 3000, h: 100 }, // Boden
+        // Ebene 1
+        { x: 200, y: 1320, w: 400, h: 30 },
+        { x: 800, y: 1250, w: 500, h: 30 },
+        { x: 1500, y: 1320, w: 400, h: 30 },
+        { x: 2100, y: 1200, w: 600, h: 30 },
+        // Ebene 2
+        { x: 400, y: 1050, w: 350, h: 30 },
+        { x: 1000, y: 980, w: 400, h: 30 },
+        { x: 1700, y: 1050, w: 350, h: 30 },
+        // Ebene 3 (Höher)
+        { x: 100, y: 800, w: 250, h: 30 },
+        { x: 600, y: 750, w: 300, h: 30 },
+        { x: 1200, y: 700, w: 500, h: 30 },
+        { x: 2000, y: 800, w: 400, h: 30 },
+        // Höchste Plattformen
+        { x: 400, y: 500, w: 400, h: 30 },
+        { x: 1400, y: 450, w: 300, h: 30 },
+        { x: 2100, y: 500, w: 400, h: 30 }
+    ];
+
+    let myUid = null;
+    let myUsername = "Anonym";
+    let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
+    
+    // Eigene Physik-Objekt Struktur
+    let playerX = 100, playerY = 1300;
+    let playerVx = 0, playerVy = 0;
+    let playerWidth = 32, playerHeight = 48;
+    let isGrounded = false;
+    let myScore = 0;
+
+    let allPlayers = {};
+    let allMonsters = {};
+    let isPlaying = false;
+    let isHost = false;
+
+    // Inputs
+    let keys = { a: false, d: false, ArrowLeft: false, ArrowRight: false, Space: false, w: false, ArrowUp: false };
+    let lastFrameTime = 0;
+
+    function resizeCanvas() {
+        canvas.width = gameContainer.clientWidth;
+        canvas.height = gameContainer.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ----------------------------------------------------
+    // HOST MECHANIK (Für die Monster-Berechnung)
+    // ----------------------------------------------------
+    function setupHostElection() {
+        onValue(ref(db, 'games/platformer/players'), (snap) => {
+            if (snap.exists()) {
+                allPlayers = snap.val();
+                updateLeaderboard();
+
+                const playerIds = Object.keys(allPlayers).sort();
+                if (playerIds[0] === myUid) {
+                    if (!isHost) {
+                        isHost = true;
+                        lobbyStatus.innerText = "Du bist der Arena-Host (Berechnet Monster) 👑";
+                        lobbyStatus.style.color = "#2ecc71";
+                        startHostLogic();
+                    }
+                } else {
+                    if (isHost) {
+                        isHost = false;
+                        lobbyStatus.innerText = "Verbunden | Client-Modus";
+                        lobbyStatus.style.color = "#aaa";
+                    }
+                }
+            } else {
+                allPlayers = {};
+                isHost = false;
+            }
+        });
+    }
+
+    function startHostLogic() {
+        // Monster-Verwaltungsschleife des Hosts (Erstellen & Bewegen)
+        const hostInterval = setInterval(() => {
+            if (!isHost) { clearInterval(hostInterval); return; }
+
+            let currentMonsterCount = Object.keys(allMonsters).length;
+            if (currentMonsterCount < MAX_MONSTERS) {
+                let amountToSpawn = MAX_MONSTERS - currentMonsterCount;
+                let newMonsters = {};
+                
+                for(let i=0; i < amountToSpawn; i++) { 
+                    let mId = "monster_" + Date.now() + "_" + Math.round(Math.random()*1000);
+                    // Sucht eine zufällige Plattform (außer dem direkten Boden), um darauf zu patrouillieren
+                    let plat = PLATFORMS[Math.floor(Math.random() * (PLATFORMS.length - 1)) + 1];
+                    
+                    newMonsters[mId] = {
+                        x: plat.x + Math.random() * (plat.w - 30),
+                        y: plat.y - 30,
+                        platX1: plat.x,
+                        platX2: plat.x + plat.w,
+                        dir: Math.random() > 0.5 ? 1 : -1,
+                        speed: 1.5 + Math.random() * 2
+                    };
+                }
+                update(ref(db, 'games/platformer/monsters'), newMonsters);
+            }
+
+            // Monster lokal bewegen und updaten
+            let monsterUpdates = {};
+            for (let id in allMonsters) {
+                let m = allMonsters[id];
+                m.x += m.dir * m.speed;
+                // Am Ende der Plattform umdrehen
+                if (m.x <= m.platX1 || m.x >= m.platX2 - 30) {
+                    m.dir *= -1;
+                }
+                monsterUpdates[id] = m;
+            }
+            if (Object.keys(monsterUpdates).length > 0) {
+                set(ref(db, 'games/platformer/monsters'), monsterUpdates);
+            }
+
+        }, 40); // 25 Ticks pro Sekunde für Monster-Sync
+    }
+
+    // Node-Listener für Monster
+    onValue(ref(db, 'games/platformer/monsters'), (snap) => {
+        if (snap.exists()) allMonsters = snap.val();
+        else allMonsters = {};
+    });
+
+    // ----------------------------------------------------
+    // AUTH & START LOGIK
+    // ----------------------------------------------------
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            myUid = user.uid;
+            onValue(ref(db, `users/${myUid}`), (snapshot) => {
+                if(snapshot.exists()) myUsername = snapshot.val().username;
+                document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
+                
+                setupHostElection();
+                
+                const joinBtn = document.getElementById('join-btn');
+                joinBtn.disabled = false;
+                joinBtn.onclick = () => {
+                    startScreen.style.display = 'none';
+                    startNewLife();
+                };
+            }, { onlyOnce: true });
+        } else {
+            window.location.href = "überleitung.html";
+        }
+    });
+
+    async function startNewLife() {
+        myScore = 0;
+        playerX = 100 + Math.random() * 400;
+        playerY = 1300;
+        playerVx = 0;
+        playerVy = 0;
+
+        const myGameRef = ref(db, `games/platformer/players/${myUid}`);
+        await set(myGameRef, { username: myUsername, color: myColor, x: playerX, y: playerY, score: myScore });
+        onDisconnect(myGameRef).remove();
+
+        isPlaying = true;
+        if(!isHost) lobbyStatus.innerText = `Platformer Arena | Viel Erfolg!`;
+    }
+
+    function updateLeaderboard() {
+        let list = [];
+        for (let id in allPlayers) list.push(allPlayers[id]);
+        list.sort((a, b) => (b.score || 0) - (a.score || 0));
+        let html = "";
+        list.slice(0, 5).forEach((p, i) => {
+            html += `<div class="leaderboard-entry"><span>${i+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
+        });
+        leaderboardList.innerHTML = html || "Keine Spieler";
+    }
+
+    function triggerDeath() {
+        isPlaying = false;
+        set(ref(db, `games/platformer/players/${myUid}`), null);
+        
+        adOverlay.style.display = 'flex';
+        let count = 3;
+        document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
+        let timer = setInterval(() => {
+            count--;
+            if (count > 0) { document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`; }
+            else { 
+                clearInterval(timer); 
+                adOverlay.style.display = 'none'; 
+                startScreen.style.display = 'flex'; 
+                document.getElementById('join-btn').innerText = "Erneut versuchen"; 
+            }
+        }, 1000);
+    }
+
+    // Sendeintervall der eigenen Position (30ms für flüssiges Platforming)
+    setInterval(() => {
+        if (!myUid || !isPlaying) return;
+        update(ref(db, `games/platformer/players/${myUid}`), { x: playerX, y: playerY, score: myScore });
+    }, 30);
+
+    // INPUT CONTROLS (Tastatur)
+    window.addEventListener('keydown', (e) => { if (e.key in keys || e.code === 'Space') keys[e.key || e.code] = true; });
+    window.addEventListener('keyup', (e) => { if (e.key in keys || e.code === 'Space') keys[e.key || e.code] = false; });
+
+    // INPUT CONTROLS (Mobile Buttons)
+    const setupMobileBtn = (id, keyName) => {
+        const btn = document.getElementById(id);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; }, { passive: false });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+    };
+    setupMobileBtn('btn-left', 'a');
+    setupMobileBtn('btn-right', 'd');
+    setupMobileBtn('btn-jump', 'Space');
+
+    // Box-Kollisions-Hilfsfunktion (AABB)
+    function checkCollision(rect1, rect2) {
+        return rect1.x < rect2.x + rect2.w &&
+               rect1.x + rect1.w > rect2.x &&
+               rect1.y < rect2.y + rect2.h &&
+               rect1.y + rect1.h > rect2.y;
+    }
+
+    // ----------------------------------------------------
+    // GAME LOOP
+    // ----------------------------------------------------
+    function updateLoop(timestamp) {
+        requestAnimationFrame(updateLoop);
+
+        let elapsed = timestamp - lastFrameTime;
+        if (elapsed < 1000 / 60) return; // Begrenzung auf ca. 60 FPS
+        lastFrameTime = timestamp - (elapsed % (1000 / 60));
+
+        let camX = WORLD_WIDTH / 2;
+        let camY = WORLD_HEIGHT / 2;
+
+        if (isPlaying) {
+            // Horizontaler Drive
+            if (keys.a || keys.ArrowLeft) playerVx = -5;
+            else if (keys.d || keys.ArrowRight) playerVx = 5;
+            else playerVx = 0;
+
+            // Sprung auslösen
+            if ((keys.Space || keys.w || keys.ArrowUp) && isGrounded) {
+                playerVy = -12;
+                isGrounded = false;
+            }
+
+            // Schwerkraft anwenden
+            playerVy += GRAVITY;
+
+            // X-Bewegung & Kollision
+            playerX += playerVx;
+            if (playerX < 0) playerX = 0;
+            if (playerX > WORLD_WIDTH - playerWidth) playerX = WORLD_WIDTH - playerWidth;
+
+            // Y-Bewegung & Kollision
+            playerY += playerVy;
+            isGrounded = false;
+
+            let myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
+
+            // Plattformen prüfen
+            for (let plat of PLATFORMS) {
+                if (checkCollision(myBox, plat)) {
+                    // Von oben herabfallen (Landen)
+                    if (playerVy > 0 && playerY + playerHeight - playerVy <= plat.y + 10) {
+                        playerY = plat.y - playerHeight;
+                        playerVy = 0;
+                        isGrounded = true;
+                    }
+                    // Von unten gegenstoßen (Decke)
+                    else if (playerVy < 0 && playerY - playerVy >= plat.y + plat.h - 10) {
+                        playerY = plat.y + plat.h;
+                        playerVy = 0;
+                    }
+                }
+            }
+
+            // Aus der Welt gefallen? (Sicherheitsnetz)
+            if (playerY > WORLD_HEIGHT) { triggerDeath(); }
+
+            // Kollision mit MONSTERN (Mario-Style Kopf-Sprung)
+            myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
+            for (let mId in allMonsters) {
+                let m = allMonsters[mId];
+                let mBox = { x: m.x, y: m.y, w: 30, h: 30 };
+
+                if (checkCollision(myBox, mBox)) {
+                    // Fallend auf den Kopf gesprungen?
+                    if (playerVy > 0 && playerY + playerHeight - playerVy <= m.y + 12) {
+                        playerVy = -9; // Rückstoß-Bounce
+                        myScore += 10;
+                        set(ref(db, `games/platformer/monsters/${mId}`), null); // Löschen aus DB
+                    } else {
+                        // Seitlicher Treffer = Tod!
+                        triggerDeath();
+                    }
+                }
+            }
+
+            // Kollision mit ANDEREN SPIELERN
+            for (let pId in allPlayers) {
+                if (pId === myUid) continue;
+                let op = allPlayers[pId];
+                let opBox = { x: op.x, y: op.y, w: playerWidth, h: playerHeight };
+
+                if (checkCollision(myBox, opBox)) {
+                    if (playerVy > 0 && playerY + playerHeight - playerVy <= op.y + 15) {
+                        playerVy = -9;
+                        myScore += 25; // Extra viele Punkte für PvP-Kills!
+                        // Der getroffene Spieler wird über ein separates Flag oder simples Nullsetzen eliminiert
+                        set(ref(db, `games/platformer/players/${pId}`), null);
+                    }
+                }
+            }
+
+            camX = playerX;
+            camY = playerY;
+        }
+
+        // --- ZEICHNEN ---
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+
+        // Kamera-Zoom & Bewegung zentrieren
+        let zoom = Math.max(canvas.width / 1000, canvas.height / 600);
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-camX, -camY);
+
+        // Weltgrenze zeichnen
+        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 10;
+        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+        // Plattformen zeichnen
+        ctx.fillStyle = '#34495e';
+        for (let plat of PLATFORMS) {
+            ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(plat.x, plat.y, plat.w, 6); // Platform-Top-Line
+            ctx.fillStyle = '#34495e';
+        }
+
+        // Monster zeichnen
+        ctx.fillStyle = '#e67e22';
+        for (let mId in allMonsters) {
+            let m = allMonsters[mId];
+            ctx.fillRect(m.x, m.y, 30, 30);
+            
+            // Grimmige Monsteraugen
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(m.x + (m.dir === 1 ? 16 : 4), m.y + 6, 8, 8);
+            ctx.fillStyle = '#e67e22';
+        }
+
+        // Alle Spieler zeichnen
+        for (let pId in allPlayers) {
+            let p = allPlayers[pId];
+            let isMe = (pId === myUid);
+            
+            let drawX = isMe ? playerX : p.x;
+            let drawY = isMe ? playerY : p.y;
+
+            // Spieler-Körper
+            ctx.fillStyle = isMe ? myColor : (p.color || '#3498db');
+            ctx.fillRect(drawX, drawY, playerWidth, playerHeight);
+
+            // "Gesicht" / Blickrichtung-Indikator
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(drawX + 8, drawY + 10, 16, 12);
+
+            // Name & Score über der Figur
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText((p.username || "User") + ` (${p.score || 0})`, drawX + playerWidth/2, drawY - 15);
+        }
+
+        ctx.restore();
+    }
+
+    requestAnimationFrame((timestamp) => {
+        lastFrameTime = timestamp;
+        updateLoop(timestamp);
+    });
+</script>
+
+</body>
+</html>
