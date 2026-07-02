@@ -1,14 +1,14 @@
-´<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - v 0.2 Cyber Platformer Arena 🎮 </title>
+    <title>Maelist - v0.3 Cyber Platformer Arena 🎮</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
             margin: 0; padding: 0; background: #0f0f13;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #fff;
+            font-family: 'Segoe UI', Roboto, sans-serif; color: #fff;
             display: flex; flex-direction: column; align-items: center;
             overflow: hidden; height: 100vh;
         }
@@ -23,73 +23,75 @@
         #game-container {
             position: relative; width: 100%; height: 60vh; background: #0b0b0e; 
             border-bottom: 4px solid #ff4757; overflow: hidden;
-            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
         }
         canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
         
-        /* Startbildschirm Overlay */
+        /* Startbildschirm & Shop Overlay */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(11, 11, 14, 0.93); display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 20;
-            backdrop-filter: blur(4px);
+            background: rgba(11, 11, 14, 0.95); display: flex;
+            align-items: center; justify-content: center; gap: 20px; z-index: 20;
+            backdrop-filter: blur(5px); overflow-y: auto; padding: 20px;
         }
         .menu-box { 
-            background: #181820; padding: 35px; border-radius: 16px; 
+            background: #181820; padding: 25px; border-radius: 16px; 
             border: 2px solid #ff4757; text-align: center; 
-            box-shadow: 0 0 30px rgba(255, 71, 87, 0.25);
-            max-width: 90%; width: 360px;
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.25); width: 340px;
         }
+        .shop-box {
+            background: #1c1c24; padding: 25px; border-radius: 16px;
+            border: 2px solid #00d2d3; width: 360px;
+            box-shadow: 0 0 30px rgba(0, 210, 211, 0.25);
+        }
+        .shop-title { color: #00d2d3; margin: 0 0 15px 0; font-size: 20px; text-transform: uppercase; }
+        .shop-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #252530; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .shop-btn {
+            background: #00d2d3; color: #000; border: none; padding: 6px 12px;
+            font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 12px;
+        }
+        .shop-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .shop-btn.equipped { background: #2ed573; color: white; }
+
         .play-btn { 
             background: linear-gradient(135deg, #ff4757, #ff6b81); color: white; border: none; 
             padding: 16px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; 
-            cursor: pointer; margin-top: 20px; width: 100%;
+            cursor: pointer; margin-top: 15px; width: 100%;
             box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
-            transition: transform 0.1s, filter 0.2s;
         }
-        .play-btn:active { transform: scale(0.98); filter: brightness(1.1); }
         .play-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
 
-        /* Fake-Werbung Overlay */
-        #ad-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 30;
-        }
-        .ad-timer { font-size: 12px; color: #666; margin-top: 15px; font-family: monospace; }
-
-        /* Live Scoreliste / Leaderboard */
+        /* Live Scoreliste */
         #leaderboard {
             position: absolute; top: 12px; right: 12px; background: rgba(20, 20, 27, 0.85);
             padding: 12px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
-            font-family: 'Courier New', monospace; font-size: 13px; min-width: 180px; z-index: 10;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); backdrop-filter: blur(3px);
+            font-family: monospace; font-size: 13px; min-width: 180px; z-index: 10;
         }
-        #leaderboard h3 { margin: 0 0 8px 0; color: #ff4757; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 2px;}
+        #leaderboard h3 { margin: 0 0 8px 0; color: #ff4757; font-size: 14px; text-transform: uppercase; }
+        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; }
 
         /* Control Panel */
         #control-panel {
             display: flex; align-items: center; justify-content: space-between;
-            width: 100%; flex-grow: 1; background: #141419; padding: 20px 30px; 
-            box-shadow: inset 0 8px 16px rgba(0,0,0,0.6); z-index: 5;
+            width: 100%; flex-grow: 1; background: #141419; padding: 20px 30px; z-index: 5;
         }
         .dpad { display: flex; gap: 20px; }
         .ctrl-btn {
             width: 80px; height: 80px; background: linear-gradient(135deg, #2f3542, #1e222b); 
             border: 2px solid #57606f; border-radius: 16px; color: #f1f2f6; 
             font-weight: bold; font-size: 26px; display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 10px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.1); 
-            touch-action: none; cursor: pointer; transition: transform 0.05s;
+            touch-action: none; cursor: pointer;
         }
-        .ctrl-btn:active { background: #1e222b; transform: translateY(3px); box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
         .jump-btn { 
             background: linear-gradient(135deg, #2ed573, #26af5a); border-color: #26af5a; 
-            border-radius: 50%; width: 100px; height: 100px; font-size: 18px; letter-spacing: 1px;
-            box-shadow: 0 6px 12px rgba(46, 213, 115, 0.35);
+            border-radius: 50%; width: 100px; height: 100px; font-size: 18px;
         }
-        .jump-btn:active { background: #26af5a; }
         
-        #lobby-status { font-size: 13px; margin-top: 5px; color: #888; text-align: center; width: 100%; padding: 6px; background: #141419; letter-spacing: 0.5px;}
+        #lobby-status { font-size: 13px; margin-top: 5px; color: #888; text-align: center; width: 100%; padding: 6px; background: #141419; }
+        #economy-bar { font-weight: bold; color: #eccc68; margin-bottom: 10px; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -101,39 +103,21 @@
 
 <div id="game-container">
     <div id="start-screen">
+        <!-- Hauptmenü -->
         <div class="menu-box">
-            <h2 style="margin:0; color:#ff4757; font-size: 24px;">Bereit zum Springen?</h2>
-            <p id="player-welcome" style="color:#a4b0be; font-size:14px; margin: 12px 0 20px 0;">Lade Spieldaten...</p>
+            <h2 style="margin:0; color:#ff4757; font-size: 22px;">Cyber Arena</h2>
+            <p id="player-welcome" style="color:#a4b0be; font-size:13px; margin: 8px 0 15px 0;">Lade Profil...</p>
+            <div id="economy-bar">💰 Gold: <span id="gold-display">0</span></div>
             <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
-            <div style="font-size: 11px; color:#57606f; margin-top:15px;">Steuerung: A/D, Pfeiltasten oder Buttons<br><b>[Leertaste] zum Springen!</b></div>
+            <div style="font-size: 11px; color:#57606f; margin-top:12px;">Steuerung: A/D oder Buttons<br><b style="color:#00d2d3;">[LEERTASTE] zum Springen / Schwimmen!</b></div>
         </div>
-    </div>
 
-    <div id="ad-overlay">
-        <div style="
-                background: linear-gradient(135deg, #ff007f, #ff9f43);
-                color: white;
-                font-family: sans-serif;
-                font-size: 22px;
-                font-weight: bold;
-                text-align: center;
-                padding: 35px;
-                border: 6px dashed #ffffff;
-                border-radius: 20px;
-                box-shadow: 0 15px 35px rgba(0,0,0,0.5);
-                text-transform: uppercase;
-                margin: 20px auto;
-                max-width: 450px;
-                cursor: pointer;
-            " 
-            onclick="alert('Gerettet! Finger auf die Leertaste und weiter gehts!');">
-            
-            ✨ <u>Hier könnte Ihre Werbung stehen!</u> ✨
-            <span style="display: block; font-size: 13px; margin-top: 12px; font-weight: normal; font-style: italic; opacity: 0.95;">
-                (Oder Tipps wie man Monstern gekonnt auf den Kopf springt.)
-            </span>
-        
-            <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+        <!-- Waffen Shop -->
+        <div class="shop-box">
+            <h3 class="shop-title">⚔️ Waffen-Arsenal</h3>
+            <div id="shop-items-list">
+                <!-- Wird dynamisch generiert -->
+            </div>
         </div>
     </div>
 
@@ -177,37 +161,48 @@
     const gameContainer = document.getElementById('game-container');
     const lobbyStatus = document.getElementById('lobby-status');
     const startScreen = document.getElementById('start-screen');
-    const adOverlay = document.getElementById('ad-overlay');
     const leaderboardList = document.getElementById('leaderboard-list');
 
-    const WORLD_WIDTH = 3000;
-    const WORLD_HEIGHT = 1600;
+    // GIGANTISCHE WELT (Über 20x größer als Standardauflösung)
+    const WORLD_WIDTH = 20000;
+    const WORLD_HEIGHT = 6000;
     const GRAVITY = 0.55;
-    const MAX_MONSTERS = 16;
+    const MAX_MONSTERS = 45; // Mehr Monster für die riesige Welt
 
-    const PLATFORMS = [
-        { x: 0, y: 1500, w: 3000, h: 100, color: "#1e272e" },
-        { x: 200, y: 1320, w: 400, h: 30, color: "#2c3e50" },
-        { x: 800, y: 1250, w: 500, h: 30, color: "#2c3e50" },
-        { x: 1500, y: 1320, w: 400, h: 30, color: "#2c3e50" },
-        { x: 2100, y: 1200, w: 600, h: 30, color: "#2c3e50" },
-        { x: 400, y: 1050, w: 350, h: 30, color: "#2c3e50" },
-        { x: 1000, y: 980, w: 400, h: 30, color: "#2c3e50" },
-        { x: 1700, y: 1050, w: 350, h: 30, color: "#2c3e50" },
-        { x: 100, y: 800, w: 250, h: 30, color: "#2c3e50" },
-        { x: 600, y: 750, w: 300, h: 30, color: "#2c3e50" },
-        { x: 1200, y: 700, w: 500, h: 30, color: "#2c3e50" },
-        { x: 2000, y: 800, w: 400, h: 30, color: "#2c3e50" },
-        { x: 400, y: 500, w: 400, h: 30, color: "#2c3e50" },
-        { x: 1400, y: 450, w: 300, h: 30, color: "#2c3e50" },
-        { x: 2100, y: 500, w: 400, h: 30, color: "#2c3e50" }
+    // Erreichbare Plattformen generieren (Maximal 170px Höhenunterschied)
+    const PLATFORMS = [{ x: 0, y: 5900, w: 20000, h: 100 }]; 
+    for (let y = 5720; y > 300; y -= 170) {
+        for (let x = 100; x < 19500; x += 350 + Math.random() * 300) {
+            PLATFORMS.push({ x: x, y: y, w: 160 + Math.random() * 200, h: 25 });
+        }
+    }
+
+    // Zusätzliche Biome / Riesen-Teiche platziert über die Map verteilt
+    const PONDS = [
+        { x: 1200, y: 5400, w: 1000, h: 510, name: "Neon-Teich A" },
+        { x: 4500, y: 4200, w: 1500, h: 600, name: "Tiefsee-Graben" },
+        { x: 9000, y: 3500, w: 1200, h: 700, name: "Säure-Becken" },
+        { x: 14000, y: 4800, w: 1800, h: 1100, name: "Großer Ozean" }
     ];
+
+    // Shop-Definitionen
+    const WEAPONS_SHOP = {
+        "starter": { name: "Rostiger Dolch", cost: 0, color: "#a4b0be" },
+        "plasma": { name: "Glow-Säbel", cost: 50, color: "#00d2d3" },
+        "cyber": { name: "Cyber-Blaster", cost: 150, color: "#ff4757" },
+        "void": { name: "Void-Zerstörer", cost: 400, color: "#purple" }
+    };
 
     let myUid = null;
     let myUsername = "Anonym";
     let myColor = `hsl(${Math.random() * 360}, 85%, 55%)`;
     
-    let playerX = 100, playerY = 1300;
+    // Spieler-Werte aus der DB geladen
+    let myGold = 0;
+    let myUnlockedWeapons = ["starter"];
+    let myActiveWeapon = "starter";
+
+    let playerX = 300, playerY = 5500;
     let playerVx = 0, playerVy = 0;
     let playerWidth = 32, playerHeight = 46;
     let isGrounded = false;
@@ -218,7 +213,7 @@
     let isPlaying = false;
     let isHost = false;
 
-    let keys = { a: false, d: false, ArrowLeft: false, ArrowRight: false, Space: false, w: false, ArrowUp: false };
+    let keys = { a: false, d: false, Space: false };
     let lastFrameTime = 0;
 
     function resizeCanvas() {
@@ -228,57 +223,37 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // ----------------------------------------------------
-    // HOST ELEKTION (Zurück auf originalen Pfad)
-    // ----------------------------------------------------
+    // SERVER / HOST LOGIC
     function setupHostElection() {
         onValue(ref(db, 'games/platformer/players'), (snap) => {
             if (snap.exists()) {
                 allPlayers = snap.val();
                 updateLeaderboard();
-
                 const playerIds = Object.keys(allPlayers).sort();
                 if (playerIds[0] === myUid) {
-                    if (!isHost) {
-                        isHost = true;
-                        lobbyStatus.innerText = "Du bist der Arena-Host (Server-Modus) 👑";
-                        lobbyStatus.style.color = "#2ecc71";
-                        startHostLogic();
-                    }
+                    if (!isHost) { isHost = true; lobbyStatus.innerText = "Du bist Arena-Host 👑"; lobbyStatus.style.color = "#2ecc71"; startHostLogic(); }
                 } else {
-                    if (isHost) {
-                        isHost = false;
-                        lobbyStatus.innerText = "Verbunden | Client-Modus 🕹️";
-                        lobbyStatus.style.color = "#a4b0be";
-                    }
+                    if (isHost) { isHost = false; lobbyStatus.innerText = "Verbunden | Client-Modus"; lobbyStatus.style.color = "#a4b0be"; }
                 }
-            } else {
-                allPlayers = {};
-                isHost = false;
-            }
+            } else { allPlayers = {}; isHost = false; }
         });
     }
 
     function startHostLogic() {
         const hostInterval = setInterval(() => {
             if (!isHost) { clearInterval(hostInterval); return; }
-
             let currentMonsterCount = Object.keys(allMonsters).length;
+
             if (currentMonsterCount < MAX_MONSTERS) {
                 let amountToSpawn = MAX_MONSTERS - currentMonsterCount;
                 let newMonsters = {};
-                
                 for(let i=0; i < amountToSpawn; i++) { 
                     let mId = "monster_" + Date.now() + "_" + Math.round(Math.random()*1000);
-                    let plat = PLATFORMS[Math.floor(Math.random() * (PLATFORMS.length - 1)) + 1];
-                    
+                    let plat = PLATFORMS[Math.floor(Math.random() * (PLATFORMS.length - 5)) + 3];
                     newMonsters[mId] = {
-                        x: plat.x + Math.random() * (plat.w - 32),
-                        y: plat.y - 28,
-                        platX1: plat.x,
-                        platX2: plat.x + plat.w,
-                        dir: Math.random() > 0.5 ? 1 : -1,
-                        speed: 1.2 + Math.random() * 1.8
+                        x: plat.x + Math.random() * (plat.w - 32), y: plat.y - 28,
+                        platX1: plat.x, platX2: plat.x + plat.w,
+                        dir: Math.random() > 0.5 ? 1 : -1, speed: 1.2 + Math.random() * 2
                     };
                 }
                 update(ref(db, 'games/platformer/monsters'), newMonsters);
@@ -288,57 +263,101 @@
             for (let id in allMonsters) {
                 let m = allMonsters[id];
                 m.x += m.dir * m.speed;
-                if (m.x <= m.platX1 || m.x >= m.platX2 - 32) {
-                    m.dir *= -1;
-                }
+                if (m.x <= m.platX1 || m.x >= m.platX2 - 32) m.dir *= -1;
                 monsterUpdates[id] = m;
             }
-            if (Object.keys(monsterUpdates).length > 0) {
-                set(ref(db, 'games/platformer/monsters'), monsterUpdates);
-            }
-
+            if (Object.keys(monsterUpdates).length > 0) set(ref(db, 'games/platformer/monsters'), monsterUpdates);
         }, 40);
     }
 
     onValue(ref(db, 'games/platformer/monsters'), (snap) => {
-        if (snap.exists()) allMonsters = snap.val();
-        else allMonsters = {};
+        if (snap.exists()) allMonsters = snap.val(); else allMonsters = {};
     });
 
+    // USER-PROFIL LADEN & PERSISTENZ
     onAuthStateChanged(auth, (user) => {
         if (user) {
             myUid = user.uid;
             onValue(ref(db, `users/${myUid}`), (snapshot) => {
-                if(snapshot.exists()) myUsername = snapshot.val().username;
-                document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
+                if(snapshot.exists()) {
+                    const data = snapshot.val();
+                    myUsername = data.username || "Anonym";
+                    myGold = data.gold || 0;
+                    myUnlockedWeapons = data.unlockedWeapons || ["starter"];
+                    myActiveWeapon = data.activeWeapon || "starter";
+                }
+                renderShop();
+                document.getElementById('gold-display').innerText = myGold;
+                document.getElementById('player-welcome').innerText = `Eingeloggt als: ${myUsername}`;
                 
                 setupHostElection();
-                
-                const joinBtn = document.getElementById('join-btn');
-                joinBtn.disabled = false;
-                joinBtn.onclick = () => {
-                    startScreen.style.display = 'none';
-                    startNewLife();
-                };
-            }, { onlyOnce: true });
+                document.getElementById('join-btn').disabled = false;
+            });
         } else {
             window.location.href = "überleitung.html";
         }
     });
 
+    function renderShop() {
+        const listContainer = document.getElementById('shop-items-list');
+        listContainer.innerHTML = "";
+        for (let id in WEAPONS_SHOP) {
+            const item = WEAPONS_SHOP[id];
+            const isUnlocked = myUnlockedWeapons.includes(id);
+            const isActive = myActiveWeapon === id;
+
+            let btnHtml = "";
+            if (isActive) {
+                btnHtml = `<button class="shop-btn equipped" disabled>Aktiv</button>`;
+            } else if (isUnlocked) {
+                btnHtml = `<button class="shop-btn" onclick="window.equipWeapon('${id}')">Ausrüsten</button>`;
+            } else {
+                const canAfford = myGold >= item.cost;
+                btnHtml = `<button class="shop-btn" ${canAfford ? '' : 'disabled'} onclick="window.buyWeapon('${id}', ${item.cost})">🛒 ${item.cost} G</button>`;
+            }
+
+            listContainer.innerHTML += `
+                <div class="shop-item">
+                    <div>
+                        <b style="color:${item.color}">${item.name}</b>
+                        <div style="font-size:10px; color:#aaa;">Style-Upgrade für Arena</div>
+                    </div>
+                    ${btnHtml}
+                </div>
+            `;
+        }
+    }
+
+    // Globale Funktionen für Klicks im Shop
+    window.buyWeapon = function(id, cost) {
+        if (myGold >= cost && !myUnlockedWeapons.includes(id)) {
+            myGold -= cost;
+            myUnlockedWeapons.push(id);
+            update(ref(db, `users/${myUid}`), { gold: myGold, unlockedWeapons: myUnlockedWeapons, activeWeapon: id });
+        }
+    };
+    window.equipWeapon = function(id) {
+        if (myUnlockedWeapons.includes(id)) {
+            update(ref(db, `users/${myUid}`), { activeWeapon: id });
+        }
+    };
+
     async function startNewLife() {
         myScore = 0;
-        playerX = 150 + Math.random() * 500;
-        playerY = 1200;
-        playerVx = 0;
-        playerVy = 0;
+        playerX = 200 + Math.random() * 800;
+        playerY = 5500;
+        playerVx = 0; playerVy = 0;
 
         const myGameRef = ref(db, `games/platformer/players/${myUid}`);
-        await set(myGameRef, { username: myUsername, color: myColor, x: playerX, y: playerY, score: myScore });
+        await set(myGameRef, { 
+            username: myUsername, 
+            color: myColor, 
+            x: playerX, y: playerY, 
+            score: myScore,
+            weapon: WEAPONS_SHOP[myActiveWeapon].name 
+        });
         onDisconnect(myGameRef).remove();
-
         isPlaying = true;
-        if(!isHost) lobbyStatus.innerText = `Platformer Arena | Reagiere schnell!`;
     }
 
     function updateLeaderboard() {
@@ -354,22 +373,12 @@
 
     function triggerDeath() {
         isPlaying = false;
-        keys.Space = false; // Reset Jump State
+        keys.Space = false;
         set(ref(db, `games/platformer/players/${myUid}`), null);
         
-        adOverlay.style.display = 'flex';
-        let count = 3;
-        document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
-        let timer = setInterval(() => {
-            count--;
-            if (count > 0) { document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`; }
-            else { 
-                clearInterval(timer); 
-                adOverlay.style.display = 'none'; 
-                startScreen.style.display = 'flex'; 
-                document.getElementById('join-btn').innerText = "Erneut versuchen"; 
-            }
-        }, 1000);
+        // Sofortiger Neustart-Screen ohne lästige Werbung
+        startScreen.style.display = 'flex'; 
+        document.getElementById('join-btn').innerText = "Erneut versuchen"; 
     }
 
     setInterval(() => {
@@ -377,21 +386,18 @@
         update(ref(db, `games/platformer/players/${myUid}`), { x: playerX, y: playerY, score: myScore });
     }, 30);
 
-    // TASTATUR EVENTS (Optimiert mit preventDefault für Spacebar)
+    // TASTATUR INPUTS (Pfeil-Hoch komplett blockiert)
     window.addEventListener('keydown', (e) => { 
-        if (e.code === 'Space') {
-            e.preventDefault(); // Verhindert das Scrollen der Seite bei Leertaste!
-            keys.Space = true;
-        }
-        if (e.key in keys) keys[e.key] = true; 
+        if (e.code === 'Space') { e.preventDefault(); keys.Space = true; }
+        if (e.key === 'a' || e.key === 'A') keys.a = true;
+        if (e.key === 'd' || e.key === 'D') keys.d = true;
     });
-    
     window.addEventListener('keyup', (e) => { 
         if (e.code === 'Space') keys.Space = false;
-        if (e.key in keys) keys[e.key] = false; 
+        if (e.key === 'a' || e.key === 'A') keys.a = false;
+        if (e.key === 'd' || e.key === 'D') keys.d = false;
     });
 
-    // MOBILE BUTTONS
     const setupMobileBtn = (id, keyName) => {
         const btn = document.getElementById(id);
         btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; }, { passive: false });
@@ -402,40 +408,47 @@
     setupMobileBtn('btn-jump', 'Space');
 
     function checkCollision(rect1, rect2) {
-        return rect1.x < rect2.x + rect2.w &&
-               rect1.x + rect1.w > rect2.x &&
-               rect1.y < rect2.y + rect2.h &&
-               rect1.y + rect1.h > rect2.y;
+        return rect1.x < rect2.x + rect2.w && rect1.x + rect1.w > rect2.x &&
+               rect1.y < rect2.y + rect2.h && rect1.y + rect1.h > rect2.y;
     }
 
-    // ----------------------------------------------------
-    // PHYSICS & RENDERING GAME LOOP
-    // ----------------------------------------------------
+    // GAME LOOP
     function updateLoop(timestamp) {
         requestAnimationFrame(updateLoop);
-
         let elapsed = timestamp - lastFrameTime;
         if (elapsed < 1000 / 60) return; 
         lastFrameTime = timestamp - (elapsed % (1000 / 60));
 
-        let camX = WORLD_WIDTH / 2;
-        let camY = WORLD_HEIGHT / 2;
+        let camX = WORLD_WIDTH / 2; let camY = WORLD_HEIGHT / 2;
 
         if (isPlaying) {
-            // Horizontaler Drive
-            if (keys.a || keys.ArrowLeft) playerVx = -5.5;
-            else if (keys.d || keys.ArrowRight) playerVx = 5.5;
+            if (keys.a) playerVx = -6;
+            else if (keys.d) playerVx = 6;
             else playerVx = 0;
 
-            // Sprung-Triggers (Leertaste, W oder Pfeil-Nach-Oben)
-            if ((keys.Space || keys.w || keys.ArrowUp) && isGrounded) {
-                playerVy = -12.5;
-                isGrounded = false;
+            // Prüfen ob im Teich/Wasser
+            let inWater = false;
+            for (let pond of PONDS) {
+                if (playerX < pond.x + pond.w && playerX + playerWidth > pond.x &&
+                    playerY < pond.y + pond.h && playerY + playerHeight > pond.y) {
+                    inWater = true; break;
+                }
             }
 
-            playerVy += GRAVITY;
+            // Physik anpassen basierend auf Umgebung (Wasser vs Land)
+            if (inWater) {
+                playerVy += 0.15; // Geringe Gravitation im Wasser
+                if (playerVy > 2.5) playerVy = 2.5; // Bremswirkung im Wasser
+                if (keys.Space) playerVy = -3.5; // Gedrückt halten zum Schwimmen
+            } else {
+                if (keys.Space && isGrounded) {
+                    playerVy = -14.5; // Mächtiger Sprung um Plattformen spielend zu erreichen
+                    isGrounded = false;
+                }
+                playerVy += GRAVITY;
+            }
+
             playerX += playerVx;
-            
             if (playerX < 0) playerX = 0;
             if (playerX > WORLD_WIDTH - playerWidth) playerX = WORLD_WIDTH - playerWidth;
 
@@ -444,32 +457,29 @@
 
             let myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
 
+            // Plattformen kollidieren
             for (let plat of PLATFORMS) {
                 if (checkCollision(myBox, plat)) {
                     if (playerVy > 0 && playerY + playerHeight - playerVy <= plat.y + 12) {
-                        playerY = plat.y - playerHeight;
-                        playerVy = 0;
-                        isGrounded = true;
-                    }
-                    else if (playerVy < 0 && playerY - playerVy >= plat.y + plat.h - 10) {
-                        playerY = plat.y + plat.h;
-                        playerVy = 0;
+                        playerY = plat.y - playerHeight; playerVy = 0; isGrounded = true;
+                    } else if (playerVy < 0 && playerY - playerVy >= plat.y + plat.h - 10) {
+                        playerY = plat.y + plat.h; playerVy = 0;
                     }
                 }
             }
 
-            if (playerY > WORLD_HEIGHT) { triggerDeath(); }
+            if (playerY > WORLD_HEIGHT) triggerDeath();
 
-            // Kollision Monster
-            myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
+            // Monster Kills -> Bringt Gold!
             for (let mId in allMonsters) {
                 let m = allMonsters[mId];
                 let mBox = { x: m.x, y: m.y, w: 32, h: 28 };
-
                 if (checkCollision(myBox, mBox)) {
                     if (playerVy > 0 && playerY + playerHeight - playerVy <= m.y + 12) {
                         playerVy = -9.5; 
                         myScore += 10;
+                        myGold += 5; // Gold gutgeschrieben!
+                        update(ref(db, `users/${myUid}`), { gold: myGold });
                         set(ref(db, `games/platformer/monsters/${mId}`), null); 
                     } else {
                         triggerDeath();
@@ -477,108 +487,68 @@
                 }
             }
 
-            // Kollision PvP
-            for (let pId in allPlayers) {
-                if (pId === myUid) continue;
-                let op = allPlayers[pId];
-                let opBox = { x: op.x, y: op.y, w: playerWidth, h: playerHeight };
-
-                if (checkCollision(myBox, opBox)) {
-                    if (playerVy > 0 && playerY + playerHeight - playerVy <= op.y + 15) {
-                        playerVy = -10;
-                        myScore += 25; 
-                        set(ref(db, `games/platformer/players/${pId}`), null);
-                    }
-                }
-            }
-
-            camX = playerX;
-            camY = playerY;
+            camX = playerX; camY = playerY;
         }
 
-        // --- SCHÖNER ZEICHNEN ---
+        // --- ZEICHNEN ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
-
         let zoom = Math.max(canvas.width / 1100, canvas.height / 650);
         ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.scale(zoom, zoom);
-        ctx.translate(-camX, -camY);
+        ctx.scale(zoom, zoom); ctx.translate(-camX, -camY);
 
-        // Cyber-Grid Background (Gitterlinien für Geschwindigkeitsgefühl)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-        ctx.lineWidth = 1;
-        for (let x = 0; x < WORLD_WIDTH; x += 60) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
+        // Raster-Hintergrund
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)'; ctx.lineWidth = 1;
+        for (let x = 0; x < WORLD_WIDTH; x += 100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
+
+        // Teiche/Wasserflächen zeichnen
+        for (let pond of PONDS) {
+            ctx.fillStyle = 'rgba(0, 210, 211, 0.25)';
+            ctx.fillRect(pond.x, pond.y, pond.w, pond.h);
+            ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 2;
+            ctx.strokeRect(pond.x, pond.y, pond.w, pond.h);
         }
-        for (let y = 0; y < WORLD_HEIGHT; y += 60) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
-        }
 
-        // Rote Map-Außengrenze (Neon Leuchten simuliert)
-        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 8;
-        ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-        // Plattformen zeichnen (Mit cooler Neon-Kante)
+        // Plattformen
+        ctx.fillStyle = '#1e1e24';
         for (let plat of PLATFORMS) {
-            ctx.fillStyle = '#1e1e24';
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            
-            // Leuchtende Oberkante
-            ctx.fillStyle = '#00d2d3';
-            ctx.fillRect(plat.x, plat.y, plat.w, 4); 
+            ctx.fillStyle = '#ff4757'; ctx.fillRect(plat.x, plat.y, plat.w, 3); ctx.fillStyle = '#1e1e24';
         }
 
-        // Monster zeichnen (Als giftig-leuchtende Schleimbolzen)
+        // Monster
+        ctx.fillStyle = '#ff9f43';
         for (let mId in allMonsters) {
             let m = allMonsters[mId];
-            ctx.fillStyle = '#ff9f43';
-            ctx.beginPath();
-            ctx.roundRect(m.x, m.y, 32, 28, 6);
-            ctx.fill();
-            
-            // Böse Augen
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(m.x + (m.dir === 1 ? 18 : 4), m.y + 6, 8, 8);
-            ctx.fillStyle = '#ff4757';
-            ctx.fillRect(m.x + (m.dir === 1 ? 22 : 6), m.y + 8, 4, 4);
+            ctx.fillRect(m.x, m.y, 32, 28);
         }
 
-        // Spieler zeichnen
+        // Mitspieler & Waffen-Tags rendern
         for (let pId in allPlayers) {
             let p = allPlayers[pId];
             let isMe = (pId === myUid);
+            let drawX = isMe ? playerX : p.x; let drawY = isMe ? playerY : p.y;
+
+            ctx.fillStyle = isMe ? myColor : '#3498db';
+            ctx.fillRect(drawX, drawY, playerWidth, playerHeight);
+
+            // Waffe optisch unter dem Namen anzeigen
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(p.username || "User", drawX + playerWidth/2, drawY - 24);
             
-            let drawX = isMe ? playerX : p.x;
-            let drawY = isMe ? playerY : p.y;
-
-            // Box-Shadow (Körper)
-            ctx.fillStyle = isMe ? myColor : (p.color || '#3498db');
-            ctx.beginPath();
-            ctx.roundRect(drawX, drawY, playerWidth, playerHeight, 4);
-            ctx.fill();
-            ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke();
-
-            // Stylisches Visier/Brille statt simpler Klötze
-            ctx.fillStyle = '#00d2d3';
-            ctx.fillRect(drawX + 6, drawY + 10, playerWidth - 12, 10);
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(drawX + 8, drawY + 11, 4, 2); // Glanzpunkt Visier
-
-            // Nametag & Score
-            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
-            ctx.shadowColor = 'black'; ctx.shadowBlur = 4;
-            ctx.fillText((p.username || "User") + ` [${p.score || 0}]`, drawX + playerWidth/2, drawY - 14);
-            ctx.shadowBlur = 0; // Reset Shadow
+            ctx.fillStyle = '#eccc68'; ctx.font = '9px monospace';
+            ctx.fillText(`⚔️ ${p.weapon || "Dolch"}`, drawX + playerWidth/2, drawY - 12);
         }
 
         ctx.restore();
     }
 
-    requestAnimationFrame((timestamp) => {
-        lastFrameTime = timestamp;
-        updateLoop(timestamp);
-    });
+    document.getElementById('join-btn').onclick = () => {
+        startScreen.style.display = 'none';
+        startNewLife();
+    };
+
+    requestAnimationFrame((timestamp) => { lastFrameTime = timestamp; updateLoop(timestamp); });
 </script>
 
 </body>
