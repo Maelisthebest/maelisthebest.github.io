@@ -31,14 +31,78 @@
         .play-btn { background: #3498db; color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; }
         .play-btn:disabled { background: #555; cursor: not-allowed; }
 
-        /* Fake-Werbung Overlay */
+        /* Überarbeitetes Werbe-Overlay (Zentriert das Banner perfekt im Game-Container) */
         #ad-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 30;
+            background: rgba(0,0,0,0.7); 
+            display: none; /* Wird per JS auf 'flex' gesetzt */
+            align-items: center; justify-content: center; 
+            z-index: 30;
+            font-family: 'Georgia', serif;
         }
-        .ad-box { background: #ffcc00; color: #003399; padding: 25px; border-radius: 12px; text-align: center; font-weight: bold; width: 280px; box-shadow: 0 0 25px #ffcc00; }
-        .ad-box h2 { margin: 0 0 10px 0; font-size: 24px; }
-        .ad-timer { font-size: 11px; color: #555; margin-top: 10px; }
+        
+        /* Warhammer Banner Design */
+        .wh-ad-card {
+            background: linear-gradient(135deg, #1c1c1c 0%, #0f0f0f 100%);
+            border: 4px dashed #8e7431;
+            padding: 30px;
+            border-radius: 15px;
+            cursor: pointer;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .wh-ad-card:hover {
+            transform: scale(1.03) rotate(-1.5deg);
+            border-color: #c5a043;
+            box-shadow: 0 15px 30px rgba(197, 160, 67, 0.3);
+        }
+
+        .wh-ad-badge {
+            display: inline-block;
+            font-size: 0.75rem;
+            color: #c5a043;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border: 1px solid #8e7431;
+            padding: 4px 10px;
+            margin-bottom: 12px;
+            border-radius: 3px;
+            font-family: sans-serif;
+        }
+
+        .wh-ad-title {
+            color: #ffffff;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .wh-ad-concept {
+            color: #aaaaaa;
+            font-size: 14px;
+            line-height: 1.4;
+            margin: 0 0 15px 0;
+            font-family: sans-serif;
+        }
+
+        /* Der Timer-Text unten im Banner */
+        .ad-timer {
+            font-size: 13px;
+            font-weight: normal;
+            font-style: italic;
+            color: #c5a043;
+            opacity: 0.8;
+            border-top: 1px dashed #333;
+            padding-top: 10px;
+            font-family: sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
 
         /* Live Scoreliste / Leaderboard */
         #leaderboard {
@@ -88,268 +152,14 @@
         </div>
     </div>
 
-<div id="ad-overlay">
-    
-    <div class="wh-ad-card" onclick="openWhAlert()">
-        <div class="wh-ad-badge">LGH Additum</div>
-        <h3 class="wh-ad-title">⚔️ Warhammer AG ⚔️</h3>
-        <p class="wh-ad-concept">Strategie, Kunst & Logistik im 41. Jahrtausend.</p>
-        
-        <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+    <div id="ad-overlay">
+        <div class="wh-ad-card" onclick="openWhAlert()">
+            <div class="wh-ad-badge">LGH Additum</div>
+            <h3 class="wh-ad-title">⚔️ Warhammer AG ⚔️</h3>
+            <p class="wh-ad-concept">Strategie, Kunst & Logistik im 41. Jahrtausend.</p>
+            <div class="ad-timer" id="ad-text">Werbung schließt in 3s...</div>
+        </div>
     </div>
-
-    <style>
-        /* Zentriert das komplette Overlay exakt in der Mitte des Bildschirms */
-        #ad-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: rgba(0, 0, 0, 0.5); /* Leicht abgedunkelter Hintergrund */
-            z-index: 9999;
-            font-family: 'Georgia', serif;
-        }
-
-        /* Banner Design */
-        .wh-ad-card {
-            background: linear-gradient(135deg, #1c1c1c 0%, #0f0f0f 100%);
-            border: 4px dashed #8e7431;
-            padding: 30px;
-            border-radius: 15px;
-            cursor: pointer;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-            max-width: 400px;
-            width: 90%;
-        }
-
-        /* Hover-Effekt */
-        .wh-ad-card:hover {
-            transform: scale(1.03) rotate(-1.5deg);
-            border-color: #c5a043;
-            box-shadow: 0 15px 30px rgba(197, 160, 67, 0.3);
-        }
-
-        .wh-ad-badge {
-            display: inline-block;
-            font-size: 0.75rem;
-            color: #c5a043;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border: 1px solid #8e7431;
-            padding: 4px 10px;
-            margin-bottom: 12px;
-            border-radius: 3px;
-            font-family: sans-serif;
-        }
-
-        .wh-ad-title {
-            color: #ffffff;
-            margin: 0 0 10px 0;
-            font-size: 24px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        .wh-ad-concept {
-            color: #aaaaaa;
-            font-size: 14px;
-            line-height: 1.4;
-            margin: 0 0 15px 0;
-            font-family: sans-serif;
-        }
-
-        /* Der Timer-Text unten im Banner */
-        .ad-timer {
-            font-size: 13px;
-            font-weight: normal;
-            font-style: italic;
-            color: #c5a043;
-            opacity: 0.8;
-            border-top: 1px dashed #333;
-            padding-top: 10px;
-            font-family: sans-serif;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-    </style>
-
-    <script>
-        function openWhAlert() {
-            // Der Alert öffnet sich, ist automatisch zentriert und FRIERT den 3-Sekunden-Timer ein!
-            alert(
-                "Das Warhammer-Additum am LGH\n" +
-                "========================================\n\n" +
-                "Willkommen im strategischen Additum von samuel mayer! " +
-                "Hier verbinden wir Kreativität mit analytischem Denken.\n\n" +
-                "Was dich im Additum erwartet:\n" +
-                "• Modellbau & Airbrush: Basteln und Bemalen der Miniaturen.\n" +
-                "• Lore & Storytelling: Analyse der düsteren Hintergrundgeschichte.\n\n" +
-            );
-        }
-    </script>
-</div>
-
-    <style>
-        .wh-ad-wrapper {
-            font-family: 'Georgia', serif;
-            --wh-gold: #c5a043;
-            --wh-darkgold: #8e7431;
-            --wh-bg: #141414;
-            margin: 20px auto;
-            max-width: 500px;
-        }
-
-        /* Banner Design */
-        .wh-ad-card {
-            background: linear-gradient(135deg, #1c1c1c 0%, #0f0f0f 100%);
-            border: 4px dashed var(--wh-darkgold);
-            padding: 30px;
-            border-radius: 15px;
-            cursor: pointer;
-            text-align: center;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.6);
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-        }
-
-        /* Hover-Effekt (Dezent rotierte Animation wie im Original, nur edler) */
-        .wh-ad-card:hover {
-            transform: scale(1.03) rotate(-1.5deg);
-            border-color: var(--wh-gold);
-            box-shadow: 0 15px 30px rgba(197, 160, 67, 0.25);
-        }
-
-        .wh-ad-badge {
-            display: inline-block;
-            font-size: 0.75rem;
-            color: var(--wh-gold);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border: 1px solid var(--wh-darkgold);
-            padding: 4px 10px;
-            margin-bottom: 12px;
-            border-radius: 3px;
-            font-family: sans-serif;
-        }
-
-        .wh-ad-title {
-            color: #ffffff;
-            margin: 0 0 10px 0;
-            font-size: 24px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-        }
-
-        .wh-ad-concept {
-            color: #aaaaaa;
-            font-size: 14px;
-            line-height: 1.4;
-            margin: 0 0 15px 0;
-            font-family: sans-serif;
-        }
-
-        /* Der Timer-Text unten im Banner */
-        .ad-timer {
-            font-size: 13px;
-            font-weight: normal;
-            font-style: italic;
-            color: var(--wh-gold);
-            opacity: 0.8;
-            border-top: 1px dashed #333;
-            padding-top: 10px;
-            font-family: sans-serif;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* Popup / Modal Hintergrund */
-        .wh-modal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(5px);
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* Popup Inhalt Box */
-        .wh-modal-content {
-            background-color: var(--wh-bg);
-            color: #e0e0e0;
-            padding: 30px;
-            border: 3px solid var(--wh-gold);
-            border-radius: 8px;
-            width: 90%;
-            max-width: 450px;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.8);
-            animation: whFadeIn 0.3s ease-out;
-            text-align: left;
-        }
-
-        .wh-modal-content h2 {
-            color: #fff;
-            margin-top: 0;
-            font-size: 1.5rem;
-            text-transform: uppercase;
-            text-align: center;
-        }
-
-        .wh-divider {
-            height: 2px;
-            background: linear-gradient(to right, transparent, var(--wh-gold), transparent);
-            margin: 15px 0;
-        }
-
-        .wh-modal-content h4 {
-            color: var(--wh-gold);
-            margin: 20px 0 10px 0;
-        }
-
-        .wh-modal-content ul {
-            padding-left: 20px;
-            margin-bottom: 20px;
-            font-family: sans-serif;
-        }
-
-        .wh-modal-content li {
-            margin-bottom: 8px;
-            font-size: 0.95rem;
-            line-height: 1.4;
-        }
-
-        .wh-footer-note {
-            font-size: 0.85rem;
-            color: #888;
-            font-style: italic;
-            border-top: 1px solid #333;
-            padding-top: 10px;
-            margin-bottom: 0;
-            text-align: center;
-            font-family: sans-serif;
-        }
-
-        @keyframes whFadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-    </style>
-
-    <script>
-        function openWhModal() {
-            document.getElementById('whModal').style.display = 'flex';
-        }
-    </script>
-</div>
 
     <div id="leaderboard">
         <h3>🏆 Top Snakes</h3>
@@ -365,6 +175,22 @@
     </div>
     <div class="boost-btn" id="boost-button">BOOST</div>
 </div>
+
+<script>
+    function openWhAlert() {
+        // Friert durch das synchrone alert() den JavaScript-Thread (und somit deinen Countdown) komplett ein!
+        alert(
+            "Das Warhammer-Additum am LGH\n" +
+            "========================================\n\n" +
+            "Willkommen im strategischen Additum von Samuel Mayer!\n" +
+            "Hier verbinden wir Kreativität mit analytischem Denken.\n\n" +
+            "Was dich im Additum erwartet:\n" +
+            "• Modellbau & Airbrush: Basteln und Bemalen der Miniaturen.\n" +
+            "• Lore & Storytelling: Analyse der düsteren Hintergrundgeschichte.\n\n" +
+            "Treffpunkt: Jeden Donnerstag im Freizeitbereich / Werkraum."
+        );
+    }
+</script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -395,7 +221,7 @@
 
     const WORLD_WIDTH = 2500;
     const WORLD_HEIGHT = 2500;
-    const MAX_TOTAL_FOOD = 600; // Leicht reduziert für bessere Performance
+    const MAX_TOTAL_FOOD = 600;
 
     let myUid = null;
     let myUsername = "Anonym";
@@ -403,7 +229,7 @@
     let allPlayers = {};
     let allFood = {};
     let isPlaying = false;
-    let isHost = false; // Gibt an, ob DIESER Client der Server/Host ist
+    let isHost = false;
 
     let joyX = 0, joyY = 0;
     let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
@@ -433,24 +259,18 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // ----------------------------------------------------
-    // NEU: HOST-WÄHLER LOGIK
-    // ----------------------------------------------------
     function setupHostElection() {
-        // Wir lauschen permanent auf die Spielerliste
         onValue(ref(db, 'games/snake/players'), (snap) => {
             if (snap.exists()) {
                 allPlayers = snap.val();
                 updateLeaderboard();
 
-                // Der Spieler, dessen UID alphabetisch an erster Stelle steht, wird Host
                 const playerIds = Object.keys(allPlayers).sort();
                 if (playerIds[0] === myUid) {
                     if (!isHost) {
                         isHost = true;
                         lobbyStatus.innerText = "Du bist der Arena-Host (Server) 👑";
                         lobbyStatus.style.color = "#2ecc71";
-                        // Startet die Server-Verwaltungsschleife für Futter
                         startHostLogic();
                     }
                 } else {
@@ -467,9 +287,7 @@
         });
     }
 
-    // Server-Logik: Wird nur ausgeführt, wenn man der Host ist
     function startHostLogic() {
-        // Intervall prüft alle 2 Sekunden, ob Futter nachgefüllt werden muss
         const hostInterval = setInterval(() => {
             if (!isHost) {
                 clearInterval(hostInterval);
@@ -493,7 +311,6 @@
             }
         }, 2000);
     }
-    // ----------------------------------------------------
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -502,7 +319,6 @@
                 if(snapshot.exists()) myUsername = snapshot.val().username;
                 document.getElementById('player-welcome').innerText = `Angemeldet als: ${myUsername}`;
                 
-                // Host-Ermittlung aktivieren
                 setupHostElection();
                 
                 const joinBtn = document.getElementById('join-btn');
@@ -525,8 +341,6 @@
         myHistory = [{ x: startX, y: startY }];
 
         const myGameRef = ref(db, `games/snake/players/${myUid}`);
-        
-        // Erstbelegung registriert den Spieler in der Liste (wichtig für die Host-Wahl)
         await set(myGameRef, { username: myUsername, color: myColor, body: myHistory, score: myScore });
         onDisconnect(myGameRef).remove();
 
@@ -539,6 +353,7 @@
         else allFood = {};
     });
 
+    // Aktualisiert das Leaderboard rechts oben im Eck
     function updateLeaderboard() {
         let list = [];
         for (let id in allPlayers) list.push(allPlayers[id]);
@@ -550,13 +365,13 @@
         leaderboardList.innerHTML = html || "Keine Spieler";
     }
 
+    // Wenn der Spieler stirbt
     function triggerDeath() {
         isPlaying = false;
         isBoosting = false;
         
         set(ref(db, `games/snake/players/${myUid}`), null);
 
-        // Überbleibsel als Futter hinterlassen (optimiert)
         if (myHistory.length > 0) {
             let chunk = {};
             let count = 0;
@@ -577,17 +392,24 @@
             if (count > 0) update(ref(db, `games/snake/food`), chunk);
         }
         
+        // Öffnet das zentrierte Werbe-Overlay
         adOverlay.style.display = 'flex';
         let count = 3;
         document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`;
+        
         let timer = setInterval(() => {
             count--;
-            if (count > 0) { document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`; }
-            else { clearInterval(timer); adOverlay.style.display = 'none'; startScreen.style.display = 'flex'; document.getElementById('join-btn').innerText = "Erneut versuchen"; }
+            if (count > 0) { 
+                document.getElementById('ad-text').innerText = `Werbung schließt in ${count}s...`; 
+            } else { 
+                clearInterval(timer); 
+                adOverlay.style.display = 'none'; 
+                startScreen.style.display = 'flex'; 
+                document.getElementById('join-btn').innerText = "Erneut versuchen"; 
+            }
         }, 1000);
     }
 
-    // Sende-Intervall der eigenen Position (50ms = 20 Ticks/Sekunde)
     setInterval(() => {
         if (!myUid || !isPlaying || myHistory.length === 0) return;
         let bodyToSend = [];
@@ -595,7 +417,6 @@
         update(ref(db, `games/snake/players/${myUid}`), { body: bodyToSend, score: myScore });
     }, 50);
 
-    // JOYSTICK SETUP
     function setupJoystick() {
         const circle = document.getElementById('joystick-circle');
         const stick = document.getElementById('joystick-stick');
@@ -626,14 +447,12 @@
     }
     setupJoystick();
 
-    // BOOST BUTTON SETUP
     const boostBtn = document.getElementById('boost-button');
     boostBtn.addEventListener('touchstart', (e) => { e.preventDefault(); isBoosting = true; }, { passive: false });
     boostBtn.addEventListener('touchend', (e) => { e.preventDefault(); isBoosting = false; });
     boostBtn.addEventListener('mousedown', (e) => { if(e.button === 0) isBoosting = true; });
     window.addEventListener('mouseup', () => { isBoosting = false; });
 
-    // PC Keys
     window.addEventListener('keydown', (e) => { 
         if (e.key in keys) { keys[e.key] = true; controlMode = "keyboard"; }
         if (e.code === 'Space') isBoosting = true;
@@ -643,7 +462,6 @@
         if (e.code === 'Space') isBoosting = false;
     });
 
-    // AREA CONTROLS
     function updateAreaCoordinates(clientX, clientY) {
         if (!isPlaying) return;
         controlMode = "area";
@@ -709,20 +527,17 @@
 
             if (newX < 15 || newX > WORLD_WIDTH - 15 || newY < 15 || newY > WORLD_HEIGHT - 15) { triggerDeath(); }
 
-            // Futter fressen (Lokale Kollision, Löschen an DB gesendet)
             for (let key in allFood) {
                 let f = allFood[key];
                 if (f) {
                     if (Math.hypot(newX - f.x, newY - f.y) < 22) {
                         myScore += 1;
-                        // Client fordert das Löschen des gefressenen Futters an
                         set(ref(db, `games/snake/food/${key}`), null);
                         delete allFood[key];
                     }
                 }
             }
 
-            // Kollisionsabfrage mit anderen Schlangen
             for (let pKey in allPlayers) {
                 if (pKey === myUid) continue;
                 let enemyBody = allPlayers[pKey].body;
