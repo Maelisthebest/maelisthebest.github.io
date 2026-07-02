@@ -3,127 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - v0.3 Cyber Platformer Arena 🎮</title>
+    <title>Maelist - Ultimate Multiplayer Arena 🎮</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
-            margin: 0; padding: 0; background: #0f0f13;
+            margin: 0; padding: 0; background: #0c0c10;
             font-family: 'Segoe UI', Roboto, sans-serif; color: #fff;
             display: flex; flex-direction: column; align-items: center;
             overflow: hidden; height: 100vh;
         }
         header { 
             text-align: center; padding: 12px; width: 100%; 
-            background: linear-gradient(135deg, #1e1e24, #2a2b36); 
+            background: linear-gradient(135deg, #16161e, #22232e); 
             border-bottom: 3px solid #ff4757; z-index: 5;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        h1 { margin: 0; font-size: 1.4rem; color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); letter-spacing: 1px; }
+        h1 { margin: 0; font-size: 1.4rem; color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.4); letter-spacing: 1px; }
         
         #game-container {
-            position: relative; width: 100%; height: 60vh; background: #0b0b0e; 
+            position: relative; width: 100%; height: 60vh; background: #07070a; 
             border-bottom: 4px solid #ff4757; overflow: hidden;
         }
         canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
         
-        /* Startbildschirm & Shop Overlay */
+        /* Startbildschirm & Shop */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(11, 11, 14, 0.95); display: flex;
-            align-items: center; justify-content: center; gap: 20px; z-index: 20;
-            backdrop-filter: blur(5px); overflow-y: auto; padding: 20px;
+            background: rgba(7, 7, 10, 0.96); display: flex;
+            align-items: center; justify-content: center; gap: 30px; z-index: 20;
+            backdrop-filter: blur(6px); padding: 20px; flex-wrap: wrap;
         }
         .menu-box { 
-            background: #181820; padding: 25px; border-radius: 16px; 
+            background: #13131a; padding: 30px; border-radius: 16px; 
             border: 2px solid #ff4757; text-align: center; 
-            box-shadow: 0 0 30px rgba(255, 71, 87, 0.25); width: 340px;
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.2); width: 340px;
         }
         .shop-box {
-            background: #1c1c24; padding: 25px; border-radius: 16px;
-            border: 2px solid #00d2d3; width: 360px;
-            box-shadow: 0 0 30px rgba(0, 210, 211, 0.25);
+            background: #13131a; padding: 30px; border-radius: 16px;
+            border: 2px solid #00d2d3; width: 380px; max-height: 90%; overflow-y: auto;
+            box-shadow: 0 0 30px rgba(0, 210, 211, 0.15);
         }
-        .shop-title { color: #00d2d3; margin: 0 0 15px 0; font-size: 20px; text-transform: uppercase; }
+        .shop-title { color: #00d2d3; margin: 0 0 15px 0; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
         .shop-item {
             display: flex; justify-content: space-between; align-items: center;
-            background: #252530; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px;
-            border: 1px solid rgba(255,255,255,0.05);
+            background: #1c1c26; padding: 12px 15px; border-radius: 10px; margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.03);
         }
         .shop-btn {
-            background: #00d2d3; color: #000; border: none; padding: 6px 12px;
-            font-weight: bold; border-radius: 4px; cursor: pointer; font-size: 12px;
+            background: #00d2d3; color: #000; border: none; padding: 8px 14px;
+            font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 12px; transition: 0.1s;
         }
-        .shop-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .shop-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
         .shop-btn.equipped { background: #2ed573; color: white; }
 
         .play-btn { 
             background: linear-gradient(135deg, #ff4757, #ff6b81); color: white; border: none; 
             padding: 16px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; 
-            cursor: pointer; margin-top: 15px; width: 100%;
-            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
+            cursor: pointer; margin-top: 20px; width: 100%; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.3);
         }
-        .play-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
 
-        /* Live Scoreliste */
+        /* Leaderboard */
         #leaderboard {
-            position: absolute; top: 12px; right: 12px; background: rgba(20, 20, 27, 0.85);
-            padding: 12px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
-            font-family: monospace; font-size: 13px; min-width: 180px; z-index: 10;
+            position: absolute; top: 12px; right: 12px; background: rgba(15, 15, 22, 0.88);
+            padding: 12px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);
+            font-family: monospace; font-size: 13px; min-width: 190px; z-index: 10; backdrop-filter: blur(3px);
         }
-        #leaderboard h3 { margin: 0 0 8px 0; color: #ff4757; font-size: 14px; text-transform: uppercase; }
+        #leaderboard h3 { margin: 0 0 8px 0; color: #ff4757; font-size: 13px; text-transform: uppercase; }
         .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; }
 
-        /* Control Panel */
+        /* Controls */
         #control-panel {
             display: flex; align-items: center; justify-content: space-between;
-            width: 100%; flex-grow: 1; background: #141419; padding: 20px 30px; z-index: 5;
+            width: 100%; flex-grow: 1; background: #0f0f14; padding: 15px 40px; z-index: 5;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.6);
         }
         .dpad { display: flex; gap: 20px; }
+        .action-btns { display: flex; gap: 20px; align-items: center; }
         .ctrl-btn {
-            width: 80px; height: 80px; background: linear-gradient(135deg, #2f3542, #1e222b); 
-            border: 2px solid #57606f; border-radius: 16px; color: #f1f2f6; 
-            font-weight: bold; font-size: 26px; display: flex; align-items: center; justify-content: center;
+            width: 76px; height: 76px; background: linear-gradient(135deg, #2c313d, #1a1d24); 
+            border: 2px solid #4b5366; border-radius: 16px; color: #f1f2f6; 
+            font-weight: bold; font-size: 24px; display: flex; align-items: center; justify-content: center;
             touch-action: none; cursor: pointer;
         }
-        .jump-btn { 
-            background: linear-gradient(135deg, #2ed573, #26af5a); border-color: #26af5a; 
-            border-radius: 50%; width: 100px; height: 100px; font-size: 18px;
-        }
+        .ctrl-btn:active { transform: translateY(2px); background: #1a1d24; }
+        .jump-btn { background: linear-gradient(135deg, #2ed573, #21a555); border-color: #21a555; border-radius: 50%; width: 90px; height: 90px; font-size: 16px; }
+        .attack-btn { background: linear-gradient(135deg, #ff9f43, #ee5a24); border-color: #ee5a24; border-radius: 50%; width: 90px; height: 90px; font-size: 16px; }
         
-        #lobby-status { font-size: 13px; margin-top: 5px; color: #888; text-align: center; width: 100%; padding: 6px; background: #141419; }
-        #economy-bar { font-weight: bold; color: #eccc68; margin-bottom: 10px; font-size: 16px; }
+        #lobby-status { font-size: 13px; color: #777; text-align: center; width: 100%; padding: 6px; background: #0f0f14; border-bottom: 1px solid #1c1c24; }
+        #economy-bar { font-weight: bold; color: #ffa502; margin-bottom: 12px; font-size: 18px; text-shadow: 0 0 8px rgba(255,165,0,0.3); }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>Maelist Platformer Arena 🎮</h1>
+    <h1>Maelist Multiplayer Platformer Arena ⚔️</h1>
 </header>
 <div id="lobby-status">Verbinde mit Firebase...</div>
 
 <div id="game-container">
     <div id="start-screen">
-        <!-- Hauptmenü -->
         <div class="menu-box">
-            <h2 style="margin:0; color:#ff4757; font-size: 22px;">Cyber Arena</h2>
-            <p id="player-welcome" style="color:#a4b0be; font-size:13px; margin: 8px 0 15px 0;">Lade Profil...</p>
+            <h2 style="margin:0; color:#ff4757; font-size: 24px; letter-spacing: 0.5px;">Kampf-Bereit</h2>
+            <p id="player-welcome" style="color:#a4b0be; font-size:13px; margin: 8px 0 15px 0;">Profil wird synchronisiert...</p>
             <div id="economy-bar">💰 Gold: <span id="gold-display">0</span></div>
             <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
-            <div style="font-size: 11px; color:#57606f; margin-top:12px;">Steuerung: A/D oder Buttons<br><b style="color:#00d2d3;">[LEERTASTE] zum Springen / Schwimmen!</b></div>
+            <div style="font-size: 11px; color:#57606f; margin-top:15px; text-align: left; line-height: 1.4;">
+                • <b>A / D:</b> Gehen<br>
+                • <b style="color:#2ed573;">[LEERTASTE]:</b> Springen / Schwimmen<br>
+                • <b style="color:#ff9f43;">[F-Taste] oder Klick:</b> Waffe abfeuern / Schlagen
+            </div>
         </div>
 
-        <!-- Waffen Shop -->
         <div class="shop-box">
-            <h3 class="shop-title">⚔️ Waffen-Arsenal</h3>
-            <div id="shop-items-list">
-                <!-- Wird dynamisch generiert -->
-            </div>
+            <h3 class="shop-title">💎 Waffen-Arsenal</h3>
+            <div id="shop-items-list"></div>
         </div>
     </div>
 
     <div id="leaderboard">
-        <h3>🏆 Top Leader</h3>
-        <div id="leaderboard-list">Warte auf Spieler...</div>
+        <h3>🏆 Live Arena-Ränge</h3>
+        <div id="leaderboard-list">Warte auf Kämpfer...</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -134,7 +133,10 @@
         <div class="ctrl-btn" id="btn-left">◀</div>
         <div class="ctrl-btn" id="btn-right">▶</div>
     </div>
-    <div class="ctrl-btn jump-btn" id="btn-jump">JUMP</div>
+    <div class="action-btns">
+        <div class="ctrl-btn attack-btn" id="btn-attack">ATTACK</div>
+        <div class="ctrl-btn jump-btn" id="btn-jump">JUMP</div>
+    </div>
 </div>
 
 <script type="module">
@@ -163,57 +165,62 @@
     const startScreen = document.getElementById('start-screen');
     const leaderboardList = document.getElementById('leaderboard-list');
 
-    // GIGANTISCHE WELT (Über 20x größer als Standardauflösung)
+    // RIESIGE MULTIPLAYER MAP (20.000 x 6.000)
     const WORLD_WIDTH = 20000;
     const WORLD_HEIGHT = 6000;
     const GRAVITY = 0.55;
-    const MAX_MONSTERS = 45; // Mehr Monster für die riesige Welt
+    const MAX_MONSTERS = 50;
+    const MAX_COINS = 80;
 
-    // Erreichbare Plattformen generieren (Maximal 170px Höhenunterschied)
+    // Strukturiertes, faires Plattform-System (Immer perfekt hochspringbar)
     const PLATFORMS = [{ x: 0, y: 5900, w: 20000, h: 100 }]; 
-    for (let y = 5720; y > 300; y -= 170) {
-        for (let x = 100; x < 19500; x += 350 + Math.random() * 300) {
-            PLATFORMS.push({ x: x, y: y, w: 160 + Math.random() * 200, h: 25 });
+    for (let y = 5720; y > 400; y -= 175) {
+        for (let x = 100; x < 19600; x += 400 + Math.random() * 300) {
+            PLATFORMS.push({ x: x, y: y, w: 180 + Math.random() * 220, h: 25 });
         }
     }
 
-    // Zusätzliche Biome / Riesen-Teiche platziert über die Map verteilt
+    // Teiche/Wasser-Zonen
     const PONDS = [
-        { x: 1200, y: 5400, w: 1000, h: 510, name: "Neon-Teich A" },
-        { x: 4500, y: 4200, w: 1500, h: 600, name: "Tiefsee-Graben" },
-        { x: 9000, y: 3500, w: 1200, h: 700, name: "Säure-Becken" },
-        { x: 14000, y: 4800, w: 1800, h: 1100, name: "Großer Ozean" }
+        { x: 1500, y: 5300, w: 1200, h: 610 },
+        { x: 5500, y: 4000, w: 1600, h: 800 },
+        { x: 11000, y: 4500, w: 2000, h: 1400 }
     ];
 
-    // Shop-Definitionen
+    // Komplettes Waffen-Balancing
     const WEAPONS_SHOP = {
-        "starter": { name: "Rostiger Dolch", cost: 0, color: "#a4b0be" },
-        "plasma": { name: "Glow-Säbel", cost: 50, color: "#00d2d3" },
-        "cyber": { name: "Cyber-Blaster", cost: 150, color: "#ff4757" },
-        "void": { name: "Void-Zerstörer", cost: 400, color: "#purple" }
+        "starter": { name: "Rostiger Dolch", cost: 0, color: "#a4b0be", type: "melee", dmg: 20, range: 45, cooldown: 250 },
+        "plasma": { name: "Glow-Säbel", cost: 60, color: "#00d2d3", type: "melee", dmg: 45, range: 80, cooldown: 350 },
+        "cyber": { name: "Cyber-Blaster", cost: 140, color: "#ff9f43", type: "ranged", dmg: 25, speed: 12, cooldown: 400, bSize: 5 },
+        "void": { name: "Void-Zerstörer", cost: 350, color: "#9b59b6", type: "ranged", dmg: 55, speed: 8, cooldown: 650, bSize: 12 }
     };
 
     let myUid = null;
     let myUsername = "Anonym";
     let myColor = `hsl(${Math.random() * 360}, 85%, 55%)`;
     
-    // Spieler-Werte aus der DB geladen
     let myGold = 0;
     let myUnlockedWeapons = ["starter"];
     let myActiveWeapon = "starter";
 
+    // Player Physics State
     let playerX = 300, playerY = 5500;
     let playerVx = 0, playerVy = 0;
     let playerWidth = 32, playerHeight = 46;
     let isGrounded = false;
     let myScore = 0;
+    let myHp = 100;
+    let facingDir = 1; 
+    let lastAttackTime = 0;
 
     let allPlayers = {};
     let allMonsters = {};
+    let allCoins = {};
+    let allBullets = {};
     let isPlaying = false;
     let isHost = false;
 
-    let keys = { a: false, d: false, Space: false };
+    let keys = { a: false, d: false, Space: false, f: false };
     let lastFrameTime = 0;
 
     function resizeCanvas() {
@@ -223,7 +230,7 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // SERVER / HOST LOGIC
+    // NETWORKING / HOST LOGIC
     function setupHostElection() {
         onValue(ref(db, 'games/platformer/players'), (snap) => {
             if (snap.exists()) {
@@ -231,9 +238,9 @@
                 updateLeaderboard();
                 const playerIds = Object.keys(allPlayers).sort();
                 if (playerIds[0] === myUid) {
-                    if (!isHost) { isHost = true; lobbyStatus.innerText = "Du bist Arena-Host 👑"; lobbyStatus.style.color = "#2ecc71"; startHostLogic(); }
+                    if (!isHost) { isHost = true; lobbyStatus.innerText = "Du steuerst als Arena-Host die Spielwelt 👑"; lobbyStatus.style.color = "#2ecc71"; startHostLogic(); }
                 } else {
-                    if (isHost) { isHost = false; lobbyStatus.innerText = "Verbunden | Client-Modus"; lobbyStatus.style.color = "#a4b0be"; }
+                    if (isHost) { isHost = false; lobbyStatus.innerText = "Verbunden | Kampf-Modus live 🕹️"; lobbyStatus.style.color = "#a4b0be"; }
                 }
             } else { allPlayers = {}; isHost = false; }
         });
@@ -242,39 +249,61 @@
     function startHostLogic() {
         const hostInterval = setInterval(() => {
             if (!isHost) { clearInterval(hostInterval); return; }
-            let currentMonsterCount = Object.keys(allMonsters).length;
 
-            if (currentMonsterCount < MAX_MONSTERS) {
-                let amountToSpawn = MAX_MONSTERS - currentMonsterCount;
-                let newMonsters = {};
-                for(let i=0; i < amountToSpawn; i++) { 
-                    let mId = "monster_" + Date.now() + "_" + Math.round(Math.random()*1000);
-                    let plat = PLATFORMS[Math.floor(Math.random() * (PLATFORMS.length - 5)) + 3];
-                    newMonsters[mId] = {
-                        x: plat.x + Math.random() * (plat.w - 32), y: plat.y - 28,
-                        platX1: plat.x, platX2: plat.x + plat.w,
-                        dir: Math.random() > 0.5 ? 1 : -1, speed: 1.2 + Math.random() * 2
-                    };
+            // Monsters nachspülen
+            let curMonsters = Object.keys(allMonsters).length;
+            if (curMonsters < MAX_MONSTERS) {
+                let newM = {};
+                for(let i=0; i < (MAX_MONSTERS - curMonsters); i++) { 
+                    let mId = "m_" + Date.now() + "_" + Math.round(Math.random()*1000);
+                    let plat = PLATFORMS[Math.floor(Math.random() * (PLATFORMS.length - 10)) + 5];
+                    newM[mId] = { x: plat.x + 20, y: plat.y - 28, platX1: plat.x, platX2: plat.x + plat.w, dir: Math.random() > 0.5 ? 1 : -1, speed: 1.5, hp: 40 };
                 }
-                update(ref(db, 'games/platformer/monsters'), newMonsters);
+                update(ref(db, 'games/platformer/monsters'), newM);
             }
 
-            let monsterUpdates = {};
+            // Coins verteilen
+            let curCoins = Object.keys(allCoins).length;
+            if (curCoins < MAX_COINS) {
+                let newC = {};
+                for(let i=0; i < (MAX_COINS - curCoins); i++) {
+                    let cId = "c_" + Date.now() + "_" + Math.round(Math.random()*1000);
+                    let plat = PLATFORMS[Math.floor(Math.random() * PLATFORMS.length)];
+                    newC[cId] = { x: plat.x + Math.random()*(plat.w-20), y: plat.y - 25 };
+                }
+                update(ref(db, 'games/platformer/coins'), newC);
+            }
+
+            // Monster KI Berechnungen
+            let mUpdates = {};
             for (let id in allMonsters) {
                 let m = allMonsters[id];
                 m.x += m.dir * m.speed;
                 if (m.x <= m.platX1 || m.x >= m.platX2 - 32) m.dir *= -1;
-                monsterUpdates[id] = m;
+                mUpdates[id] = m;
             }
-            if (Object.keys(monsterUpdates).length > 0) set(ref(db, 'games/platformer/monsters'), monsterUpdates);
-        }, 40);
+            if (Object.keys(mUpdates).length > 0) set(ref(db, 'games/platformer/monsters'), mUpdates);
+
+            // Ranged-Projektile fliegen lassen
+            let bUpdates = {};
+            for(let bId in allBullets) {
+                let b = allBullets[bId];
+                b.x += b.vx;
+                // Löschen wenn out of bounds
+                if (b.x < 0 || b.x > WORLD_WIDTH) { set(ref(db, `games/platformer/bullets/${bId}`), null); }
+                else { bUpdates[bId] = b; }
+            }
+            if (Object.keys(bUpdates).length > 0) set(ref(db, 'games/platformer/bullets'), bUpdates);
+
+        }, 45);
     }
 
-    onValue(ref(db, 'games/platformer/monsters'), (snap) => {
-        if (snap.exists()) allMonsters = snap.val(); else allMonsters = {};
-    });
+    // Datenbank-Hörer aktivieren
+    onValue(ref(db, 'games/platformer/monsters'), (snap) => { allMonsters = snap.exists() ? snap.val() : {}; });
+    onValue(ref(db, 'games/platformer/coins'), (snap) => { allCoins = snap.exists() ? snap.val() : {}; });
+    onValue(ref(db, 'games/platformer/bullets'), (snap) => { allBullets = snap.exists() ? snap.val() : {}; });
 
-    // USER-PROFIL LADEN & PERSISTENZ
+    // AUTH & CORESYNC
     onAuthStateChanged(auth, (user) => {
         if (user) {
             myUid = user.uid;
@@ -289,13 +318,10 @@
                 renderShop();
                 document.getElementById('gold-display').innerText = myGold;
                 document.getElementById('player-welcome').innerText = `Eingeloggt als: ${myUsername}`;
-                
                 setupHostElection();
                 document.getElementById('join-btn').disabled = false;
             });
-        } else {
-            window.location.href = "überleitung.html";
-        }
+        } else { window.location.href = "überleitung.html"; }
     });
 
     function renderShop() {
@@ -307,11 +333,9 @@
             const isActive = myActiveWeapon === id;
 
             let btnHtml = "";
-            if (isActive) {
-                btnHtml = `<button class="shop-btn equipped" disabled>Aktiv</button>`;
-            } else if (isUnlocked) {
-                btnHtml = `<button class="shop-btn" onclick="window.equipWeapon('${id}')">Ausrüsten</button>`;
-            } else {
+            if (isActive) btnHtml = `<button class="shop-btn equipped" disabled>Aktiv</button>`;
+            else if (isUnlocked) btnHtml = `<button class="shop-btn" onclick="window.equipWeapon('${id}')">Nutzen</button>`;
+            else {
                 const canAfford = myGold >= item.cost;
                 btnHtml = `<button class="shop-btn" ${canAfford ? '' : 'disabled'} onclick="window.buyWeapon('${id}', ${item.cost})">🛒 ${item.cost} G</button>`;
             }
@@ -320,7 +344,7 @@
                 <div class="shop-item">
                     <div>
                         <b style="color:${item.color}">${item.name}</b>
-                        <div style="font-size:10px; color:#aaa;">Style-Upgrade für Arena</div>
+                        <div style="font-size:10px; color:#888;">Typ: ${item.type} | Schaden: ${item.dmg}</div>
                     </div>
                     ${btnHtml}
                 </div>
@@ -328,69 +352,130 @@
         }
     }
 
-    // Globale Funktionen für Klicks im Shop
     window.buyWeapon = function(id, cost) {
         if (myGold >= cost && !myUnlockedWeapons.includes(id)) {
-            myGold -= cost;
-            myUnlockedWeapons.push(id);
+            myGold -= cost; myUnlockedWeapons.push(id);
             update(ref(db, `users/${myUid}`), { gold: myGold, unlockedWeapons: myUnlockedWeapons, activeWeapon: id });
         }
     };
     window.equipWeapon = function(id) {
-        if (myUnlockedWeapons.includes(id)) {
-            update(ref(db, `users/${myUid}`), { activeWeapon: id });
-        }
+        if (myUnlockedWeapons.includes(id)) update(ref(db, `users/${myUid}`), { activeWeapon: id });
     };
 
     async function startNewLife() {
-        myScore = 0;
-        playerX = 200 + Math.random() * 800;
-        playerY = 5500;
+        myScore = 0; myHp = 100;
+        playerX = 200 + Math.random() * 600; playerY = 5400;
         playerVx = 0; playerVy = 0;
 
         const myGameRef = ref(db, `games/platformer/players/${myUid}`);
         await set(myGameRef, { 
-            username: myUsername, 
-            color: myColor, 
-            x: playerX, y: playerY, 
-            score: myScore,
-            weapon: WEAPONS_SHOP[myActiveWeapon].name 
+            username: myUsername, color: myColor, x: playerX, y: playerY, 
+            score: myScore, hp: myHp, weapon: myActiveWeapon, facingDir: facingDir, isAttacking: false 
         });
         onDisconnect(myGameRef).remove();
         isPlaying = true;
     }
 
-    function updateLeaderboard() {
-        let list = [];
-        for (let id in allPlayers) list.push(allPlayers[id]);
-        list.sort((a, b) => (b.score || 0) - (a.score || 0));
-        let html = "";
-        list.slice(0, 5).forEach((p, i) => {
-            html += `<div class="leaderboard-entry"><span>${i+1}. ${p.username}</span><b>${p.score || 0}</b></div>`;
-        });
-        leaderboardList.innerHTML = html || "Keine Spieler";
-    }
-
     function triggerDeath() {
         isPlaying = false;
-        keys.Space = false;
         set(ref(db, `games/platformer/players/${myUid}`), null);
-        
-        // Sofortiger Neustart-Screen ohne lästige Werbung
         startScreen.style.display = 'flex'; 
-        document.getElementById('join-btn').innerText = "Erneut versuchen"; 
+        document.getElementById('join-btn').innerText = "Erneut ins Gefecht ziehen"; 
     }
 
+    // REALTIME POSITION UPDATE LOOP
     setInterval(() => {
         if (!myUid || !isPlaying) return;
-        update(ref(db, `games/platformer/players/${myUid}`), { x: playerX, y: playerY, score: myScore });
-    }, 30);
+        // Lokal geändertes HP auf Firebase spiegeln
+        update(ref(db, `games/platformer/players/${myUid}`), { 
+            x: playerX, y: playerY, score: myScore, hp: myHp, facingDir: facingDir 
+        });
+    }, 35);
 
-    // TASTATUR INPUTS (Pfeil-Hoch komplett blockiert)
+    // HP-Veränderungen von AUẞEN abfangen (falls uns jemand schlägt)
+    setInterval(() => {
+        if(!isPlaying || !myUid) return;
+        onValue(ref(db, `games/platformer/players/${myUid}/hp`), (snap) => {
+            if(snap.exists() && isPlaying) {
+                let remoteHp = snap.val();
+                if (remoteHp <= 0) triggerDeath();
+                else myHp = remoteHp;
+            }
+        }, {onlyOnce: true});
+    }, 100);
+
+    // KAMPFSYSTEM EXECUTION
+    function executeAttack() {
+        let now = Date.now();
+        let wStats = WEAPONS_SHOP[myActiveWeapon];
+        if (now - lastAttackTime < wStats.cooldown) return;
+        lastAttackTime = now;
+
+        // Visuellen Trigger kurzzeitig setzen
+        update(ref(db, `games/platformer/players/${myUid}`), { isAttacking: true });
+        setTimeout(() => { if (isPlaying) update(ref(db, `games/platformer/players/${myUid}`), { isAttacking: false }); }, 150);
+
+        if (wStats.type === "melee") {
+            // Nahkampf-Kollision prüfen (Hitbox vor uns aufbauen)
+            let hitbox = {
+                x: facingDir === 1 ? playerX + playerWidth : playerX - wStats.range,
+                y: playerY, w: wStats.range, h: playerHeight
+            };
+
+            // 1. Andere Spieler verletzen?
+            for(let pId in allPlayers) {
+                if (pId === myUid) continue;
+                let op = allPlayers[pId];
+                let opBox = { x: op.x, y: op.y, w: 32, h: 46 };
+                if (checkCollision(hitbox, opBox)) {
+                    let newOpHp = (op.hp || 100) - wStats.dmg;
+                    if(newOpHp <= 0) {
+                        myScore += 50; myGold += 20;
+                        update(ref(db, `users/${myUid}`), { gold: myGold });
+                        set(ref(db, `games/platformer/players/${pId}/hp`), 0); // Kill abschicken
+                    } else {
+                        set(ref(db, `games/platformer/players/${pId}/hp`), newOpHp);
+                    }
+                }
+            }
+
+            // 2. Monster im Radius verletzen?
+            for(let mId in allMonsters) {
+                let m = allMonsters[mId];
+                let mBox = { x: m.x, y: m.y, w: 32, h: 28 };
+                if (checkCollision(hitbox, mBox)) {
+                    let newMHp = m.hp - wStats.dmg;
+                    if(newMHp <= 0) {
+                        myScore += 15; myGold += 6;
+                        update(ref(db, `users/${myUid}`), { gold: myGold });
+                        set(ref(db, `games/platformer/monsters/${mId}`), null);
+                    } else {
+                        update(ref(db, `games/platformer/monsters/${mId}`), { hp: newMHp });
+                    }
+                }
+            }
+        } 
+        else if (wStats.type === "ranged") {
+            // Fernkampf-Projektil in Firebase spawnen
+            let bId = "b_" + Date.now() + "_" + myUid;
+            set(ref(db, `games/platformer/bullets/${bId}`), {
+                x: facingDir === 1 ? playerX + playerWidth + 5 : playerX - 15,
+                y: playerY + playerHeight / 2 - 3,
+                vx: facingDir * wStats.speed,
+                owner: myUid,
+                dmg: wStats.dmg,
+                size: wStats.bSize,
+                color: wStats.color
+            });
+        }
+    }
+
+    // CONTROLS INTERCEPT (Pfeil hoch deaktiviert!)
     window.addEventListener('keydown', (e) => { 
         if (e.code === 'Space') { e.preventDefault(); keys.Space = true; }
-        if (e.key === 'a' || e.key === 'A') keys.a = true;
-        if (e.key === 'd' || e.key === 'D') keys.d = true;
+        if (e.key === 'a' || e.key === 'A') { keys.a = true; facingDir = -1; }
+        if (e.key === 'd' || e.key === 'D') { keys.d = true; facingDir = 1; }
+        if (e.key === 'f' || e.key === 'F') { executeAttack(); }
     });
     window.addEventListener('keyup', (e) => { 
         if (e.code === 'Space') keys.Space = false;
@@ -398,21 +483,24 @@
         if (e.key === 'd' || e.key === 'D') keys.d = false;
     });
 
-    const setupMobileBtn = (id, keyName) => {
-        const btn = document.getElementById(id);
-        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; }, { passive: false });
-        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
-    };
     setupMobileBtn('btn-left', 'a');
     setupMobileBtn('btn-right', 'd');
     setupMobileBtn('btn-jump', 'Space');
+    document.getElementById('btn-attack').addEventListener('touchstart', (e) => { e.preventDefault(); executeAttack(); });
 
-    function checkCollision(rect1, rect2) {
-        return rect1.x < rect2.x + rect2.w && rect1.x + rect1.w > rect2.x &&
-               rect1.y < rect2.y + rect2.h && rect1.y + rect1.h > rect2.y;
+    function setupMobileBtn(id, keyName) {
+        document.getElementById(id).addEventListener('touchstart', (e) => { 
+            e.preventDefault(); keys[keyName] = true; 
+            if(keyName === 'a') facingDir = -1; if(keyName === 'd') facingDir = 1;
+        });
+        document.getElementById(id).addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
     }
 
-    // GAME LOOP
+    function checkCollision(r1, r2) {
+        return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+    }
+
+    // MAIN PLATFORMER GAME LOOP
     function updateLoop(timestamp) {
         requestAnimationFrame(updateLoop);
         let elapsed = timestamp - lastFrameTime;
@@ -422,11 +510,11 @@
         let camX = WORLD_WIDTH / 2; let camY = WORLD_HEIGHT / 2;
 
         if (isPlaying) {
-            if (keys.a) playerVx = -6;
-            else if (keys.d) playerVx = 6;
+            if (keys.a) playerVx = -5.5;
+            else if (keys.d) playerVx = 5.5;
             else playerVx = 0;
 
-            // Prüfen ob im Teich/Wasser
+            // Teich-Physik Detektion
             let inWater = false;
             for (let pond of PONDS) {
                 if (playerX < pond.x + pond.w && playerX + playerWidth > pond.x &&
@@ -435,29 +523,21 @@
                 }
             }
 
-            // Physik anpassen basierend auf Umgebung (Wasser vs Land)
             if (inWater) {
-                playerVy += 0.15; // Geringe Gravitation im Wasser
-                if (playerVy > 2.5) playerVy = 2.5; // Bremswirkung im Wasser
-                if (keys.Space) playerVy = -3.5; // Gedrückt halten zum Schwimmen
+                playerVy += 0.16; if (playerVy > 2.2) playerVy = 2.2;
+                if (keys.Space) playerVy = -3.2; // Gedrückt halten schwimmt hoch
             } else {
-                if (keys.Space && isGrounded) {
-                    playerVy = -14.5; // Mächtiger Sprung um Plattformen spielend zu erreichen
-                    isGrounded = false;
-                }
+                if (keys.Space && isGrounded) { playerVy = -15.0; isGrounded = false; }
                 playerVy += GRAVITY;
             }
 
             playerX += playerVx;
-            if (playerX < 0) playerX = 0;
-            if (playerX > WORLD_WIDTH - playerWidth) playerX = WORLD_WIDTH - playerWidth;
+            if (playerX < 0) playerX = 0; if (playerX > WORLD_WIDTH - playerWidth) playerX = WORLD_WIDTH - playerWidth;
 
-            playerY += playerVy;
-            isGrounded = false;
-
+            playerY += playerVy; isGrounded = false;
             let myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
 
-            // Plattformen kollidieren
+            // Plattformen Kollisionen verrechnen
             for (let plat of PLATFORMS) {
                 if (checkCollision(myBox, plat)) {
                     if (playerVy > 0 && playerY + playerHeight - playerVy <= plat.y + 12) {
@@ -468,21 +548,56 @@
                 }
             }
 
+            // Abgrund-Prüfung
             if (playerY > WORLD_HEIGHT) triggerDeath();
 
-            // Monster Kills -> Bringt Gold!
+            // Münzen aufsammeln
+            for(let cId in allCoins) {
+                let coin = allCoins[cId];
+                let cBox = { x: coin.x, y: coin.y, w: 20, h: 20 };
+                if (checkCollision(myBox, cBox)) {
+                    myGold += 2; 
+                    update(ref(db, `users/${myUid}`), { gold: myGold });
+                    set(ref(db, `games/platformer/coins/${cId}`), null); // Münze verbraucht
+                }
+            }
+
+            // Monster-Kollision (Schaden erleiden oder per Sprung töten)
             for (let mId in allMonsters) {
                 let m = allMonsters[mId];
                 let mBox = { x: m.x, y: m.y, w: 32, h: 28 };
                 if (checkCollision(myBox, mBox)) {
                     if (playerVy > 0 && playerY + playerHeight - playerVy <= m.y + 12) {
-                        playerVy = -9.5; 
-                        myScore += 10;
-                        myGold += 5; // Gold gutgeschrieben!
+                        playerVy = -9.5; myScore += 10; myGold += 4;
                         update(ref(db, `users/${myUid}`), { gold: myGold });
-                        set(ref(db, `games/platformer/monsters/${mId}`), null); 
+                        set(ref(db, `games/platformer/monsters/${mId}`), null);
                     } else {
-                        triggerDeath();
+                        myHp -= 1.5; // Kontinuierlicher Kontaktschaden
+                        if (myHp <= 0) triggerDeath();
+                    }
+                }
+            }
+
+            // Projektil-Kollision lokal berechnen (Hit Authority)
+            for(let bId in allBullets) {
+                let b = allBullets[bId];
+                if(b.owner === myUid) {
+                    // Check ob unsere Kugel ein Monster oder Spieler rasiert hat
+                    let bBox = { x: b.x, y: b.y, w: b.size, h: b.size };
+                    
+                    for(let pId in allPlayers) {
+                        if(pId === myUid) continue;
+                        let op = allPlayers[pId];
+                        if (checkCollision(bBox, { x: op.x, y: op.y, w: 32, h: 46 })) {
+                            set(ref(db, `games/platformer/bullets/${bId}`), null); // Kugel löschen
+                            let targetHp = (op.hp || 100) - b.dmg;
+                            if (targetHp <= 0) {
+                                myScore += 50; myGold += 20; update(ref(db, `users/${myUid}`), { gold: myGold });
+                                set(ref(db, `games/platformer/players/${pId}/hp`), 0);
+                            } else {
+                                set(ref(db, `games/platformer/players/${pId}/hp`), targetHp);
+                            }
+                        }
                     }
                 }
             }
@@ -490,54 +605,91 @@
             camX = playerX; camY = playerY;
         }
 
-        // --- ZEICHNEN ---
+        // --- SCHICKES ENGINE RENDERING ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
         let zoom = Math.max(canvas.width / 1100, canvas.height / 650);
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.scale(zoom, zoom); ctx.translate(-camX, -camY);
 
-        // Raster-Hintergrund
+        // Cyber-Grid lines
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)'; ctx.lineWidth = 1;
-        for (let x = 0; x < WORLD_WIDTH; x += 100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke(); }
+        for (let x = (camX - 1000) - (camX % 100); x < camX + 1000; x += 100) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
+        }
 
-        // Teiche/Wasserflächen zeichnen
+        // Wasserflächen/Teiche rendern
         for (let pond of PONDS) {
-            ctx.fillStyle = 'rgba(0, 210, 211, 0.25)';
-            ctx.fillRect(pond.x, pond.y, pond.w, pond.h);
-            ctx.strokeStyle = '#00d2d3'; ctx.lineWidth = 2;
-            ctx.strokeRect(pond.x, pond.y, pond.w, pond.h);
+            ctx.fillStyle = 'rgba(0, 197, 255, 0.22)'; ctx.fillRect(pond.x, pond.y, pond.w, pond.h);
+            ctx.strokeStyle = '#00a8ff'; ctx.lineWidth = 3; ctx.strokeRect(pond.x, pond.y, pond.w, pond.h);
         }
 
         // Plattformen
-        ctx.fillStyle = '#1e1e24';
         for (let plat of PLATFORMS) {
-            ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = '#ff4757'; ctx.fillRect(plat.x, plat.y, plat.w, 3); ctx.fillStyle = '#1e1e24';
+            ctx.fillStyle = '#1b1b22'; ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+            ctx.fillStyle = '#ff4757'; ctx.fillRect(plat.x, plat.y, plat.w, 4); 
         }
 
-        // Monster
-        ctx.fillStyle = '#ff9f43';
+        // Goldmünzen
+        ctx.fillStyle = '#ffa502';
+        for (let cId in allCoins) {
+            let coin = allCoins[cId];
+            ctx.beginPath(); ctx.arc(coin.x + 10, coin.y + 10, 8, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Monster (Böse Schleimbolzen mit HP Balken)
         for (let mId in allMonsters) {
             let m = allMonsters[mId];
-            ctx.fillRect(m.x, m.y, 32, 28);
+            ctx.fillStyle = '#fa8231'; ctx.fillRect(m.x, m.y, 32, 28);
+            // Monster Auge
+            ctx.fillStyle = '#fff'; ctx.fillRect(m.x + (m.dir === 1 ? 20 : 6), m.y + 6, 6, 6);
         }
 
-        // Mitspieler & Waffen-Tags rendern
+        // Fliegende Ranged Bullets zeichnen
+        for(let bId in allBullets) {
+            let b = allBullets[bId];
+            ctx.fillStyle = b.color || '#fff';
+            ctx.beginPath(); ctx.arc(b.x, b.y, b.size || 5, 0, Math.PI*2); ctx.fill();
+        }
+
+        // Alle aktiven Spieler + Nahkampf-Animationen zeichnen
         for (let pId in allPlayers) {
             let p = allPlayers[pId];
             let isMe = (pId === myUid);
             let drawX = isMe ? playerX : p.x; let drawY = isMe ? playerY : p.y;
+            let currentHp = isMe ? myHp : (p.hp || 100);
 
-            ctx.fillStyle = isMe ? myColor : '#3498db';
-            ctx.fillRect(drawX, drawY, playerWidth, playerHeight);
+            // Spielerbox
+            ctx.fillStyle = isMe ? myColor : '#2f3542';
+            ctx.beginPath(); ctx.roundRect(drawX, drawY, playerWidth, playerHeight, 5); ctx.fill();
 
-            // Waffe optisch unter dem Namen anzeigen
+            // Visier/Augen-Binde basierend auf Blickrichtung
+            ctx.fillStyle = '#ff4757';
+            let pDir = p.facingDir || 1;
+            if (pDir === 1) ctx.fillRect(drawX + 14, drawY + 10, 14, 6);
+            else ctx.fillRect(drawX + 4, drawY + 10, 14, 6);
+
+            // Nahkampf-Schlag-Effekt rendern (falls Spieler schlägt)
+            if(p.isAttacking) {
+                ctx.strokeStyle = WEAPONS_SHOP[p.weapon || 'starter'].color;
+                ctx.lineWidth = 4; ctx.beginPath();
+                if(pDir === 1) ctx.arc(drawX + playerWidth, drawY + 20, 30, -Math.PI/3, Math.PI/3);
+                else ctx.arc(drawX, drawY + 20, 30, Math.PI - Math.PI/3, Math.PI + Math.PI/3);
+                ctx.stroke();
+            }
+
+            // HP-Balken über dem Kopf
+            let barW = 40; let barH = 5;
+            let barX = drawX + playerWidth/2 - barW/2; let barY = drawY - 32;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(barX, barY, barW, barH);
+            ctx.fillStyle = currentHp > 40 ? '#2ed573' : '#ff4757';
+            ctx.fillRect(barX, barY, barW * (currentHp / 100), barH);
+
+            // Name & Waffentyp anheften
             ctx.fillStyle = '#ffffff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(p.username || "User", drawX + playerWidth/2, drawY - 24);
-            
-            ctx.fillStyle = '#eccc68'; ctx.font = '9px monospace';
-            ctx.fillText(`⚔️ ${p.weapon || "Dolch"}`, drawX + playerWidth/2, drawY - 12);
+            ctx.fillText(p.username || "User", drawX + playerWidth/2, drawY - 20);
+            ctx.fillStyle = '#a4b0be'; ctx.font = '9px monospace';
+            ctx.fillText(`${WEAPONS_SHOP[p.weapon || 'starter'].name}`, drawX + playerWidth/2, drawY - 10);
         }
 
         ctx.restore();
