@@ -1,69 +1,95 @@
-<!DOCTYPE html>
+´<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Maelist - Platformer Arena 🎮</title>
+    <title>Maelist - Cyber Platformer Arena 🎮</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body {
-            margin: 0; padding: 0; background: #1a1a1a;
-            font-family: sans-serif; color: #fff;
+            margin: 0; padding: 0; background: #0f0f13;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #fff;
             display: flex; flex-direction: column; align-items: center;
             overflow: hidden; height: 100vh;
         }
-        header { text-align: center; padding: 10px; width: 100%; background: #2c3e50; border-bottom: 3px solid #e74c3c; z-index: 5; }
-        h1 { margin: 0; font-size: 1.3rem; color: #e74c3c; }
+        header { 
+            text-align: center; padding: 12px; width: 100%; 
+            background: linear-gradient(135deg, #1e1e24, #2a2b36); 
+            border-bottom: 3px solid #ff4757; z-index: 5;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h1 { margin: 0; font-size: 1.4rem; color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); letter-spacing: 1px; }
         
         #game-container {
-            position: relative; width: 100%; height: 60vh; background: #111; 
-            border-bottom: 4px solid #e74c3c; overflow: hidden;
+            position: relative; width: 100%; height: 60vh; background: #0b0b0e; 
+            border-bottom: 4px solid #ff4757; overflow: hidden;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
         }
-        canvas { display: block; width: 100%; height: 100%; }
+        canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
         
         /* Startbildschirm Overlay */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(17, 17, 17, 0.95); display: flex; flex-direction: column;
+            background: rgba(11, 11, 14, 0.93); display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 20;
+            backdrop-filter: blur(4px);
         }
-        .menu-box { background: #222; padding: 30px; border-radius: 15px; border: 2px solid #e74c3c; text-align: center; box-shadow: 0 0 20px rgba(231, 76, 60, 0.4); }
-        .play-btn { background: #e74c3c; color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; }
-        .play-btn:disabled { background: #555; cursor: not-allowed; }
+        .menu-box { 
+            background: #181820; padding: 35px; border-radius: 16px; 
+            border: 2px solid #ff4757; text-align: center; 
+            box-shadow: 0 0 30px rgba(255, 71, 87, 0.25);
+            max-width: 90%; width: 360px;
+        }
+        .play-btn { 
+            background: linear-gradient(135deg, #ff4757, #ff6b81); color: white; border: none; 
+            padding: 16px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; 
+            cursor: pointer; margin-top: 20px; width: 100%;
+            box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4);
+            transition: transform 0.1s, filter 0.2s;
+        }
+        .play-btn:active { transform: scale(0.98); filter: brightness(1.1); }
+        .play-btn:disabled { background: #444; box-shadow: none; cursor: not-allowed; }
 
         /* Fake-Werbung Overlay */
         #ad-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 30;
+            background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 30;
         }
-        .ad-timer { font-size: 11px; color: #555; margin-top: 10px; }
+        .ad-timer { font-size: 12px; color: #666; margin-top: 15px; font-family: monospace; }
 
         /* Live Scoreliste / Leaderboard */
         #leaderboard {
-            position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.7);
-            padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            font-family: monospace; font-size: 12px; max-width: 180px; z-index: 10;
+            position: absolute; top: 12px; right: 12px; background: rgba(20, 20, 27, 0.85);
+            padding: 12px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+            font-family: 'Courier New', monospace; font-size: 13px; min-width: 180px; z-index: 10;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); backdrop-filter: blur(3px);
         }
-        #leaderboard h3 { margin: 0 0 5px 0; color: #e74c3c; font-size: 13px; text-transform: uppercase; }
-        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 2px; }
+        #leaderboard h3 { margin: 0 0 8px 0; color: #ff4757; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        .leaderboard-entry { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; border-bottom: 1px dashed rgba(255,255,255,0.05); padding-bottom: 2px;}
 
-        /* Control Panel angepasst für Jump & Run */
+        /* Control Panel */
         #control-panel {
             display: flex; align-items: center; justify-content: space-between;
-            width: 100%; flex-grow: 1; background: #222; padding: 20px; box-shadow: inset 0 5px 10px rgba(0,0,0,0.5);
+            width: 100%; flex-grow: 1; background: #141419; padding: 20px 30px; 
+            box-shadow: inset 0 8px 16px rgba(0,0,0,0.6); z-index: 5;
         }
-        .dpad { display: flex; gap: 15px; }
+        .dpad { display: flex; gap: 20px; }
         .ctrl-btn {
-            width: 75px; height: 75px; background: #34495e; border: 3px solid #2c3e50;
-            border-radius: 12px; color: white; font-weight: bold; font-size: 24px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 5px rgba(0,0,0,0.4); touch-action: none; cursor: pointer;
+            width: 80px; height: 80px; background: linear-gradient(135deg, #2f3542, #1e222b); 
+            border: 2px solid #57606f; border-radius: 16px; color: #f1f2f6; 
+            font-weight: bold; font-size: 26px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 10px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.1); 
+            touch-action: none; cursor: pointer; transition: transform 0.05s;
         }
-        .ctrl-btn:active { background: #2c3e50; transform: scale(0.95); }
-        .jump-btn { background: #2ecc71; border-color: #27ae60; border-radius: 50%; width: 90px; height: 90px; font-size: 16px; }
-        .jump-btn:active { background: #27ae60; }
+        .ctrl-btn:active { background: #1e222b; transform: translateY(3px); box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
+        .jump-btn { 
+            background: linear-gradient(135deg, #2ed573, #26af5a); border-color: #26af5a; 
+            border-radius: 50%; width: 100px; height: 100px; font-size: 18px; letter-spacing: 1px;
+            box-shadow: 0 6px 12px rgba(46, 213, 115, 0.35);
+        }
+        .jump-btn:active { background: #26af5a; }
         
-        #lobby-status { font-size: 14px; margin-top: 5px; color: #aaa; text-align: center; width: 100%; padding: 5px; background: #222;}
+        #lobby-status { font-size: 13px; margin-top: 5px; color: #888; text-align: center; width: 100%; padding: 6px; background: #141419; letter-spacing: 0.5px;}
     </style>
 </head>
 <body>
@@ -76,33 +102,34 @@
 <div id="game-container">
     <div id="start-screen">
         <div class="menu-box">
-            <h2 style="margin:0; color:#e74c3c;">Bereit zum Springen?</h2>
-            <p id="player-welcome" style="color:#aaa; font-size:14px; margin: 10px 0;">Lade Spieldaten...</p>
+            <h2 style="margin:0; color:#ff4757; font-size: 24px;">Bereit zum Springen?</h2>
+            <p id="player-welcome" style="color:#a4b0be; font-size:14px; margin: 12px 0 20px 0;">Lade Spieldaten...</p>
             <button class="play-btn" id="join-btn" disabled>Arena betreten</button>
+            <div style="font-size: 11px; color:#57606f; margin-top:15px;">Steuerung: A/D, Pfeiltasten oder Buttons<br><b>[Leertaste] zum Springen!</b></div>
         </div>
     </div>
 
     <div id="ad-overlay">
         <div style="
-                background: linear-gradient(45deg, #ff007f, #ffaa00);
+                background: linear-gradient(135deg, #ff007f, #ff9f43);
                 color: white;
                 font-family: sans-serif;
                 font-size: 22px;
                 font-weight: bold;
                 text-align: center;
-                padding: 30px;
+                padding: 35px;
                 border: 6px dashed #ffffff;
-                border-radius: 15px;
-                box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+                border-radius: 20px;
+                box-shadow: 0 15px 35px rgba(0,0,0,0.5);
                 text-transform: uppercase;
                 margin: 20px auto;
                 max-width: 450px;
                 cursor: pointer;
             " 
-            onclick="alert('Klick gerettet! Reagiere schneller beim nächsten Abgrund.');">
+            onclick="alert('Gerettet! Finger auf die Leertaste und weiter gehts!');">
             
             ✨ <u>Hier könnte Ihre Werbung stehen!</u> ✨
-            <span style="display: block; font-size: 13px; margin-top: 10px; font-weight: normal; font-style: italic; opacity: 0.9;">
+            <span style="display: block; font-size: 13px; margin-top: 12px; font-weight: normal; font-style: italic; opacity: 0.95;">
                 (Oder Tipps wie man Monstern gekonnt auf den Kopf springt.)
             </span>
         
@@ -111,7 +138,7 @@
     </div>
 
     <div id="leaderboard">
-        <h3>🏆 Top Player</h3>
+        <h3>🏆 Top Leader</h3>
         <div id="leaderboard-list">Warte auf Spieler...</div>
     </div>
 
@@ -153,43 +180,36 @@
     const adOverlay = document.getElementById('ad-overlay');
     const leaderboardList = document.getElementById('leaderboard-list');
 
-    // WELT PARAMETER
     const WORLD_WIDTH = 3000;
     const WORLD_HEIGHT = 1600;
-    const GRAVITY = 0.5;
-    const MAX_MONSTERS = 15;
+    const GRAVITY = 0.55;
+    const MAX_MONSTERS = 16;
 
-    // Statische Plattformen (X, Y, Breite, Höhe)
     const PLATFORMS = [
-        { x: 0, y: 1500, w: 3000, h: 100 }, // Boden
-        // Ebene 1
-        { x: 200, y: 1320, w: 400, h: 30 },
-        { x: 800, y: 1250, w: 500, h: 30 },
-        { x: 1500, y: 1320, w: 400, h: 30 },
-        { x: 2100, y: 1200, w: 600, h: 30 },
-        // Ebene 2
-        { x: 400, y: 1050, w: 350, h: 30 },
-        { x: 1000, y: 980, w: 400, h: 30 },
-        { x: 1700, y: 1050, w: 350, h: 30 },
-        // Ebene 3 (Höher)
-        { x: 100, y: 800, w: 250, h: 30 },
-        { x: 600, y: 750, w: 300, h: 30 },
-        { x: 1200, y: 700, w: 500, h: 30 },
-        { x: 2000, y: 800, w: 400, h: 30 },
-        // Höchste Plattformen
-        { x: 400, y: 500, w: 400, h: 30 },
-        { x: 1400, y: 450, w: 300, h: 30 },
-        { x: 2100, y: 500, w: 400, h: 30 }
+        { x: 0, y: 1500, w: 3000, h: 100, color: "#1e272e" },
+        { x: 200, y: 1320, w: 400, h: 30, color: "#2c3e50" },
+        { x: 800, y: 1250, w: 500, h: 30, color: "#2c3e50" },
+        { x: 1500, y: 1320, w: 400, h: 30, color: "#2c3e50" },
+        { x: 2100, y: 1200, w: 600, h: 30, color: "#2c3e50" },
+        { x: 400, y: 1050, w: 350, h: 30, color: "#2c3e50" },
+        { x: 1000, y: 980, w: 400, h: 30, color: "#2c3e50" },
+        { x: 1700, y: 1050, w: 350, h: 30, color: "#2c3e50" },
+        { x: 100, y: 800, w: 250, h: 30, color: "#2c3e50" },
+        { x: 600, y: 750, w: 300, h: 30, color: "#2c3e50" },
+        { x: 1200, y: 700, w: 500, h: 30, color: "#2c3e50" },
+        { x: 2000, y: 800, w: 400, h: 30, color: "#2c3e50" },
+        { x: 400, y: 500, w: 400, h: 30, color: "#2c3e50" },
+        { x: 1400, y: 450, w: 300, h: 30, color: "#2c3e50" },
+        { x: 2100, y: 500, w: 400, h: 30, color: "#2c3e50" }
     ];
 
     let myUid = null;
     let myUsername = "Anonym";
-    let myColor = `hsl(${Math.random() * 360}, 80%, 50%)`;
+    let myColor = `hsl(${Math.random() * 360}, 85%, 55%)`;
     
-    // Eigene Physik-Objekt Struktur
     let playerX = 100, playerY = 1300;
     let playerVx = 0, playerVy = 0;
-    let playerWidth = 32, playerHeight = 48;
+    let playerWidth = 32, playerHeight = 46;
     let isGrounded = false;
     let myScore = 0;
 
@@ -198,7 +218,6 @@
     let isPlaying = false;
     let isHost = false;
 
-    // Inputs
     let keys = { a: false, d: false, ArrowLeft: false, ArrowRight: false, Space: false, w: false, ArrowUp: false };
     let lastFrameTime = 0;
 
@@ -210,7 +229,7 @@
     resizeCanvas();
 
     // ----------------------------------------------------
-    // HOST MECHANIK (Für die Monster-Berechnung)
+    // HOST ELEKTION (Zurück auf originalen Pfad)
     // ----------------------------------------------------
     function setupHostElection() {
         onValue(ref(db, 'games/platformer/players'), (snap) => {
@@ -222,15 +241,15 @@
                 if (playerIds[0] === myUid) {
                     if (!isHost) {
                         isHost = true;
-                        lobbyStatus.innerText = "Du bist der Arena-Host (Berechnet Monster) 👑";
+                        lobbyStatus.innerText = "Du bist der Arena-Host (Server-Modus) 👑";
                         lobbyStatus.style.color = "#2ecc71";
                         startHostLogic();
                     }
                 } else {
                     if (isHost) {
                         isHost = false;
-                        lobbyStatus.innerText = "Verbunden | Client-Modus";
-                        lobbyStatus.style.color = "#aaa";
+                        lobbyStatus.innerText = "Verbunden | Client-Modus 🕹️";
+                        lobbyStatus.style.color = "#a4b0be";
                     }
                 }
             } else {
@@ -241,7 +260,6 @@
     }
 
     function startHostLogic() {
-        // Monster-Verwaltungsschleife des Hosts (Erstellen & Bewegen)
         const hostInterval = setInterval(() => {
             if (!isHost) { clearInterval(hostInterval); return; }
 
@@ -252,28 +270,25 @@
                 
                 for(let i=0; i < amountToSpawn; i++) { 
                     let mId = "monster_" + Date.now() + "_" + Math.round(Math.random()*1000);
-                    // Sucht eine zufällige Plattform (außer dem direkten Boden), um darauf zu patrouillieren
                     let plat = PLATFORMS[Math.floor(Math.random() * (PLATFORMS.length - 1)) + 1];
                     
                     newMonsters[mId] = {
-                        x: plat.x + Math.random() * (plat.w - 30),
-                        y: plat.y - 30,
+                        x: plat.x + Math.random() * (plat.w - 32),
+                        y: plat.y - 28,
                         platX1: plat.x,
                         platX2: plat.x + plat.w,
                         dir: Math.random() > 0.5 ? 1 : -1,
-                        speed: 1.5 + Math.random() * 2
+                        speed: 1.2 + Math.random() * 1.8
                     };
                 }
                 update(ref(db, 'games/platformer/monsters'), newMonsters);
             }
 
-            // Monster lokal bewegen und updaten
             let monsterUpdates = {};
             for (let id in allMonsters) {
                 let m = allMonsters[id];
                 m.x += m.dir * m.speed;
-                // Am Ende der Plattform umdrehen
-                if (m.x <= m.platX1 || m.x >= m.platX2 - 30) {
+                if (m.x <= m.platX1 || m.x >= m.platX2 - 32) {
                     m.dir *= -1;
                 }
                 monsterUpdates[id] = m;
@@ -282,18 +297,14 @@
                 set(ref(db, 'games/platformer/monsters'), monsterUpdates);
             }
 
-        }, 40); // 25 Ticks pro Sekunde für Monster-Sync
+        }, 40);
     }
 
-    // Node-Listener für Monster
     onValue(ref(db, 'games/platformer/monsters'), (snap) => {
         if (snap.exists()) allMonsters = snap.val();
         else allMonsters = {};
     });
 
-    // ----------------------------------------------------
-    // AUTH & START LOGIK
-    // ----------------------------------------------------
     onAuthStateChanged(auth, (user) => {
         if (user) {
             myUid = user.uid;
@@ -317,8 +328,8 @@
 
     async function startNewLife() {
         myScore = 0;
-        playerX = 100 + Math.random() * 400;
-        playerY = 1300;
+        playerX = 150 + Math.random() * 500;
+        playerY = 1200;
         playerVx = 0;
         playerVy = 0;
 
@@ -327,7 +338,7 @@
         onDisconnect(myGameRef).remove();
 
         isPlaying = true;
-        if(!isHost) lobbyStatus.innerText = `Platformer Arena | Viel Erfolg!`;
+        if(!isHost) lobbyStatus.innerText = `Platformer Arena | Reagiere schnell!`;
     }
 
     function updateLeaderboard() {
@@ -343,6 +354,7 @@
 
     function triggerDeath() {
         isPlaying = false;
+        keys.Space = false; // Reset Jump State
         set(ref(db, `games/platformer/players/${myUid}`), null);
         
         adOverlay.style.display = 'flex';
@@ -360,17 +372,26 @@
         }, 1000);
     }
 
-    // Sendeintervall der eigenen Position (30ms für flüssiges Platforming)
     setInterval(() => {
         if (!myUid || !isPlaying) return;
         update(ref(db, `games/platformer/players/${myUid}`), { x: playerX, y: playerY, score: myScore });
     }, 30);
 
-    // INPUT CONTROLS (Tastatur)
-    window.addEventListener('keydown', (e) => { if (e.key in keys || e.code === 'Space') keys[e.key || e.code] = true; });
-    window.addEventListener('keyup', (e) => { if (e.key in keys || e.code === 'Space') keys[e.key || e.code] = false; });
+    // TASTATUR EVENTS (Optimiert mit preventDefault für Spacebar)
+    window.addEventListener('keydown', (e) => { 
+        if (e.code === 'Space') {
+            e.preventDefault(); // Verhindert das Scrollen der Seite bei Leertaste!
+            keys.Space = true;
+        }
+        if (e.key in keys) keys[e.key] = true; 
+    });
+    
+    window.addEventListener('keyup', (e) => { 
+        if (e.code === 'Space') keys.Space = false;
+        if (e.key in keys) keys[e.key] = false; 
+    });
 
-    // INPUT CONTROLS (Mobile Buttons)
+    // MOBILE BUTTONS
     const setupMobileBtn = (id, keyName) => {
         const btn = document.getElementById(id);
         btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; }, { passive: false });
@@ -380,7 +401,6 @@
     setupMobileBtn('btn-right', 'd');
     setupMobileBtn('btn-jump', 'Space');
 
-    // Box-Kollisions-Hilfsfunktion (AABB)
     function checkCollision(rect1, rect2) {
         return rect1.x < rect2.x + rect2.w &&
                rect1.x + rect1.w > rect2.x &&
@@ -389,13 +409,13 @@
     }
 
     // ----------------------------------------------------
-    // GAME LOOP
+    // PHYSICS & RENDERING GAME LOOP
     // ----------------------------------------------------
     function updateLoop(timestamp) {
         requestAnimationFrame(updateLoop);
 
         let elapsed = timestamp - lastFrameTime;
-        if (elapsed < 1000 / 60) return; // Begrenzung auf ca. 60 FPS
+        if (elapsed < 1000 / 60) return; 
         lastFrameTime = timestamp - (elapsed % (1000 / 60));
 
         let camX = WORLD_WIDTH / 2;
@@ -403,40 +423,34 @@
 
         if (isPlaying) {
             // Horizontaler Drive
-            if (keys.a || keys.ArrowLeft) playerVx = -5;
-            else if (keys.d || keys.ArrowRight) playerVx = 5;
+            if (keys.a || keys.ArrowLeft) playerVx = -5.5;
+            else if (keys.d || keys.ArrowRight) playerVx = 5.5;
             else playerVx = 0;
 
-            // Sprung auslösen
+            // Sprung-Triggers (Leertaste, W oder Pfeil-Nach-Oben)
             if ((keys.Space || keys.w || keys.ArrowUp) && isGrounded) {
-                playerVy = -12;
+                playerVy = -12.5;
                 isGrounded = false;
             }
 
-            // Schwerkraft anwenden
             playerVy += GRAVITY;
-
-            // X-Bewegung & Kollision
             playerX += playerVx;
+            
             if (playerX < 0) playerX = 0;
             if (playerX > WORLD_WIDTH - playerWidth) playerX = WORLD_WIDTH - playerWidth;
 
-            // Y-Bewegung & Kollision
             playerY += playerVy;
             isGrounded = false;
 
             let myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
 
-            // Plattformen prüfen
             for (let plat of PLATFORMS) {
                 if (checkCollision(myBox, plat)) {
-                    // Von oben herabfallen (Landen)
-                    if (playerVy > 0 && playerY + playerHeight - playerVy <= plat.y + 10) {
+                    if (playerVy > 0 && playerY + playerHeight - playerVy <= plat.y + 12) {
                         playerY = plat.y - playerHeight;
                         playerVy = 0;
                         isGrounded = true;
                     }
-                    // Von unten gegenstoßen (Decke)
                     else if (playerVy < 0 && playerY - playerVy >= plat.y + plat.h - 10) {
                         playerY = plat.y + plat.h;
                         playerVy = 0;
@@ -444,29 +458,26 @@
                 }
             }
 
-            // Aus der Welt gefallen? (Sicherheitsnetz)
             if (playerY > WORLD_HEIGHT) { triggerDeath(); }
 
-            // Kollision mit MONSTERN (Mario-Style Kopf-Sprung)
+            // Kollision Monster
             myBox = { x: playerX, y: playerY, w: playerWidth, h: playerHeight };
             for (let mId in allMonsters) {
                 let m = allMonsters[mId];
-                let mBox = { x: m.x, y: m.y, w: 30, h: 30 };
+                let mBox = { x: m.x, y: m.y, w: 32, h: 28 };
 
                 if (checkCollision(myBox, mBox)) {
-                    // Fallend auf den Kopf gesprungen?
                     if (playerVy > 0 && playerY + playerHeight - playerVy <= m.y + 12) {
-                        playerVy = -9; // Rückstoß-Bounce
+                        playerVy = -9.5; 
                         myScore += 10;
-                        set(ref(db, `games/platformer/monsters/${mId}`), null); // Löschen aus DB
+                        set(ref(db, `games/platformer/monsters/${mId}`), null); 
                     } else {
-                        // Seitlicher Treffer = Tod!
                         triggerDeath();
                     }
                 }
             }
 
-            // Kollision mit ANDEREN SPIELERN
+            // Kollision PvP
             for (let pId in allPlayers) {
                 if (pId === myUid) continue;
                 let op = allPlayers[pId];
@@ -474,9 +485,8 @@
 
                 if (checkCollision(myBox, opBox)) {
                     if (playerVy > 0 && playerY + playerHeight - playerVy <= op.y + 15) {
-                        playerVy = -9;
-                        myScore += 25; // Extra viele Punkte für PvP-Kills!
-                        // Der getroffene Spieler wird über ein separates Flag oder simples Nullsetzen eliminiert
+                        playerVy = -10;
+                        myScore += 25; 
                         set(ref(db, `games/platformer/players/${pId}`), null);
                     }
                 }
@@ -486,42 +496,55 @@
             camY = playerY;
         }
 
-        // --- ZEICHNEN ---
+        // --- SCHÖNER ZEICHNEN ---
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.save();
 
-        // Kamera-Zoom & Bewegung zentrieren
-        let zoom = Math.max(canvas.width / 1000, canvas.height / 600);
+        let zoom = Math.max(canvas.width / 1100, canvas.height / 650);
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.scale(zoom, zoom);
         ctx.translate(-camX, -camY);
 
-        // Weltgrenze zeichnen
-        ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 10;
+        // Cyber-Grid Background (Gitterlinien für Geschwindigkeitsgefühl)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < WORLD_WIDTH; x += 60) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_HEIGHT); ctx.stroke();
+        }
+        for (let y = 0; y < WORLD_HEIGHT; y += 60) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(WORLD_WIDTH, y); ctx.stroke();
+        }
+
+        // Rote Map-Außengrenze (Neon Leuchten simuliert)
+        ctx.strokeStyle = '#ff4757'; ctx.lineWidth = 8;
         ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
-        // Plattformen zeichnen
-        ctx.fillStyle = '#34495e';
+        // Plattformen zeichnen (Mit cooler Neon-Kante)
         for (let plat of PLATFORMS) {
+            ctx.fillStyle = '#1e1e24';
             ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
-            ctx.fillStyle = '#2c3e50';
-            ctx.fillRect(plat.x, plat.y, plat.w, 6); // Platform-Top-Line
-            ctx.fillStyle = '#34495e';
+            
+            // Leuchtende Oberkante
+            ctx.fillStyle = '#00d2d3';
+            ctx.fillRect(plat.x, plat.y, plat.w, 4); 
         }
 
-        // Monster zeichnen
-        ctx.fillStyle = '#e67e22';
+        // Monster zeichnen (Als giftig-leuchtende Schleimbolzen)
         for (let mId in allMonsters) {
             let m = allMonsters[mId];
-            ctx.fillRect(m.x, m.y, 30, 30);
+            ctx.fillStyle = '#ff9f43';
+            ctx.beginPath();
+            ctx.roundRect(m.x, m.y, 32, 28, 6);
+            ctx.fill();
             
-            // Grimmige Monsteraugen
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(m.x + (m.dir === 1 ? 16 : 4), m.y + 6, 8, 8);
-            ctx.fillStyle = '#e67e22';
+            // Böse Augen
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(m.x + (m.dir === 1 ? 18 : 4), m.y + 6, 8, 8);
+            ctx.fillStyle = '#ff4757';
+            ctx.fillRect(m.x + (m.dir === 1 ? 22 : 6), m.y + 8, 4, 4);
         }
 
-        // Alle Spieler zeichnen
+        // Spieler zeichnen
         for (let pId in allPlayers) {
             let p = allPlayers[pId];
             let isMe = (pId === myUid);
@@ -529,17 +552,24 @@
             let drawX = isMe ? playerX : p.x;
             let drawY = isMe ? playerY : p.y;
 
-            // Spieler-Körper
+            // Box-Shadow (Körper)
             ctx.fillStyle = isMe ? myColor : (p.color || '#3498db');
-            ctx.fillRect(drawX, drawY, playerWidth, playerHeight);
+            ctx.beginPath();
+            ctx.roundRect(drawX, drawY, playerWidth, playerHeight, 4);
+            ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.stroke();
 
-            // "Gesicht" / Blickrichtung-Indikator
+            // Stylisches Visier/Brille statt simpler Klötze
+            ctx.fillStyle = '#00d2d3';
+            ctx.fillRect(drawX + 6, drawY + 10, playerWidth - 12, 10);
             ctx.fillStyle = '#fff';
-            ctx.fillRect(drawX + 8, drawY + 10, 16, 12);
+            ctx.fillRect(drawX + 8, drawY + 11, 4, 2); // Glanzpunkt Visier
 
-            // Name & Score über der Figur
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText((p.username || "User") + ` (${p.score || 0})`, drawX + playerWidth/2, drawY - 15);
+            // Nametag & Score
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+            ctx.shadowColor = 'black'; ctx.shadowBlur = 4;
+            ctx.fillText((p.username || "User") + ` [${p.score || 0}]`, drawX + playerWidth/2, drawY - 14);
+            ctx.shadowBlur = 0; // Reset Shadow
         }
 
         ctx.restore();
