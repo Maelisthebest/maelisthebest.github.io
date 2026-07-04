@@ -111,7 +111,7 @@
                 currentUsername = snap.val() || "User";
             }, { onlyOnce: true });
         } else {
-            window.location.href = "index.html"; // Kicked, falls nicht eingeloggt
+            window.location.href = "index.html"; // Weiterleitung, falls nicht eingeloggt
         }
     });
 
@@ -140,7 +140,6 @@
         }
     }
 
-    // Normales Zeichnen & Pixel-Zeichnen Events
     function getCoords(e) {
         const rect = canvas.getBoundingClientRect();
         return {
@@ -159,14 +158,12 @@
         const color = document.getElementById('colorPicker').value;
 
         if (isPixelMode) {
-            // Runden auf das 16x16 Raster
             const gridX = Math.floor(coords.x / pixelSize) * pixelSize;
             const gridY = Math.floor(coords.y / pixelSize) * pixelSize;
             ctx.fillStyle = color;
             ctx.fillRect(gridX, gridY, pixelSize, pixelSize);
-            drawPixelGrid(); // Grid-Linien sichtbar halten
+            drawPixelGrid(); 
         } else {
-            // Freihand zeichnen
             ctx.lineWidth = document.getElementById('brushSize').value;
             ctx.lineCap = 'round';
             ctx.strokeStyle = color;
@@ -185,9 +182,9 @@
             const img = new Image();
             img.onload = function(){
                 isPixelMode = false;
-                document.getElementById('pixelModeBtn').innerText = "👾 Pixel-Grid aktivieren";
+                document.getElementById('pixelModeBtn').innerText = "👾 Pixel-Grid aktivieren (16x16)";
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                // Proportional einpassen
+                
                 const hRatio = canvas.width / img.width;
                 const vRatio = canvas.height / img.height;
                 const ratio  = Math.min(hRatio, vRatio);
@@ -215,27 +212,19 @@
         statusMsg.innerText = "Verarbeite Bild & Upload...";
         
         try {
-            // 1. Canvas in Base64 Daten-String umwandeln
             const dataURL = canvas.toDataURL('image/jpeg', 0.8);
-            
-            // 2. Einzigartigen Namen für Storage erzeugen
             const fileId = push(dbRef(db, 'gallery')).key;
             const imgStorageRef = storageRef(storage, `gallery/${fileId}.jpg`);
 
-            // 3. In Firebase Storage hochladen (über uploadString)
             await uploadString(imgStorageRef, dataURL, 'data_url');
             const downloadURL = await getDownloadURL(imgStorageRef);
 
-            // 4. Eintrag in Realtime Database speichern
             await set(dbRef(db, `gallery/${fileId}`), {
                 id: fileId,
                 url: downloadURL,
                 creator: currentUsername,
                 creatorId: currentUserId,
                 likesCount: 0,
-                // Wichtig für umgekehrte Sortierung: Firebase sortiert immer aufsteigend. 
-                // Mit einem Minus-Wert steht das Bild mit den meisten Likes ganz oben!
-                negativeLikesCount: 0, 
                 timestamp: Date.now()
             });
 
@@ -248,15 +237,12 @@
     });
 
 
-    // --- GALERIE ANZEIGEN & LIKEN & SORTIEREN ---
-    // Wir fragen die Daten ab und sortieren sie direkt über Firebase nach 'negativeLikesCount'
+    // --- GALERIE ANZEIGEN, SOWIE LIKEN & SORTIEREN ---
     const galleryRef = dbRef(db, 'gallery');
     
-    // Hilfsfunktion: Firebase bietet keine native sortierte Live-Liste im SDK ohne Querys, 
-    // daher sortieren wir das Array aus Sicherheitsgründen hier flüssig im Frontend nach Likes.
     onValue(galleryRef, (snapshot) => {
         const galleryDiv = document.getElementById('gallery');
-        galleryDiv.innerHTML = ""; // Leeren
+        galleryDiv.innerHTML = ""; 
         
         if (!snapshot.exists()) {
             galleryDiv.innerHTML = "<p style='text-align:center; grid-column: 1/-1;'>Noch keine Bilder vorhanden. Sei der Erste!</p>";
@@ -268,23 +254,25 @@
             items.push(childSnapshot.val());
         });
 
-        // Nach den meisten Likes sortieren (Absteigend)
+        // Sortierung nach Likes absteigend (meiste Likes oben)
         items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
 
         items.forEach((item) => {
             const card = document.createElement('div');
             card.className = 'card';
             
-            // Erstelldatum formatieren
             const date = new Date(item.timestamp).toLocaleDateString('de-DE');
 
+            // CORS-Sicherheits-Fix: Die URL wird über einen Image-Proxy geladen
+            const imageProxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(item.url)}`;
+
             card.innerHTML = `
-                <img src="${item.url}" alt="User Image">
+                <img src="${imageProxyUrl}" alt="User Image">
                 <div class="card-body">
                     <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
                     <div class="card-actions">
                         <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
-                        <a href="${item.url}" target="_blank" download="maelist-art-${item.id}.jpg" class="download-btn">💾 Download</a>
+                        <a href="${item.url}" target="_blank" class="download-btn">💾 Download</a>
                     </div>
                 </div>
             `;
@@ -300,15 +288,11 @@
         });
     });
 
-    // Transaktion für sicheres Hochzählen der Likes (verhindert Konflikte bei Gleichzeitigkeit)
     function handleLike(imgId) {
         const itemRef = dbRef(db, `gallery/${imgId}`);
         runTransaction(itemRef, (post) => {
             if (post) {
-                // Feature: Verhindern, dass derselbe Nutzer das Bild spammt, könnte man mit Auth-IDs verknüpfen.
-                // Für diesen simplen Fall erhöhen wir einfach die Zähler:
                 post.likesCount = (post.likesCount || 0) + 1;
-                post.negativeLikesCount = -post.likesCount; // Für die optionale Server-Sortierung
             }
             return post;
         });
