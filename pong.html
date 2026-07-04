@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Pong - Multiplayer</title>
+    <style>
+        :root { 
+            --primary: #3498db; 
+            --dark: #2c3e50; 
+            --bg: #f4f7f6; 
+        }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg); 
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        #game-container {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        canvas {
+            background: #1a252f;
+            border-radius: 10px;
+            display: block;
+            margin: 20px auto;
+        }
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: var(--dark);
+        }
+        .btn {
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .btn:hover { opacity: 0.9; }
+        #mic-bar-container {
+            width: 100%;
+            background: #ddd;
+            height: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        #mic-bar {
+            width: 0%;
+            height: 100%;
+            background: #2ecc71;
+            transition: width 0.05s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h1>🎙️ Voice Pong Multiplayer</h1>
+    <div class="info-panel">
+        <span id="player-role">Verbinde...</span>
+        <span id="score">0 : 0</span>
+    </div>
+    
+    <canvas id="pongCanvas" width="800" height="400"></canvas>
+    
+    <div>
+        <button id="start-mic-btn" class="btn">🎤 Mikrofon aktivieren & Starten</button>
+        <a href="zentrale.html" class="btn" style="background:#95a5a6;">🏠 Zurück</a>
+    </div>
+
+    <div style="margin-top: 15px; text-align: left; font-size: 14px;">
+        <strong>Deine Lautstärke:</strong>
+        <div id="mic-bar-container"><div id="mic-bar"></div></div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // Deine Firebase Konfiguration
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const canvas = document.getElementById("pongCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // Spiel-Variablen
+    let playerRole = null; // 'p1' (links) oder 'p2' (rechts) oder 'spectator'
+    let micStream = null;
+    let audioContext = null;
+    let analyser = null;
+    let dataArray = null;
+
+    // Spielstatus-Objekt (wird mit Firebase synchronisiert)
+    let gameState = {
+        p1Y: 150,
+        p2Y: 150,
+        ballX: 400,
+        ballY: 200,
+        ballVX: 4,
+        ballVY: 4,
+        score1: 0,
+        score2: 0,
+        p1Connected: false,
+        p2Connected: false
+    };
+
+    const paddleWidth = 15;
+    const paddleHeight = 80;
+    const ballRadius = 10;
+
+    // Authentifizierung prüfen
+    onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            window.location.href = "index.html"; // Zurück zum Login, falls nicht eingeloggt
+        } else {
+            determineRole(user.uid);
+        }
+    });
+
+    // Rolle bestimmen (Wer zuerst kommt, mahlt zuerst)
+    function determineRole(uid) {
+        const gameRef = ref(db, 'pongGame');
+        onValue(gameRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data) {
+                // Spiel initialisieren, wenn leer
+                set(gameRef, gameState);
+                return;
+            }
+            
+            gameState = data;
+            
+            if (!playerRole) {
+                if (!data.p1Connected) {
+                    playerRole = 'p1';
+                    update(ref(db, 'pongGame'), { p1Connected: true });
+                    document.getElementById("player-role").innerText = "Du bist: Spieler 1 (Links)";
+                } else if (!data.p2Connected) {
+                    playerRole = 'p2';
+                    update(ref(db, 'pongGame'), { p2Connected: true });
+                    document.getElementById("player-role").innerText = "Du bist: Spieler 2 (Rechts)";
+                } else {
+                    playerRole = 'spectator';
+                    document.getElementById("player-role").innerText = "Zuschauermodus (Spiel voll)";
+                }
+            }
+            
+            // Score aktualisieren
+            document.getElementById("score").innerText = `${gameState.score1} : ${gameState.score2}`;
+        });
+    }
+
+    // Mikrofon-Eingang aktivieren
+    document.getElementById("start-mic-btn").addEventListener("click", async () => {
+        if (playerRole === 'spectator') return alert("Als Zuschauer brauchst du kein Mikrofon.");
+        
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(micStream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            
+            document.getElementById("start-mic-btn").style.display = 'none';
+            
+            // Start der Spiel- und Update-Schleife
+            requestAnimationFrame(gameLoop);
+        } catch (err) {
+            console.error("Mikrofonzugriff verweigert oder nicht unterstützt:", err);
+            alert("Bitte erlaube den Zugriff auf dein Mikrofon!");
+        }
+    });
+
+    // Hauptschleife
+    function gameLoop() {
+        processVoiceInput();
+        
+        if (playerRole === 'p1') {
+            // Spieler 1 berechnet die Ballphysik, um Konflikte zu vermeiden
+            moveBall();
+            update(ref(db, 'pongGame'), {
+                p1Y: gameState.p1Y,
+                ballX: gameState.ballX,
+                ballY: gameState.ballY,
+                ballVX: gameState.ballVX,
+                ballVY: gameState.ballVY,
+                score1: gameState.score1,
+                score2: gameState.score2
+            });
+        } else if (playerRole === 'p2') {
+            // Spieler 2 sendet nur seine Position
+            update(ref(db, 'pongGame'), { p2Y: gameState.p2Y });
+        }
+
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Lautstärke analysieren und Schläger bewegen
+    function processVoiceInput() {
+        if (!analyser || !dataArray) return;
+        
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Durchschnittliche Lautstärke berechnen
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+        }
+        let averageVolume = sum / dataArray.length; // Wert zwischen 0 und 255
+
+        // Visualisierung der Lautstärkeleiste unten
+        let percent = Math.min((averageVolume / 100) * 100, 100);
+        document.getElementById("mic-bar").style.width = percent + "%";
+
+        // Mappe die Lautstärke auf die Y-Koordinate (Verkehrt herum: Laut = Oben (0))
+        // Wir nutzen eine Glättung (Interpolation), damit der Schläger nicht zu stark zappelt
+        let targetY = canvas.height - ( (averageVolume / 120) * canvas.height ) - paddleHeight/2;
+        
+        // Grenzen einhalten
+        if (targetY < 0) targetY = 0;
+        if (targetY > canvas.height - paddleHeight) targetY = canvas.height - paddleHeight;
+
+        // Position des eigenen Schlägers aktualisieren
+        if (playerRole === 'p1') {
+            gameState.p1Y = gameState.p1Y * 0.7 + targetY * 0.3; // Glättungsfaktor
+        } else if (playerRole === 'p2') {
+            gameState.p2Y = gameState.p2Y * 0.7 + targetY * 0.3;
+        }
+    }
+
+    // Ballbewegung und Kollision (wird nur von P1 berechnet)
+    function moveBall() {
+        gameState.ballX += gameState.ballVX;
+        gameState.ballY += gameState.ballVY;
+
+        // Wandkollision oben/unten
+        if (gameState.ballY - ballRadius <= 0 || gameState.ballY + ballRadius >= canvas.height) {
+            gameState.ballVY = -gameState.ballVY;
+        }
+
+        // Kollision mit Schläger 1 (Links)
+        if (gameState.ballX - ballRadius <= paddleWidth) {
+            if (gameState.ballY >= gameState.p1Y && gameState.ballY <= gameState.p1Y + paddleHeight) {
+                gameState.ballVX = -gameState.ballVX;
+                gameState.ballX = paddleWidth + ballRadius; // Glitch-Schutz
+            } else if (gameState.ballX < 0) {
+                // Punkt für Spieler 2
+                gameState.score2++;
+                resetBall();
+            }
+        }
+
+        // Kollision mit Schläger 2 (Rechts)
+        if (gameState.ballX + ballRadius >= canvas.width - paddleWidth) {
+            if (gameState.ballY >= gameState.p2Y && gameState.ballY <= gameState.p2Y + paddleHeight) {
+                gameState.ballVX = -gameState.ballVX;
+                gameState.ballX = canvas.width - paddleWidth - ballRadius; // Glitch-Schutz
+            } else if (gameState.ballX > canvas.width) {
+                // Punkt für Spieler 1
+                gameState.score1++;
+                resetBall();
+            }
+        }
+    }
+
+    function resetBall() {
+        gameState.ballX = canvas.width / 2;
+        gameState.ballY = canvas.height / 2;
+        gameState.ballVX = -gameState.ballVX; // Richtung wechseln
+    }
+
+    // Canvas zeichnen
+    function draw() {
+        // Hintergrund löschen
+        ctx.fillStyle = "#1a252f";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Mittellinie
+        ctx.strokeStyle = "rgba(255,255,255,0.2)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, 0);
+        ctx.lineTo(canvas.width / 2, canvas.height);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset Line Dash
+
+        // Schläger 1 (Links) - Blau
+        ctx.fillStyle = "#3498db";
+        ctx.fillRect(0, gameState.p1Y, paddleWidth, paddleHeight);
+
+        // Schläger 2 (Rechts) - Rot/Orange
+        ctx.fillStyle = "#e74c3c";
+        ctx.fillRect(canvas.width - paddleWidth, gameState.p2Y, paddleWidth, paddleHeight);
+
+        // Ball - Weiß
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(gameState.ballX, gameState.ballY, ballRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Beim Verlassen des Tabs den Slot wieder freigeben
+    window.addEventListener('beforeunload', () => {
+        if (playerRole === 'p1') update(ref(db, 'pongGame'), { p1Connected: false });
+        if (playerRole === 'p2') update(ref(db, 'pongGame'), { p2Connected: false });
+    });
+</script>
+
+</body>
+</html>
