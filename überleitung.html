@@ -3,54 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Zentrale</title>
+    <title>Maelist - Bildergalerie</title>
     <style>
         :root { 
             --primary: #3498db; 
-            --snake: #2ecc71; /* Schlangen-Grün */
             --success: #2ecc71; 
-            --warning: #f1c40f; 
-            --vokabel: #9b59b6; 
-            --fangspiel: #e74c3c; 
+            --danger: #e74c3c;
             --dark: #2c3e50; 
             --bg: #f4f7f6; 
         }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .hub-container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 400px; }
-        h1 { color: var(--dark); margin-bottom: 30px; font-size: 24px; }
-        .choice-btn { display: block; width: 100%; padding: 20px; margin: 15px 0; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: transform 0.2s, background 0.2s; text-decoration: none; color: white; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--dark); }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1, h2 { text-align: center; }
         
-        .btn-game { background: var(--primary); box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
-        .btn-snake { background: var(--snake); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3); }
-        .btn-fangspiel { background: var(--fangspiel); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3); }
-        .btn-chat { background: var(--success); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3); }
-        .btn-click { background: var(--warning); color: #856404; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
-        .btn-vokabel { background: var(--vokabel); box-shadow: 0 4px 15px rgba(155, 89, 182, 0.3); }
+        .nav-back { display: inline-block; margin-bottom: 20px; text-decoration: none; color: var(--primary); font-weight: bold; }
+
+        /* Editor & Upload Bereich */
+        .editor-section { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 30px; text-align: center; }
+        .canvas-container { margin: 15px auto; display: inline-block; border: 2px dashed #ccc; background: #fff; }
+        canvas { display: block; cursor: crosshair; }
+        .controls { margin: 15px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
         
-        .choice-btn:hover { transform: translateY(-3px); opacity: 0.9; }
-        .footer { margin-top: 20px; font-size: 12px; color: #999; }
+        button, label.file-label { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover, label.file-label:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-success { background: var(--success); }
+        .btn-danger { background: var(--danger); }
+        input[type="color"] { border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
+        input[type="file"] { display: none; }
+
+        /* Galerie Bereich */
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+        .card img { width: 100%; height: 220px; object-fit: contain; background: #f9f9f9; border-bottom: 1px solid #eee; }
+        .card-body { padding: 15px; display: flex; flex-direction: column; flex-grow: 1; justify-content: space-between; }
+        .card-meta { font-size: 13px; color: #7f8c8d; margin-bottom: 10px; }
+        .card-actions { display: flex; justify-content: space-between; align-items: center; }
+        
+        .like-btn { background: #f1c40f; color: #856404; display: flex; align-items: center; gap: 5px; }
+        .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 14px; }
     </style>
 </head>
 <body>
 
-<div class="hub-container">
-    <h1>Wohin als nächstes?</h1>
-    
-    <a href="game.html" class="choice-btn btn-game">🎮 Zum Spiel (Game)</a>
-    <a href="snake2.html" class="choice-btn btn-snake">🐍 Zum Snake-Spiel</a>
-    <a href="fangspiel.html" class="choice-btn btn-fangspiel">🏃 Zum Fangspiel</a>
-    <a href="chat.html" class="choice-btn btn-chat">💬 Zum Chat</a>
-    <a href="klicker.html" class="choice-btn btn-click">🏆 Klick-Meisterschaft</a>
-    <a href="vokabeln.html" class="choice-btn btn-vokabel">🇬🇷 Griechisch-Vokabelspiel</a>
+<div class="container">
+    <a href="zentrale.html" class="nav-back">⬅ Zurück zur Zentrale</a>
+    <h1>🎨 Kreativ-Studio & Galerie</h1>
 
-    <div class="footer" id="user-display">Lade Nutzerdaten...</div>
+    <div class="editor-section">
+        <h2>Bild erstellen / bearbeiten</h2>
+        <div class="controls">
+            <label class="file-label">
+                📂 Bild importieren
+                <input type="file" id="imageLoader" accept="image/*">
+            </label>
+            <button id="clearBtn" class="btn-danger">🗑️ Neu starten</button>
+            <button id="pixelModeBtn">👾 Pixel-Grid aktivieren (16x16)</button>
+            <input type="color" id="colorPicker" value="#2c3e50">
+            <input type="range" id="brushSize" min="2" max="20" value="5"> <span>Größe</span>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="editorCanvas" width="400" height="400"></canvas>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <button id="uploadBtn" class="btn-success" style="font-size: 18px; padding: 12px 25px;">🚀 Dieses Bild in Galerie posten</button>
+        </div>
+        <p id="statusMsg" style="font-weight: bold; color: var(--primary);"></p>
+    </div>
+
+    <h2>🔥 Top Bilder (Nach Likes sortiert)</h2>
+    <div class="gallery-grid" id="gallery">
+        </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+    // Deine Firebase Konfiguration
     const firebaseConfig = {
         apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
         authDomain: "maelist-chat.firebaseapp.com",
@@ -63,18 +96,224 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
+    const storage = getStorage(app);
     const auth = getAuth(app);
 
+    let currentUsername = "Anonym";
+    let currentUserId = null;
+
+    // Prüfen ob User eingeloggt ist
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            const snap = await get(ref(db, `users/${user.uid}/username`));
-            const name = snap.val() || "User";
-            document.getElementById("user-display").innerText = `Eingeloggt als ${name}`;
+            currentUserId = user.uid;
+            // Username holen
+            onValue(dbRef(db, `users/${user.uid}/username`), (snap) => {
+                currentUsername = snap.val() || "User";
+            }, { onlyOnce: true });
         } else {
-            window.location.href = "index.html";
+            window.location.href = "index.html"; // Kicked, falls nicht eingeloggt
         }
     });
-</script>
 
+    // --- CANVAS EDITOR LOGIK ---
+    const canvas = document.getElementById('editorCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let isPixelMode = false;
+    const pixelSize = 25; // 400x400 geteilt durch 25 = 16x16 Grid
+
+    // Canvas weiß grundieren
+    function clearCanvas() {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (isPixelMode) drawPixelGrid();
+    }
+    clearCanvas();
+
+    function drawPixelGrid() {
+        ctx.strokeStyle = "#e0e0e0";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < canvas.width; x += pixelSize) {
+            for (let y = 0; y < canvas.height; y += pixelSize) {
+                ctx.strokeRect(x, y, pixelSize, pixelSize);
+            }
+        }
+    }
+
+    // Normales Zeichnen & Pixel-Zeichnen Events
+    function getCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+
+    canvas.addEventListener('mousedown', (e) => { drawing = true; draw(e); });
+    canvas.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', () => drawing = false);
+
+    function draw(e) {
+        if (!drawing) return;
+        const coords = getCoords(e);
+        const color = document.getElementById('colorPicker').value;
+
+        if (isPixelMode) {
+            // Runden auf das 16x16 Raster
+            const gridX = Math.floor(coords.x / pixelSize) * pixelSize;
+            const gridY = Math.floor(coords.y / pixelSize) * pixelSize;
+            ctx.fillStyle = color;
+            ctx.fillRect(gridX, gridY, pixelSize, pixelSize);
+            drawPixelGrid(); // Grid-Linien sichtbar halten
+        } else {
+            // Freihand zeichnen
+            ctx.lineWidth = document.getElementById('brushSize').value;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = color;
+            ctx.lineTo(coords.x, coords.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(coords.x, coords.y);
+        }
+    }
+    canvas.addEventListener('mousedown', () => { if(!isPixelMode) ctx.beginPath(); });
+
+    // Bild-Datei importieren
+    document.getElementById('imageLoader').addEventListener('change', (e) => {
+        const reader = new FileReader();
+        reader.onload = function(event){
+            const img = new Image();
+            img.onload = function(){
+                isPixelMode = false;
+                document.getElementById('pixelModeBtn').innerText = "👾 Pixel-Grid aktivieren";
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Proportional einpassen
+                const hRatio = canvas.width / img.width;
+                const vRatio = canvas.height / img.height;
+                const ratio  = Math.min(hRatio, vRatio);
+                const centerShift_x = (canvas.width - img.width*ratio) / 2;
+                const centerShift_y = (canvas.height - img.height*ratio) / 2;  
+                ctx.drawImage(img, 0, 0, img.width, img.height, centerShift_x, centerShift_y, img.width*ratio, img.height*ratio);
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(e.target.files[0]);
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', clearCanvas);
+    
+    document.getElementById('pixelModeBtn').addEventListener('click', () => {
+        isPixelMode = !isPixelMode;
+        document.getElementById('pixelModeBtn').innerText = isPixelMode ? "✏️ Freihand Modus" : "👾 Pixel-Grid aktivieren (16x16)";
+        clearCanvas();
+    });
+
+
+    // --- FIREBASE UPLOAD LOGIK ---
+    document.getElementById('uploadBtn').addEventListener('click', async () => {
+        const statusMsg = document.getElementById('statusMsg');
+        statusMsg.innerText = "Verarbeite Bild & Upload...";
+        
+        try {
+            // 1. Canvas in Base64 Daten-String umwandeln
+            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // 2. Einzigartigen Namen für Storage erzeugen
+            const fileId = push(dbRef(db, 'gallery')).key;
+            const imgStorageRef = storageRef(storage, `gallery/${fileId}.jpg`);
+
+            // 3. In Firebase Storage hochladen (über uploadString)
+            await uploadString(imgStorageRef, dataURL, 'data_url');
+            const downloadURL = await getDownloadURL(imgStorageRef);
+
+            // 4. Eintrag in Realtime Database speichern
+            await set(dbRef(db, `gallery/${fileId}`), {
+                id: fileId,
+                url: downloadURL,
+                creator: currentUsername,
+                creatorId: currentUserId,
+                likesCount: 0,
+                // Wichtig für umgekehrte Sortierung: Firebase sortiert immer aufsteigend. 
+                // Mit einem Minus-Wert steht das Bild mit den meisten Likes ganz oben!
+                negativeLikesCount: 0, 
+                timestamp: Date.now()
+            });
+
+            statusMsg.innerText = "🎉 Erfolgreich hochgeladen!";
+            setTimeout(() => statusMsg.innerText = "", 3000);
+        } catch (err) {
+            console.error(err);
+            statusMsg.innerText = "Fehler: " + err.message;
+        }
+    });
+
+
+    // --- GALERIE ANZEIGEN & LIKEN & SORTIEREN ---
+    // Wir fragen die Daten ab und sortieren sie direkt über Firebase nach 'negativeLikesCount'
+    const galleryRef = dbRef(db, 'gallery');
+    
+    // Hilfsfunktion: Firebase bietet keine native sortierte Live-Liste im SDK ohne Querys, 
+    // daher sortieren wir das Array aus Sicherheitsgründen hier flüssig im Frontend nach Likes.
+    onValue(galleryRef, (snapshot) => {
+        const galleryDiv = document.getElementById('gallery');
+        galleryDiv.innerHTML = ""; // Leeren
+        
+        if (!snapshot.exists()) {
+            galleryDiv.innerHTML = "<p style='text-align:center; grid-column: 1/-1;'>Noch keine Bilder vorhanden. Sei der Erste!</p>";
+            return;
+        }
+
+        const items = [];
+        snapshot.forEach((childSnapshot) => {
+            items.push(childSnapshot.val());
+        });
+
+        // Nach den meisten Likes sortieren (Absteigend)
+        items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
+
+        items.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            // Erstelldatum formatieren
+            const date = new Date(item.timestamp).toLocaleDateString('de-DE');
+
+            card.innerHTML = `
+                <img src="${item.url}" alt="User Image">
+                <div class="card-body">
+                    <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
+                    <div class="card-actions">
+                        <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
+                        <a href="${item.url}" target="_blank" download="maelist-art-${item.id}.jpg" class="download-btn">💾 Download</a>
+                    </div>
+                </div>
+            `;
+            galleryDiv.appendChild(card);
+        });
+
+        // Klick-Events für Like-Buttons zuweisen
+        document.querySelectorAll('.like-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const imgId = e.currentTarget.getAttribute('data-id');
+                handleLike(imgId);
+            });
+        });
+    });
+
+    // Transaktion für sicheres Hochzählen der Likes (verhindert Konflikte bei Gleichzeitigkeit)
+    function handleLike(imgId) {
+        const itemRef = dbRef(db, `gallery/${imgId}`);
+        runTransaction(itemRef, (post) => {
+            if (post) {
+                // Feature: Verhindern, dass derselbe Nutzer das Bild spammt, könnte man mit Auth-IDs verknüpfen.
+                // Für diesen simplen Fall erhöhen wir einfach die Zähler:
+                post.likesCount = (post.likesCount || 0) + 1;
+                post.negativeLikesCount = -post.likesCount; // Für die optionale Server-Sortierung
+            }
+            return post;
+        });
+    }
+
+</script>
 </body>
 </html>
