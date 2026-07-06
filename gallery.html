@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Bildergaleriev v0.3</title>
+    <title>Maelist - Bildergalerie</title>
     <style>
         :root { 
             --primary: #3498db; 
@@ -212,37 +211,40 @@
         clearCanvas();
     });
 
-    // --- NEUE INTELLIGENTE UPLOAD LOGIK (Garantiert CORS-frei) ---
+    // --- NEUE INTELLIGENTE UPLOAD LOGIK (CORS-frei & Fix für ImgBB) ---
     document.getElementById('uploadBtn').addEventListener('click', async () => {
         const statusMsg = document.getElementById('statusMsg');
         statusMsg.innerText = "Verarbeite Bild & lade hoch...";
         
         try {
-            // Wir komprimieren das Bild als Base64-String
+            // 1. Bild aus dem Canvas holen
             const dataURL = canvas.toDataURL('image/jpeg', 0.7);
             const base64Data = dataURL.split(',')[1];
 
-            // Wir nutzen einen anonymen, freien Image-Host-Dienst (freeimage.host API oder Imgur-Struktur)
-            // Um maximale Stabilität ohne API-Keys zu garantieren, laden wir es über ein stabiles Gateway hoch
-            const formData = new FormData();
-            formData.append('image', base64Data);
+            // 2. Daten exakt so verpacken, wie ImgBB es verlangt (URL-encoded)
+            const bodyData = new URLSearchParams();
+            bodyData.append('image', base64Data);
 
-            // Upload via freiem, CORS-offenem API-Endpunkt
+            // 3. Absenden an die API
             const response = await fetch('https://api.imgbb.com/1/upload?key=67f6517a61d1e43440b8a1c92cb6c185', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: bodyData
             });
 
             const result = await response.json();
             
             if (!result.success) {
-                throw new Error("Server-Upload fehlgeschlagen.");
+                console.error("ImgBB Fehler-Details:", result);
+                throw new Error(result.error ? result.error.message : "Server-Upload fehlgeschlagen.");
             }
 
             const downloadURL = result.data.url;
             const fileId = push(dbRef(db, 'gallery')).key;
 
-            // In der Firebase Realtime Database eintragen (Das klappt immer, da es kein Storage ist!)
+            // 4. In der Firebase Realtime Database speichern
             await set(dbRef(db, `gallery/${fileId}`), {
                 id: fileId,
                 url: downloadURL,
