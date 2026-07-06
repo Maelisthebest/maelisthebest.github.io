@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Bildergalerie v 0.3</title>
+    <title>Maelist - Bildergalerie</title>
     <style>
         :root { 
             --primary: #3498db; 
@@ -40,7 +40,7 @@
         .card-actions { display: flex; justify-content: space-between; align-items: center; }
         
         .like-btn { background: #f1c40f; color: #856404; display: flex; align-items: center; gap: 5px; }
-        .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; }
     </style>
 </head>
 <body>
@@ -73,8 +73,7 @@
     </div>
 
     <h2>🔥 Top Bilder (Nach Likes sortiert)</h2>
-    <div class="gallery-grid" id="gallery">
-        </div>
+    <div class="gallery-grid" id="gallery"></div>
 </div>
 
 <script type="module">
@@ -83,7 +82,6 @@
     import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-    // Deine Firebase Konfiguration
     const firebaseConfig = {
         apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
         authDomain: "maelist-chat.firebaseapp.com",
@@ -102,16 +100,14 @@
     let currentUsername = "Anonym";
     let currentUserId = null;
 
-    // Prüfen ob User eingeloggt ist
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUserId = user.uid;
-            // Username holen
             onValue(dbRef(db, `users/${user.uid}/username`), (snap) => {
                 currentUsername = snap.val() || "User";
             }, { onlyOnce: true });
         } else {
-            window.location.href = "index.html"; // Weiterleitung, falls nicht eingeloggt
+            window.location.href = "index.html";
         }
     });
 
@@ -120,9 +116,10 @@
     const ctx = canvas.getContext('2d');
     let drawing = false;
     let isPixelMode = false;
-    const pixelSize = 25; // 400x400 geteilt durch 25 = 16x16 Grid
+    let lastX = 0;
+    let lastY = 0;
+    const pixelSize = 25; 
 
-    // Canvas weiß grundieren
     function clearCanvas() {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -148,7 +145,14 @@
         };
     }
 
-    canvas.addEventListener('mousedown', (e) => { drawing = true; draw(e); });
+    canvas.addEventListener('mousedown', (e) => { 
+        drawing = true; 
+        const coords = getCoords(e);
+        lastX = coords.x;
+        lastY = coords.y;
+        draw(e); 
+    });
+    
     canvas.addEventListener('mousemove', draw);
     window.addEventListener('mouseup', () => drawing = false);
 
@@ -166,16 +170,19 @@
         } else {
             ctx.lineWidth = document.getElementById('brushSize').value;
             ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
             ctx.strokeStyle = color;
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
             ctx.lineTo(coords.x, coords.y);
             ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(coords.x, coords.y);
+            
+            lastX = coords.x;
+            lastY = coords.y;
         }
     }
-    canvas.addEventListener('mousedown', () => { if(!isPixelMode) ctx.beginPath(); });
 
-    // Bild-Datei importieren
     document.getElementById('imageLoader').addEventListener('change', (e) => {
         const reader = new FileReader();
         reader.onload = function(event){
@@ -183,7 +190,8 @@
             img.onload = function(){
                 isPixelMode = false;
                 document.getElementById('pixelModeBtn').innerText = "👾 Pixel-Grid aktivieren (16x16)";
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
                 const hRatio = canvas.width / img.width;
                 const vRatio = canvas.height / img.height;
@@ -204,7 +212,6 @@
         document.getElementById('pixelModeBtn').innerText = isPixelMode ? "✏️ Freihand Modus" : "👾 Pixel-Grid aktivieren (16x16)";
         clearCanvas();
     });
-
 
     // --- FIREBASE UPLOAD LOGIK ---
     document.getElementById('uploadBtn').addEventListener('click', async () => {
@@ -236,8 +243,7 @@
         }
     });
 
-
-// --- GALERIE ANZEIGEN, LIKEN & SORTIEREN ---
+    // --- GALERIE ANZEIGEN, LIKEN & SORTIEREN ---
     const galleryRef = dbRef(db, 'gallery');
     
     onValue(galleryRef, (snapshot) => {
@@ -262,43 +268,11 @@
             
             const date = new Date(item.timestamp).toLocaleDateString('de-DE');
             
-            // Neuer, sauberer Proxy-Pfad: Wir entfernen das https:// damit der Proxy nicht stolpert
-            const cleanUrl = item.url.replace(/^https?:\/\//, '');
-            const imageProxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}&default=ssl`;
-
-            card.innerHTML = `
-                <img src="${imageProxyUrl}" onerror="this.onerror=null; this.src='${item.url}';" alt="User Image">
-                <div class="card-body">
-                    <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
-                    <div class="card-actions">
-                        <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
-                        <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="download-btn" style="text-align:center; text-decoration:none;">💾 Öffnen / Speichern</a>
-                    </div>
-                </div>
-            `;
-            galleryDiv.appendChild(card);
-        });
-
-        // Event-Listeners für Likes aktivieren
-        document.querySelectorAll('.like-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const imgId = e.currentTarget.getAttribute('data-id');
-                handleLike(imgId);
-            });
-        });
-    });
-
-        // Sortierung nach Likes absteigend (meiste Likes oben)
-        items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
-
-        items.forEach((item) => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            
-            const date = new Date(item.timestamp).toLocaleDateString('de-DE');
-
-            // CORS-Sicherheits-Fix: Die URL wird über einen Image-Proxy geladen
+            // Für das HTML-Anzeigen nutzen wir den gewohnten funktionierenden Bild-Proxy
             const imageProxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(item.url)}`;
+            
+            // CORS-Download-Fix via AllOrigins Bridge (erlaubt es JS, Daten ohne CORS-Blockade anzufordern)
+            const downloadProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(item.url)}`;
 
             card.innerHTML = `
                 <img src="${imageProxyUrl}" alt="User Image">
@@ -306,14 +280,14 @@
                     <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
                     <div class="card-actions">
                         <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
-                        <a href="${item.url}" target="_blank" class="download-btn">💾 Download</a>
+                        <a href="${downloadProxyUrl}" download="maelist-art-${item.id}.jpg" class="download-btn">💾 Download</a>
                     </div>
                 </div>
             `;
             galleryDiv.appendChild(card);
         });
 
-        // Klick-Events für Like-Buttons zuweisen
+        // Event-Listeners für Likes aktivieren
         document.querySelectorAll('.like-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const imgId = e.currentTarget.getAttribute('data-id');
@@ -331,7 +305,6 @@
             return post;
         });
     }
-
 </script>
 </body>
 </html>
