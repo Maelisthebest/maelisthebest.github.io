@@ -237,7 +237,7 @@
     });
 
 
-    // --- GALERIE ANZEIGEN, SOWIE LIKEN & SORTIEREN ---
+// --- GALERIE ANZEIGEN, LIKEN & SORTIEREN ---
     const galleryRef = dbRef(db, 'gallery');
     
     onValue(galleryRef, (snapshot) => {
@@ -253,6 +253,40 @@
         snapshot.forEach((childSnapshot) => {
             items.push(childSnapshot.val());
         });
+
+        items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
+
+        items.forEach((item) => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const date = new Date(item.timestamp).toLocaleDateString('de-DE');
+            
+            // Neuer, sauberer Proxy-Pfad: Wir entfernen das https:// damit der Proxy nicht stolpert
+            const cleanUrl = item.url.replace(/^https?:\/\//, '');
+            const imageProxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}&default=ssl`;
+
+            card.innerHTML = `
+                <img src="${imageProxyUrl}" onerror="this.onerror=null; this.src='${item.url}';" alt="User Image">
+                <div class="card-body">
+                    <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
+                    <div class="card-actions">
+                        <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
+                        <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="download-btn" style="text-align:center; text-decoration:none;">💾 Öffnen / Speichern</a>
+                    </div>
+                </div>
+            `;
+            galleryDiv.appendChild(card);
+        });
+
+        // Event-Listeners für Likes aktivieren
+        document.querySelectorAll('.like-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const imgId = e.currentTarget.getAttribute('data-id');
+                handleLike(imgId);
+            });
+        });
+    });
 
         // Sortierung nach Likes absteigend (meiste Likes oben)
         items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
