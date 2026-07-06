@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Bildergalerie</title>
+    <title>Maelist - Pro Kreativ-Studio & Galerie</title>
     <style>
         :root { 
             --primary: #3498db; 
@@ -11,74 +11,109 @@
             --danger: #e74c3c;
             --dark: #2c3e50; 
             --bg: #f4f7f6; 
+            --grey: #7f8c8d;
         }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--dark); }
-        .container { max-width: 1000px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; }
         h1, h2 { text-align: center; }
         
         .nav-back { display: inline-block; margin-bottom: 20px; text-decoration: none; color: var(--primary); font-weight: bold; }
 
-        /* Editor & Upload Bereich */
+        /* Editor Bereich */
         .editor-section { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 30px; text-align: center; }
-        .canvas-container { margin: 15px auto; display: inline-block; border: 2px dashed #ccc; background: #fff; }
-        canvas { display: block; cursor: crosshair; }
-        .controls { margin: 15px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
         
-        button, label.file-label { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .toolbar-group { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; align-items: center; }
+        .toolbar-label { font-size: 12px; font-weight: bold; color: var(--grey); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px; }
+        .tool-box { text-align: left; }
+
+        .canvas-container { margin: 15px auto; display: block; border: 2px dashed #cbd5e1; background: #fafafa; overflow: hidden; position: relative; max-width: 500px; max-height: 500px; border-radius: 8px; }
+        canvas { display: block; cursor: crosshair; background: #ffffff; transform-origin: 0 0; }
+        
+        button, label.file-label { background: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; }
         button:hover, label.file-label:hover { opacity: 0.9; transform: translateY(-1px); }
+        button.active { background: #1e3a8a !important; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        
         .btn-success { background: var(--success); }
         .btn-danger { background: var(--danger); }
-        input[type="color"] { border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
+        .btn-secondary { background: #94a3b8; }
+        
+        input[type="color"] { border: 2px solid #e2e8f0; width: 45px; height: 45px; border-radius: 8px; cursor: pointer; padding: 0; background: none; }
+        input[type="range"] { vertical-align: middle; }
         input[type="file"] { display: none; }
+
+        .zoom-info { font-size: 12px; font-weight: bold; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; }
 
         /* Galerie Bereich */
         .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
-        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        .card img { width: 100%; height: 220px; object-fit: contain; background: #f9f9f9; border-bottom: 1px solid #eee; }
+        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; position: relative; transition: 0.3s; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: 220px; object-fit: contain; background: #f8fafc; border-bottom: 1px solid #edf2f7; }
         .card-body { padding: 15px; display: flex; flex-direction: column; flex-grow: 1; justify-content: space-between; }
-        .card-meta { font-size: 13px; color: #7f8c8d; margin-bottom: 10px; }
-        .card-actions { display: flex; justify-content: space-between; align-items: center; }
+        .card-meta { font-size: 13px; color: var(--grey); margin-bottom: 10px; }
+        .card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         
-        .like-btn { background: #f1c40f; color: #856404; display: flex; align-items: center; gap: 5px; }
-        .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; }
+        .like-btn { background: #f1c40f; color: #856404; display: flex; align-items: center; gap: 5px; flex-grow: 1; justify-content: center; }
+        .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; }
+        .delete-btn { background: var(--danger); color: white; border: none; padding: 10px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <a href="zentrale.html" class="nav-back">⬅ Zurück zur Zentrale</a>
-    <h1>🎨 Kreativ-Studio & Galerie</h1>
+    <h1>🎨 Pro Kreativ-Studio & Galerie</h1>
 
     <div class="editor-section">
-        <h2>Bild erstellen / bearbeiten</h2>
-        <div class="controls">
-            <label class="file-label">
-                📂 Bild importieren
-                <input type="file" id="imageLoader" accept="image/*">
-            </label>
-            <button id="clearBtn" class="btn-danger">🗑️ Neu starten</button>
-            <button id="pixelModeBtn">👾 Pixel-Grid aktivieren (16x16)</button>
-            <input type="color" id="colorPicker" value="#2c3e50">
-            <input type="range" id="brushSize" min="2" max="20" value="5"> <span>Größe</span>
+        <div class="toolbar-group">
+            <div class="tool-box">
+                <span class="toolbar-label">Datei</span>
+                <label class="file-label">📂 Importieren <input type="file" id="imageLoader" accept="image/*"></label>
+            </div>
+            
+            <div class="tool-box">
+                <span class="toolbar-label">Modus</span>
+                <button id="drawModeBtn" class="active">✏️ Pinsel</button>
+                <button id="panModeBtn">🖐️ Verschieben</button>
+                <button id="pixelModeBtn">👾 Pixel (16x16)</button>
+            </div>
+
+            <div class="tool-box">
+                <span class="toolbar-label">Farbe & Pinsel</span>
+                <input type="color" id="colorPicker" value="#2c3e50">
+                <input type="range" id="brushSize" min="1" max="40" value="5">
+            </div>
+
+            <div class="tool-box">
+                <span class="toolbar-label">Zoom</span>
+                <button id="zoomInBtn">➕</button>
+                <button id="zoomOutBtn">➖</button>
+                <button id="zoomResetBtn" class="btn-secondary">🔄 100%</button>
+                <span id="zoomDisplay" class="zoom-info">100%</span>
+            </div>
+
+            <div class="tool-box">
+                <span class="toolbar-label">Aktion</span>
+                <button id="clearBtn" class="btn-danger">🗑️ Reset</button>
+            </div>
         </div>
 
-        <div class="canvas-container">
-            <canvas id="editorCanvas" width="400" height="400"></canvas>
+        <div class="canvas-container" id="canvasViewPort">
+            <canvas id="editorCanvas" width="500" height="500"></canvas>
         </div>
 
         <div style="margin-top: 15px;">
-            <button id="uploadBtn" class="btn-success" style="font-size: 18px; padding: 12px 25px;">🚀 Dieses Bild in Galerie posten</button>
+            <button id="uploadBtn" class="btn-success" style="font-size: 18px; padding: 12px 30px;">🚀 In Galerie veröffentlichen</button>
         </div>
         <p id="statusMsg" style="font-weight: bold; color: var(--primary);"></p>
     </div>
 
-    <h2>🔥 Top Bilder (Nach Likes sortiert)</h2>
+    <h2>🔥 Community Kunstwerke</h2>
     <div class="gallery-grid" id="gallery"></div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -109,25 +144,41 @@
         }
     });
 
-    // --- CANVAS EDITOR LOGIK ---
+    // --- ERWEITERTE CANVAS EDITOR ENGINE ---
     const canvas = document.getElementById('editorCanvas');
     const ctx = canvas.getContext('2d');
+    const viewPort = document.getElementById('canvasViewPort');
+
     let drawing = false;
-    let isPixelMode = false;
+    let currentMode = 'draw'; // 'draw', 'pan', 'pixel'
+    
+    // Zoom & Pan Koordinaten-System
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startPanX = 0;
+    let startPanY = 0;
+    
     let lastX = 0;
     let lastY = 0;
-    const pixelSize = 25; 
+    const pixelSize = 31.25; // Ergibt exakt 16x16 Felder auf 500px
+
+    function updateCanvasTransform() {
+        canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        document.getElementById('zoomDisplay').innerText = `${Math.round(scale * 100)}%`;
+    }
 
     function clearCanvas() {
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (isPixelMode) drawPixelGrid();
+        if (currentMode === 'pixel') drawPixelGrid();
     }
     clearCanvas();
 
     function drawPixelGrid() {
-        ctx.strokeStyle = "#e0e0e0";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = 0.5;
         for (let x = 0; x < canvas.width; x += pixelSize) {
             for (let y = 0; y < canvas.height; y += pixelSize) {
                 ctx.strokeRect(x, y, pixelSize, pixelSize);
@@ -135,37 +186,63 @@
         }
     }
 
-    function getCoords(e) {
-        const rect = canvas.getBoundingClientRect();
+    // Präzise Koordinatenberechnung unter Berücksichtigung von Zoom & Verschiebung
+    function getCanvasCoords(e) {
+        const rect = viewPort.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: (clientX - panX) / scale,
+            y: (clientY - panY) / scale
         };
     }
 
-    canvas.addEventListener('mousedown', (e) => { 
-        drawing = true; 
-        const coords = getCoords(e);
-        lastX = coords.x;
-        lastY = coords.y;
-        draw(e); 
+    // Eventsteuerung Mousedown
+    viewPort.addEventListener('mousedown', (e) => {
+        if (currentMode === 'pan') {
+            isPanning = true;
+            startPanX = e.clientX - panX;
+            startPanY = e.clientY - panY;
+            viewPort.style.cursor = 'grabbing';
+        } else {
+            drawing = true;
+            const coords = getCanvasCoords(e);
+            lastX = coords.x;
+            lastY = coords.y;
+            draw(e);
+        }
     });
-    
-    canvas.addEventListener('mousemove', draw);
-    window.addEventListener('mouseup', () => drawing = false);
+
+    // Eventsteuerung Mousemove
+    window.addEventListener('mousemove', (e) => {
+        if (isPanning) {
+            panX = e.clientX - startPanX;
+            panY = e.clientY - startPanY;
+            updateCanvasTransform();
+        } else if (drawing) {
+            draw(e);
+        }
+    });
+
+    // Eventsteuerung Mouseup
+    window.addEventListener('mouseup', () => {
+        drawing = false;
+        isPanning = false;
+        if (currentMode === 'pan') viewPort.style.cursor = 'move';
+    });
 
     function draw(e) {
         if (!drawing) return;
-        const coords = getCoords(e);
+        const coords = getCanvasCoords(e);
         const color = document.getElementById('colorPicker').value;
 
-        if (isPixelMode) {
+        if (currentMode === 'pixel') {
             const gridX = Math.floor(coords.x / pixelSize) * pixelSize;
             const gridY = Math.floor(coords.y / pixelSize) * pixelSize;
             ctx.fillStyle = color;
             ctx.fillRect(gridX, gridY, pixelSize, pixelSize);
             drawPixelGrid(); 
-        } else {
+        } else if (currentMode === 'draw') {
             ctx.lineWidth = document.getElementById('brushSize').value;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -181,13 +258,42 @@
         }
     }
 
+    // Zoom-Handler
+    document.getElementById('zoomInBtn').addEventListener('click', () => { scale = Math.min(scale + 0.25, 4); updateCanvasTransform(); });
+    document.getElementById('zoomOutBtn').addEventListener('click', () => { scale = Math.max(scale - 0.25, 0.5); updateCanvasTransform(); });
+    document.getElementById('zoomResetBtn').addEventListener('click', () => { scale = 1; panX = 0; panY = 0; updateCanvasTransform(); });
+
+    // Modus-Umschalter Buttons
+    const modeButtons = {
+        draw: document.getElementById('drawModeBtn'),
+        pan: document.getElementById('panModeBtn'),
+        pixel: document.getElementById('pixelModeBtn')
+    };
+
+    function setMode(mode) {
+        currentMode = mode;
+        Object.keys(modeButtons).forEach(k => modeButtons[k].classList.remove('active'));
+        modeButtons[mode].classList.add('active');
+        
+        if (mode === 'pan') {
+            viewPort.style.cursor = 'move';
+        } else {
+            viewPort.style.cursor = 'crosshair';
+        }
+        clearCanvas();
+    }
+
+    modeButtons.draw.addEventListener('click', () => setMode('draw'));
+    modeButtons.pan.addEventListener('click', () => setMode('pan'));
+    modeButtons.pixel.addEventListener('click', () => setMode('pixel'));
+
+    // Bild-Importeur
     document.getElementById('imageLoader').addEventListener('change', (e) => {
         const reader = new FileReader();
         reader.onload = function(event){
             const img = new Image();
             img.onload = function(){
-                isPixelMode = false;
-                document.getElementById('pixelModeBtn').innerText = "👾 Pixel-Grid aktivieren (16x16)";
+                setMode('draw');
                 ctx.fillStyle = "#ffffff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
@@ -204,27 +310,19 @@
     });
 
     document.getElementById('clearBtn').addEventListener('click', clearCanvas);
-    
-    document.getElementById('pixelModeBtn').addEventListener('click', () => {
-        isPixelMode = !isPixelMode;
-        document.getElementById('pixelModeBtn').innerText = isPixelMode ? "✏️ Freihand Modus" : "👾 Pixel-Grid aktivieren (16x16)";
-        clearCanvas();
-    });
 
-    // --- DIREKTE DATA-URL LOGIK (Garantiert CORS-frei) ---
+    // --- CORES-FREIE DATA-URL UPLOAD ENGINE ---
     document.getElementById('uploadBtn').addEventListener('click', async () => {
         const statusMsg = document.getElementById('statusMsg');
-        statusMsg.innerText = "Speichere Bild in der Datenbank...";
+        statusMsg.innerText = "Speichere Bild im Netzwerk...";
         
         try {
-            // Wir erzeugen ein optimiertes JPEG (Qualität 0.5 spart enorm viel Speicherplatz in Firebase)
             const downloadURL = canvas.toDataURL('image/jpeg', 0.5);
             const fileId = push(dbRef(db, 'gallery')).key;
 
-            // Direktes Schreiben in deine funktionierende Realtime Database
             await set(dbRef(db, `gallery/${fileId}`), {
                 id: fileId,
-                url: downloadURL, // Das Bild wird hier direkt als Text-String abgelegt!
+                url: downloadURL,
                 creator: currentUsername,
                 creatorId: currentUserId,
                 likesCount: 0,
@@ -239,7 +337,7 @@
         }
     });
 
-    // --- GALERIE ANZEIGEN, LIKEN & SORTIEREN ---
+    // --- REALTIME GALERIE MIT LÖSCH-FUNKTION ---
     const galleryRef = dbRef(db, 'gallery');
     
     onValue(galleryRef, (snapshot) => {
@@ -247,7 +345,7 @@
         galleryDiv.innerHTML = ""; 
         
         if (!snapshot.exists()) {
-            galleryDiv.innerHTML = "<p style='text-align:center; grid-column: 1/-1;'>Noch keine Bilder vorhanden. Sei der Erste!</p>";
+            galleryDiv.innerHTML = "<p style='text-align:center; grid-column: 1/-1;'>Noch keine Bilder vorhanden. Erstelle das Erste!</p>";
             return;
         }
 
@@ -256,32 +354,47 @@
             items.push(childSnapshot.val());
         });
 
+        // Nach Meisten Likes sortieren
         items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
 
         items.forEach((item) => {
             const card = document.createElement('div');
             card.className = 'card';
-            
             const date = new Date(item.timestamp).toLocaleDateString('de-DE');
 
+            // Prüfen, ob das Bild dem aktuell angemeldeten User gehört
+            const isMyPost = item.creatorId === currentUserId;
+            const deleteButtonHtml = isMyPost ? `<button class="delete-btn" data-id="${item.id}" title="Bild unwiderruflich löschen">🗑️</button>` : '';
+
             card.innerHTML = `
-                <img src="${item.url}" alt="User Image">
+                <img src="${item.url}" alt="User Art">
                 <div class="card-body">
                     <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
                     <div class="card-actions">
                         <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
-                        <a href="${item.url}" download="maelist-art-${item.id}.jpg" class="download-btn">💾 Download</a>
+                        <a href="${item.url}" download="maelist-art-${item.id}.jpg" class="download-btn">💾</a>
+                        ${deleteButtonHtml}
                     </div>
                 </div>
             `;
             galleryDiv.appendChild(card);
         });
 
-        // Event-Listeners für Likes aktivieren
+        // Event-Listener für Likes aktivieren
         document.querySelectorAll('.like-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const imgId = e.currentTarget.getAttribute('data-id');
                 handleLike(imgId);
+            });
+        });
+
+        // Event-Listener für Löschen aktivieren
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const imgId = e.currentTarget.getAttribute('data-id');
+                if(confirm("Möchtest du dein Bild wirklich löschen?")) {
+                    handleDelete(imgId);
+                }
             });
         });
     });
@@ -294,6 +407,13 @@
             }
             return post;
         });
+    }
+
+    // Sicheres Löschen aus Firebase Realtime Database
+    function handleDelete(imgId) {
+        remove(dbRef(db, `gallery/${imgId}`))
+        .then(() => console.log("Bild gelöscht:", imgId))
+        .catch(err => alert("Fehler beim Löschen: " + err.message));
     }
 </script>
 </body>
