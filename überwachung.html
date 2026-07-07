@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Überwachung - Maelist</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #e74c3c;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .status {
+            text-align: center;
+            color: #2ecc71;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 25px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #1a1a1a;
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 0 25px rgba(231, 76, 60, 0.3);
+        }
+        .card h3 {
+            margin: 0 0 12px 0;
+            color: #ffcc00;
+            text-align: center;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border: 4px solid #e74c3c;
+            border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .timestamp {
+            margin-top: 10px;
+            font-size: 15px;
+            color: #bbb;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>👁️ Live Überwachung - Alle Rechner</h1>
+    <div class="status" id="status">Verbinde mit Firebase...</div>
+    
+    <div class="grid" id="grid"></div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+            authDomain: "maelist-chat.firebaseapp.com",
+            databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+            projectId: "maelist-chat",
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const cards = {};
+
+        function createOrUpdateCard(key, entry) {
+            if (!entry || !entry.image) return;
+
+            const grid = document.getElementById("grid");
+
+            if (!cards[key]) {
+                // Neue Karte erstellen
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <h3>${entry.computer || key}</h3>
+                    <img id="img-${key}" src="" alt="Live Screenshot">
+                    <div class="timestamp" id="time-${key}"></div>
+                `;
+                grid.appendChild(card);
+                cards[key] = card;
+            }
+
+            // Bild und Zeit aktualisieren
+            document.getElementById(`img-${key}`).src = "data:image/png;base64," + entry.image;
+            document.getElementById(`time-${key}`).innerHTML = `Letztes Update: ${entry.timestamp || 'gerade eben'}`;
+        }
+
+        // ECHTZEIT-Listener (wird sofort aktualisiert)
+        db.ref('screenshots/current').on('value', (snapshot) => {
+            const data = snapshot.val();
+            
+            if (!data) {
+                document.getElementById("status").innerHTML = "❌ Noch keine Rechner aktiv";
+                return;
+            }
+
+            let activeCount = 0;
+            Object.keys(data).forEach(key => {
+                createOrUpdateCard(key, data[key]);
+                activeCount++;
+            });
+
+            document.getElementById("status").innerHTML = `✅ ${activeCount} Rechner live verbunden`;
+        });
+
+        // Fallback: alle 8 Sekunden neu laden (für Sicherheit)
+        setInterval(() => {
+            db.ref('screenshots/current').once('value');
+        }, 8000);
+    </script>
+</body>
+</html>
