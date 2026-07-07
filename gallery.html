@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v 1.1 Maelist - Pro Kreativ-Studio & Galerie</title>
+    <title>Maelist - Pro Kreativ-Studio & Galerie</title>
     <style>
         :root { 
             --primary: #3498db; 
@@ -53,7 +53,7 @@
         .card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         
         .like-btn { background: #f1c40f; color: #856404; display: flex; align-items: center; gap: 5px; flex-grow: 1; justify-content: center; }
-        .like-btn.liked { background: #e67e22; color: white; } /* Farbe, wenn bereits gelikt */
+        .like-btn.liked { background: #e67e22; color: white; }
         .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; }
         .delete-btn { background: var(--danger); color: white; border: none; padding: 10px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
     </style>
@@ -114,7 +114,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction, remove, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -133,7 +133,7 @@
 
     let currentUsername = "Anonym";
     let currentUserId = null;
-    let allImagesCache = []; // Lokaler Zwischenspeicher für Upload-Checks
+    let allImagesCache = [];
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -146,7 +146,7 @@
         }
     });
 
-    // --- ERWEITERTE CANVAS EDITOR ENGINE ---
+    // --- CANVAS ENGINE ---
     const canvas = document.getElementById('editorCanvas');
     const ctx = canvas.getContext('2d');
     const viewPort = document.getElementById('canvasViewPort');
@@ -201,7 +201,7 @@
         if (currentMode === 'pan') {
             isPanning = true;
             startPanX = e.clientX - panX;
-            startPanY = e.clientY - startPanY;
+            startPanY = e.clientY - panY;
             viewPort.style.cursor = 'grabbing';
         } else {
             drawing = true;
@@ -299,13 +299,12 @@
 
     document.getElementById('clearBtn').addEventListener('click', clearCanvas);
 
-    // --- UPLOAD ENGINE MIT 10-BILDER-PRO-TAG LIMIT ---
+    // --- UPLOAD ---
     document.getElementById('uploadBtn').addEventListener('click', async () => {
         const statusMsg = document.getElementById('statusMsg');
         statusMsg.innerText = "Prüfe Berechtigung...";
         
         try {
-            // Check: Wie viele Bilder wurden in den letzten 24 Stunden hochgeladen?
             const einTagInMs = 24 * 60 * 60 * 1000;
             const jetzt = Date.now();
             
@@ -342,13 +341,13 @@
         }
     });
 
-    // --- REALTIME GALERIE MIT SICHEREM TOGGLE-LIKE ---
+    // --- REALTIME GALERIE ---
     const galleryRef = dbRef(db, 'gallery');
     
     onValue(galleryRef, (snapshot) => {
         const galleryDiv = document.getElementById('gallery');
         galleryDiv.innerHTML = ""; 
-        allImagesCache = []; // Cache leeren und neu befüllen
+        allImagesCache = []; 
         
         if (!snapshot.exists()) {
             galleryDiv.innerHTML = "<p style='text-align:center; grid-column: 1/-1;'>Noch keine Bilder vorhanden. Erstelle das Erste!</p>";
@@ -359,7 +358,6 @@
             allImagesCache.push(childSnapshot.val());
         });
 
-        // Nach Meisten Likes sortieren
         allImagesCache.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
 
         allImagesCache.forEach((item) => {
@@ -370,8 +368,8 @@
             const isMyPost = item.creatorId === currentUserId;
             const deleteButtonHtml = isMyPost ? `<button class="delete-btn" data-id="${item.id}">🗑️</button>` : '';
 
-            // Prüfen, ob der aktuelle User dieses Bild bereits gelikt hat
-            consthasLiked = item.likedBy && item.likedBy[currentUserId] === true;
+            // HIER WAR DER FEHLER: Korrigiert zu "const hasLiked"
+            const hasLiked = item.likedBy && item.likedBy[currentUserId] === true;
             const likeBtnClass = hasLiked ? "like-btn liked" : "like-btn";
 
             card.innerHTML = `
@@ -388,7 +386,6 @@
             galleryDiv.appendChild(card);
         });
 
-        // Event-Listener für Likes aktivieren
         document.querySelectorAll('.like-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const imgId = e.currentTarget.getAttribute('data-id');
@@ -396,7 +393,6 @@
             });
         });
 
-        // Event-Listener für Löschen aktivieren
         document.querySelectorAll('.delete-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const imgId = e.currentTarget.getAttribute('data-id');
@@ -407,7 +403,6 @@
         });
     });
 
-    // Validierte Transaktion: Erlaubt nur 1 Like pro User (Klick zieht Like ab, falls schon gesetzt)
     function handleLikeToggle(imgId) {
         const itemRef = dbRef(db, `gallery/${imgId}`);
         runTransaction(itemRef, (post) => {
@@ -417,11 +412,9 @@
                 }
                 
                 if (post.likedBy[currentUserId]) {
-                    // User hat schon gelikt -> Also Like wieder entfernen (Entliken)
                     post.likesCount = Math.max((post.likesCount || 1) - 1, 0);
-                    post.likedBy[currentUserId] = null; // Entfernt den Eintrag aus Firebase
+                    post.likedBy[currentUserId] = null; 
                 } else {
-                    // User hat noch nicht gelikt -> Like hinzufügen
                     post.likesCount = (post.likesCount || 0) + 1;
                     post.likedBy[currentUserId] = true;
                 }
