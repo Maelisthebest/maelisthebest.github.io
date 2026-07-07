@@ -53,6 +53,7 @@
         .card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         
         .like-btn { background: #f1c40f; color: #856404; display: flex; align-items: center; gap: 5px; flex-grow: 1; justify-content: center; }
+        .like-btn.liked { background: #e67e22; color: white; } /* Farbe, wenn bereits gelikt */
         .download-btn { background: #9b59b6; text-decoration: none; color: white; padding: 10px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; }
         .delete-btn { background: var(--danger); color: white; border: none; padding: 10px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; }
     </style>
@@ -113,7 +114,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getDatabase, ref as dbRef, push, set, onValue, runTransaction, remove, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
@@ -132,6 +133,7 @@
 
     let currentUsername = "Anonym";
     let currentUserId = null;
+    let allImagesCache = []; // Lokaler Zwischenspeicher für Upload-Checks
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
@@ -150,9 +152,8 @@
     const viewPort = document.getElementById('canvasViewPort');
 
     let drawing = false;
-    let currentMode = 'draw'; // 'draw', 'pan', 'pixel'
+    let currentMode = 'draw'; 
     
-    // Zoom & Pan Koordinaten-System
     let scale = 1;
     let panX = 0;
     let panY = 0;
@@ -162,7 +163,7 @@
     
     let lastX = 0;
     let lastY = 0;
-    const pixelSize = 31.25; // Ergibt exakt 16x16 Felder auf 500px
+    const pixelSize = 31.25; 
 
     function updateCanvasTransform() {
         canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
@@ -186,7 +187,6 @@
         }
     }
 
-    // Präzise Koordinatenberechnung unter Berücksichtigung von Zoom & Verschiebung
     function getCanvasCoords(e) {
         const rect = viewPort.getBoundingClientRect();
         const clientX = e.clientX - rect.left;
@@ -197,12 +197,11 @@
         };
     }
 
-    // Eventsteuerung Mousedown
     viewPort.addEventListener('mousedown', (e) => {
         if (currentMode === 'pan') {
             isPanning = true;
             startPanX = e.clientX - panX;
-            startPanY = e.clientY - panY;
+            startPanY = e.clientY - startPanY;
             viewPort.style.cursor = 'grabbing';
         } else {
             drawing = true;
@@ -213,7 +212,6 @@
         }
     });
 
-    // Eventsteuerung Mousemove
     window.addEventListener('mousemove', (e) => {
         if (isPanning) {
             panX = e.clientX - startPanX;
@@ -224,7 +222,6 @@
         }
     });
 
-    // Eventsteuerung Mouseup
     window.addEventListener('mouseup', () => {
         drawing = false;
         isPanning = false;
@@ -258,12 +255,10 @@
         }
     }
 
-    // Zoom-Handler
     document.getElementById('zoomInBtn').addEventListener('click', () => { scale = Math.min(scale + 0.25, 4); updateCanvasTransform(); });
     document.getElementById('zoomOutBtn').addEventListener('click', () => { scale = Math.max(scale - 0.25, 0.5); updateCanvasTransform(); });
     document.getElementById('zoomResetBtn').addEventListener('click', () => { scale = 1; panX = 0; panY = 0; updateCanvasTransform(); });
 
-    // Modus-Umschalter Buttons
     const modeButtons = {
         draw: document.getElementById('drawModeBtn'),
         pan: document.getElementById('panModeBtn'),
@@ -274,12 +269,7 @@
         currentMode = mode;
         Object.keys(modeButtons).forEach(k => modeButtons[k].classList.remove('active'));
         modeButtons[mode].classList.add('active');
-        
-        if (mode === 'pan') {
-            viewPort.style.cursor = 'move';
-        } else {
-            viewPort.style.cursor = 'crosshair';
-        }
+        viewPort.style.cursor = (mode === 'pan') ? 'move' : 'crosshair';
         clearCanvas();
     }
 
@@ -287,7 +277,6 @@
     modeButtons.pan.addEventListener('click', () => setMode('pan'));
     modeButtons.pixel.addEventListener('click', () => setMode('pixel'));
 
-    // Bild-Importeur
     document.getElementById('imageLoader').addEventListener('change', (e) => {
         const reader = new FileReader();
         reader.onload = function(event){
@@ -296,7 +285,6 @@
                 setMode('draw');
                 ctx.fillStyle = "#ffffff";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
                 const hRatio = canvas.width / img.width;
                 const vRatio = canvas.height / img.height;
                 const ratio  = Math.min(hRatio, vRatio);
@@ -311,12 +299,29 @@
 
     document.getElementById('clearBtn').addEventListener('click', clearCanvas);
 
-    // --- CORES-FREIE DATA-URL UPLOAD ENGINE ---
+    // --- UPLOAD ENGINE MIT 10-BILDER-PRO-TAG LIMIT ---
     document.getElementById('uploadBtn').addEventListener('click', async () => {
         const statusMsg = document.getElementById('statusMsg');
-        statusMsg.innerText = "Speichere Bild im Netzwerk...";
+        statusMsg.innerText = "Prüfe Berechtigung...";
         
         try {
+            // Check: Wie viele Bilder wurden in den letzten 24 Stunden hochgeladen?
+            const einTagInMs = 24 * 60 * 60 * 1000;
+            const jetzt = Date.now();
+            
+            let uploadsHeute = 0;
+            allImagesCache.forEach(img => {
+                if (img.creatorId === currentUserId && (jetzt - img.timestamp) < einTagInMs) {
+                    uploadsHeute++;
+                }
+            });
+
+            if (uploadsHeute >= 10) {
+                statusMsg.innerText = "❌ Limit erreicht! Du darfst maximal 10 Bilder pro 24 Stunden posten.";
+                return;
+            }
+
+            statusMsg.innerText = "Speichere Bild im Netzwerk...";
             const downloadURL = canvas.toDataURL('image/jpeg', 0.5);
             const fileId = push(dbRef(db, 'gallery')).key;
 
@@ -326,7 +331,7 @@
                 creator: currentUsername,
                 creatorId: currentUserId,
                 likesCount: 0,
-                timestamp: Date.now()
+                timestamp: jetzt
             });
 
             statusMsg.innerText = "🎉 Erfolgreich in der Galerie gepostet!";
@@ -337,41 +342,44 @@
         }
     });
 
-    // --- REALTIME GALERIE MIT LÖSCH-FUNKTION ---
+    // --- REALTIME GALERIE MIT SICHEREM TOGGLE-LIKE ---
     const galleryRef = dbRef(db, 'gallery');
     
     onValue(galleryRef, (snapshot) => {
         const galleryDiv = document.getElementById('gallery');
         galleryDiv.innerHTML = ""; 
+        allImagesCache = []; // Cache leeren und neu befüllen
         
         if (!snapshot.exists()) {
             galleryDiv.innerHTML = "<p style='text-align:center; grid-column: 1/-1;'>Noch keine Bilder vorhanden. Erstelle das Erste!</p>";
             return;
         }
 
-        const items = [];
         snapshot.forEach((childSnapshot) => {
-            items.push(childSnapshot.val());
+            allImagesCache.push(childSnapshot.val());
         });
 
         // Nach Meisten Likes sortieren
-        items.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
+        allImagesCache.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
 
-        items.forEach((item) => {
+        allImagesCache.forEach((item) => {
             const card = document.createElement('div');
             card.className = 'card';
             const date = new Date(item.timestamp).toLocaleDateString('de-DE');
 
-            // Prüfen, ob das Bild dem aktuell angemeldeten User gehört
             const isMyPost = item.creatorId === currentUserId;
-            const deleteButtonHtml = isMyPost ? `<button class="delete-btn" data-id="${item.id}" title="Bild unwiderruflich löschen">🗑️</button>` : '';
+            const deleteButtonHtml = isMyPost ? `<button class="delete-btn" data-id="${item.id}">🗑️</button>` : '';
+
+            // Prüfen, ob der aktuelle User dieses Bild bereits gelikt hat
+            consthasLiked = item.likedBy && item.likedBy[currentUserId] === true;
+            const likeBtnClass = hasLiked ? "like-btn liked" : "like-btn";
 
             card.innerHTML = `
                 <img src="${item.url}" alt="User Art">
                 <div class="card-body">
                     <div class="card-meta">Von: <b>${item.creator}</b><br>Datum: ${date}</div>
                     <div class="card-actions">
-                        <button class="like-btn" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
+                        <button class="${likeBtnClass}" data-id="${item.id}">👍 <span id="like-count-${item.id}">${item.likesCount || 0}</span></button>
                         <a href="${item.url}" download="maelist-art-${item.id}.jpg" class="download-btn">💾</a>
                         ${deleteButtonHtml}
                     </div>
@@ -384,7 +392,7 @@
         document.querySelectorAll('.like-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const imgId = e.currentTarget.getAttribute('data-id');
-                handleLike(imgId);
+                handleLikeToggle(imgId);
             });
         });
 
@@ -399,20 +407,31 @@
         });
     });
 
-    function handleLike(imgId) {
+    // Validierte Transaktion: Erlaubt nur 1 Like pro User (Klick zieht Like ab, falls schon gesetzt)
+    function handleLikeToggle(imgId) {
         const itemRef = dbRef(db, `gallery/${imgId}`);
         runTransaction(itemRef, (post) => {
             if (post) {
-                post.likesCount = (post.likesCount || 0) + 1;
+                if (!post.likedBy) {
+                    post.likedBy = {};
+                }
+                
+                if (post.likedBy[currentUserId]) {
+                    // User hat schon gelikt -> Also Like wieder entfernen (Entliken)
+                    post.likesCount = Math.max((post.likesCount || 1) - 1, 0);
+                    post.likedBy[currentUserId] = null; // Entfernt den Eintrag aus Firebase
+                } else {
+                    // User hat noch nicht gelikt -> Like hinzufügen
+                    post.likesCount = (post.likesCount || 0) + 1;
+                    post.likedBy[currentUserId] = true;
+                }
             }
             return post;
         });
     }
 
-    // Sicheres Löschen aus Firebase Realtime Database
     function handleDelete(imgId) {
         remove(dbRef(db, `gallery/${imgId}`))
-        .then(() => console.log("Bild gelöscht:", imgId))
         .catch(err => alert("Fehler beim Löschen: " + err.message));
     }
 </script>
