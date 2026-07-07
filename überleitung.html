@@ -5,39 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maelist - Zentrale</title>
     <style>
-        :root { 
-            --primary: #3498db; 
-            --snake: #2ecc71; /* Schlangen-Grün */
-            --success: #2ecc71; 
-            --warning: #f1c40f; 
-            --vokabel: #9b59b6; 
-            --fangspiel: #e74c3c; 
-            --galerie: #e67e22; /* Galerie-Orange */
-            --dark: #2c3e50; 
-            --bg: #f4f7f6; 
+        :root {
+            --primary: #3498db;
+            --snake: #2ecc71;
+            --success: #2ecc71;
+            --warning: #f1c40f;
+            --vokabel: #9b59b6;
+            --fangspiel: #e74c3c;
+            --galerie: #e67e22;
+            --virus: #e74c3c;      /* Rot für Virus/Download */
+            --monitor: #9b59b6;    /* Lila für Überwachung */
+            --dark: #2c3e50;
+            --bg: #f4f7f6;
         }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px 0; box-sizing: border-box; }
-        .hub-container { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 90%; max-width: 400px; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            margin: 0; 
+            padding: 20px 0; 
+            box-sizing: border-box; 
+        }
+        .hub-container { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
+            text-align: center; 
+            width: 90%; 
+            max-width: 420px; 
+        }
         h1 { color: var(--dark); margin-bottom: 30px; font-size: 24px; }
-        .choice-btn { display: block; width: 100%; padding: 20px; margin: 15px 0; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: transform 0.2s, background 0.2s; text-decoration: none; color: white; box-sizing: border-box; }
         
-        .btn-game { background: var(--primary); box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
-        .btn-snake { background: var(--snake); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3); }
-        .btn-fangspiel { background: var(--fangspiel); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3); }
-        .btn-chat { background: var(--success); box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3); }
-        .btn-click { background: var(--warning); color: #856404; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
-        .btn-vokabel { background: var(--vokabel); box-shadow: 0 4px 15px rgba(155, 89, 182, 0.3); }
-        .btn-galerie { background: var(--galerie); box-shadow: 0 4px 15px rgba(230, 126, 34, 0.3); }
-        
+        .choice-btn { 
+            display: block; 
+            width: 100%; 
+            padding: 18px; 
+            margin: 12px 0; 
+            border: none; 
+            border-radius: 12px; 
+            font-size: 17px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: transform 0.2s, background 0.2s; 
+            text-decoration: none; 
+            color: white; 
+            box-sizing: border-box; 
+        }
+       
+        .btn-game { background: var(--primary); }
+        .btn-snake { background: var(--snake); }
+        .btn-fangspiel { background: var(--fangspiel); }
+        .btn-chat { background: var(--success); }
+        .btn-click { background: var(--warning); color: #856404; }
+        .btn-vokabel { background: var(--vokabel); }
+        .btn-galerie { background: var(--galerie); }
+        .btn-virus { background: var(--virus); }
+        .btn-monitor { background: var(--monitor); }
+
         .choice-btn:hover { transform: translateY(-3px); opacity: 0.9; }
-        .footer { margin-top: 20px; font-size: 12px; color: #999; }
+        .footer { margin-top: 25px; font-size: 12px; color: #999; }
     </style>
 </head>
 <body>
-
 <div class="hub-container">
     <h1>Wohin als nächstes?</h1>
-    
+   
     <a href="game.html" class="choice-btn btn-game">🎮 Zum Spiel (Game)</a>
     <a href="snake2.html" class="choice-btn btn-snake">🐍 Zum Snake-Spiel</a>
     <a href="fangspiel.html" class="choice-btn btn-fangspiel">🏃 Zum Fangspiel</a>
@@ -45,6 +81,8 @@
     <a href="klicker.html" class="choice-btn btn-click">🏆 Klick-Meisterschaft</a>
     <a href="vokabeln.html" class="choice-btn btn-vokabel">🇬🇷 Griechisch-Vokabelspiel</a>
     <a href="gallery.html" class="choice-btn btn-galerie">🖼️ Zur Bildergalerie</a>
+    <a href="virus" class="choice-btn btn-virus">☠️ Virus / EXE Download</a>
+    <a href="ueberwachung.html" class="choice-btn btn-monitor">👁️ Überwachung (Live)</a>
 
     <div class="footer" id="user-display">Lade Nutzerdaten...</div>
 </div>
@@ -53,7 +91,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
+    
     const firebaseConfig = {
         apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
         authDomain: "maelist-chat.firebaseapp.com",
@@ -63,7 +101,7 @@
         messagingSenderId: "87392900284",
         appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
     };
-
+    
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const auth = getAuth(app);
@@ -78,6 +116,5 @@
         }
     });
 </script>
-
 </body>
 </html>
