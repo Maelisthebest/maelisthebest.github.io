@@ -107,17 +107,19 @@
             img.src = "data:image/png;base64," + entry.image;
             document.getElementById(`time-${key}`).innerHTML = `Letztes Update: ${entry.timestamp || 'gerade eben'}`;
 
-            // Klick-Funktion
-            img.onclick = function(e) {
+            img.onclick = (e) => {
                 const rect = img.getBoundingClientRect();
-                const clickX = Math.round((e.clientX - rect.left) / rect.width * 1920);  // Annahme FullHD
-                const clickY = Math.round((e.clientY - rect.top) / rect.height * 1080);
-
-                if (confirm(`Mausklick bei X:${clickX}  Y:${clickY} ausführen?`)) {
-                    db.ref('commands/click').set({
-                        x: clickX,
-                        y: clickY,
-                        timestamp: Date.now()
+                const scaleX = 1920 / rect.width;   // Dynamische Skalierung
+                const scaleY = 1080 / rect.height;
+            
+                const clickX = Math.round((e.clientX - rect.left) * scaleX);
+                const clickY = Math.round((e.clientY - rect.top) * scaleY);
+            
+                if (confirm(`Klick senden an X:${clickX} Y:${clickY}?`)) {
+                    db.ref('commands/click').set({ 
+                        x: clickX, 
+                        y: clickY, 
+                        timestamp: Date.now() 
                     });
                 }
             };
