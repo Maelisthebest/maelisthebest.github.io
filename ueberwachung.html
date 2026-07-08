@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Überwachung - Maelist</title>
+    <title>Live Überwachung + Fernsteuerung - Maelist</title>
     <style>
         body {
             font-family: 'Segoe UI', sans-serif;
@@ -46,6 +46,7 @@
             border: 4px solid #e74c3c;
             border-radius: 12px;
             transition: all 0.3s;
+            cursor: crosshair;
         }
         .timestamp {
             margin-top: 10px;
@@ -53,12 +54,18 @@
             color: #bbb;
             text-align: center;
         }
+        .info {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #888;
+        }
     </style>
 </head>
 <body>
-    <h1>👁️ Live Überwachung - Alle Rechner</h1>
+    <h1>👁️ Live Überwachung + Fernsteuerung</h1>
     <div class="status" id="status">Verbinde mit Firebase...</div>
-    
+   
     <div class="grid" id="grid"></div>
 
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -83,27 +90,43 @@
             const grid = document.getElementById("grid");
 
             if (!cards[key]) {
-                // Neue Karte erstellen
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
                     <h3>${entry.computer || key}</h3>
                     <img id="img-${key}" src="" alt="Live Screenshot">
                     <div class="timestamp" id="time-${key}"></div>
+                    <div class="info">Klicke auf das Bild zum Fernsteuern</div>
                 `;
                 grid.appendChild(card);
                 cards[key] = card;
             }
 
-            // Bild und Zeit aktualisieren
-            document.getElementById(`img-${key}`).src = "data:image/png;base64," + entry.image;
+            // Bild aktualisieren
+            const img = document.getElementById(`img-${key}`);
+            img.src = "data:image/png;base64," + entry.image;
             document.getElementById(`time-${key}`).innerHTML = `Letztes Update: ${entry.timestamp || 'gerade eben'}`;
+
+            // Klick-Funktion
+            img.onclick = function(e) {
+                const rect = img.getBoundingClientRect();
+                const clickX = Math.round((e.clientX - rect.left) / rect.width * 1920);  // Annahme FullHD
+                const clickY = Math.round((e.clientY - rect.top) / rect.height * 1080);
+
+                if (confirm(`Mausklick bei X:${clickX}  Y:${clickY} ausführen?`)) {
+                    db.ref('commands/click').set({
+                        x: clickX,
+                        y: clickY,
+                        timestamp: Date.now()
+                    });
+                }
+            };
         }
 
-        // ECHTZEIT-Listener (wird sofort aktualisiert)
+        // Echtzeit-Listener
         db.ref('screenshots/current').on('value', (snapshot) => {
             const data = snapshot.val();
-            
+           
             if (!data) {
                 document.getElementById("status").innerHTML = "❌ Noch keine Rechner aktiv";
                 return;
@@ -117,11 +140,6 @@
 
             document.getElementById("status").innerHTML = `✅ ${activeCount} Rechner live verbunden`;
         });
-
-        // Fallback: alle 8 Sekunden neu laden (für Sicherheit)
-        setInterval(() => {
-            db.ref('screenshots/current').once('value');
-        }, 8000);
     </script>
 </body>
 </html>
