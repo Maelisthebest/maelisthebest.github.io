@@ -24,7 +24,7 @@
         }
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
             gap: 25px;
             max-width: 1600px;
             margin: 0 auto;
@@ -45,7 +45,6 @@
             height: auto;
             border: 4px solid #e74c3c;
             border-radius: 12px;
-            transition: all 0.3s;
             cursor: crosshair;
         }
         .timestamp {
@@ -53,12 +52,6 @@
             font-size: 15px;
             color: #bbb;
             text-align: center;
-        }
-        .info {
-            text-align: center;
-            margin-top: 10px;
-            font-size: 14px;
-            color: #888;
         }
     </style>
 </head>
@@ -82,40 +75,36 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        const cards = {};
-
         function createOrUpdateCard(key, entry) {
             if (!entry || !entry.image) return;
 
-            const grid = document.getElementById("grid");
-
-            if (!cards[key]) {
-                const card = document.createElement('div');
+            let card = document.getElementById('card-' + key);
+            if (!card) {
+                card = document.createElement('div');
                 card.className = 'card';
+                card.id = 'card-' + key;
                 card.innerHTML = `
                     <h3>${entry.computer || key}</h3>
                     <img id="img-${key}" src="" alt="Live Screenshot">
                     <div class="timestamp" id="time-${key}"></div>
-                    <div class="info">Klicke auf das Bild zum Fernsteuern</div>
                 `;
-                grid.appendChild(card);
-                cards[key] = card;
+                document.getElementById('grid').appendChild(card);
             }
 
-            // Bild aktualisieren
-            const img = document.getElementById(`img-${key}`);
+            const img = document.getElementById('img-' + key);
             img.src = "data:image/png;base64," + entry.image;
-            document.getElementById(`time-${key}`).innerHTML = `Letztes Update: ${entry.timestamp || 'gerade eben'}`;
+            document.getElementById('time-' + key).innerHTML = `Letztes Update: ${entry.timestamp || 'gerade eben'}`;
 
+            // Klick auf Bild = Fernsteuerung
             img.onclick = (e) => {
                 const rect = img.getBoundingClientRect();
-                const scaleX = 1920 / rect.width;   // Dynamische Skalierung
-                const scaleY = 1080 / rect.height;
-            
-                const clickX = Math.round((e.clientX - rect.left) * scaleX);
-                const clickY = Math.round((e.clientY - rect.top) * scaleY);
-            
-                if (confirm(`Klick senden an X:${clickX} Y:${clickY}?`)) {
+                const realWidth = entry.screenWidth || 1920;
+                const realHeight = entry.screenHeight || 1080;
+
+                const clickX = Math.round((e.clientX - rect.left) / rect.width * realWidth);
+                const clickY = Math.round((e.clientY - rect.top) / rect.height * realHeight);
+
+                if (confirm(`Mausklick bei X:${clickX}  Y:${clickY} ausführen?`)) {
                     db.ref('commands/click').set({ 
                         x: clickX, 
                         y: clickY, 
@@ -125,22 +114,11 @@
             };
         }
 
-        // Echtzeit-Listener
+        // Echtzeit-Updates
         db.ref('screenshots/current').on('value', (snapshot) => {
-            const data = snapshot.val();
-           
-            if (!data) {
-                document.getElementById("status").innerHTML = "❌ Noch keine Rechner aktiv";
-                return;
-            }
-
-            let activeCount = 0;
-            Object.keys(data).forEach(key => {
-                createOrUpdateCard(key, data[key]);
-                activeCount++;
-            });
-
-            document.getElementById("status").innerHTML = `✅ ${activeCount} Rechner live verbunden`;
+            const data = snapshot.val() || {};
+            Object.keys(data).forEach(k => createOrUpdateCard(k, data[k]));
+            document.getElementById("status").innerHTML = `✅ ${Object.keys(data).length} Rechner online`;
         });
     </script>
 </body>
