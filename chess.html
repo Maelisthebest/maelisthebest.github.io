@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Pro Schach & Live-Zuschauer</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #262c33;
+            color: white;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container { text-align: center; width: 600px; max-width: 95vw; }
+        #board { width: 450px; max-width: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.6); margin: 20px auto; }
+        .menu-box { background: #1e2328; padding: 20px; border-radius: 8px; border: 1px solid #3b424d; margin-bottom: 15px; text-align: left; }
+        button { padding: 8px 16px; background-color: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #005a9e; }
+        #status-panel { font-size: 1.2rem; margin: 15px 0; min-height: 25px; color: #61dafb; font-weight: bold; }
+        .player-info { display: flex; justify-content: space-between; font-weight: bold; color: #ccc; margin: 5px 0; font-size: 1.1rem; }
+        
+        /* Raumliste Style */
+        .games-list { margin-top: 15px; max-height: 200px; overflow-y: auto; background: #15191d; padding: 10px; border-radius: 4px; }
+        .game-item { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #2c323a; }
+        .game-item:last-child { border-bottom: none; }
+        .badge { background: #333; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; }
+        .badge.playing { background: #2ed573; color: black; }
+        .badge.waiting { background: #ffa500; color: black; }
+        .btn-spectate { background-color: #2f3542; margin-left: 5px; }
+        .btn-spectate:hover { background-color: #57606f; }
+        .back-btn { background-color: #ff4757; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Firebase Schach & Lobby</h1>
+
+    <!-- LOBBY / MENÜ -->
+    <div id="lobby-area">
+        <div class="menu-box">
+            <p>Eingeloggt als: <strong id="user-display" style="color: #1e90ff;">Lade Profil...</strong></p>
+            <button id="createGameBtn">Neues Spiel erstellen</button>
+        </div>
+
+        <div class="menu-box">
+            <h3>Aktive Spiele (Spielen oder Zuschauen)</h3>
+            <div class="games-list" id="gamesList">
+                <p style="color: #888; text-align: center;">Keine aktiven Spiele vorhanden...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPIELFELD -->
+    <div id="game-area" style="display: none;">
+        <div class="player-info"><span id="opponent-info">Gegner: Wartet...</span></div>
+        <div id="board"></div>
+        <div class="player-info"><span id="my-info">Du: ...</span></div>
+        
+        <div id="status-panel">Verbinde...</div>
+        <button class="back-btn" id="leaveGameBtn">Zurück zur Lobby</button>
+    </div>
+</div>
+
+<!-- Bibliotheken -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+
+<!-- Firebase Compat SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    let currentUser = null;
+    let myUsername = "Anonym";
+    let myRating = 1200; // Standardwert, falls unter chess/ratings/ noch nichts existiert
+    
+    let gameId = null;
+    let myColor = null; // 'white', 'black' oder 'viewer'
+    let board = null;
+    let game = new Chess();
+    let gameRef = null;
+
+    // 1. Authentifizierung & Profildaten laden
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            currentUser = user;
+            
+            // Schritt A: Benutzername aus deiner bestehenden users/{uid}-Struktur laden
+            db.ref(`users/${user.uid}/username`).once('value', snapshot => {
+                if (snapshot.exists()) {
+                    myUsername = snapshot.val();
+                }
+                
+                // Schritt B: Rating separat unter chess/ratings/{uid} abfragen
+                db.ref(`chess/ratings/${user.uid}`).once('value', ratingSnapshot => {
+                    if (ratingSnapshot.exists()) {
+                        myRating = ratingSnapshot.val();
+                    } else {
+                        // Falls noch kein Rating existiert, legen wir es unter chess/ratings an
+                        db.ref(`chess/ratings/${user.uid}`).set(1200);
+                    }
+                    $('#user-display').text(`${myUsername} (${myRating} Elo)`);
+                });
+            });
+            
+            listenToActiveGames();
+        } else {
+            $('#user-display').text("Nicht eingeloggt!");
+        }
+    });
+
+    // 2. Globale Spieleliste (Lobby) aus chess/games in Echtzeit spiegeln
+    function listenToActiveGames() {
+        db.ref('chess/games').on('value', snapshot => {
+            const games = snapshot.val();
+            const $list = $('#gamesList');
+            $list.empty();
+
+            if (!games) {
+                $list.html('<p style="color: #888; text-align: center;">Keine aktiven Spiele vorhanden...</p>');
+                return;
+            }
+
+            Object.keys(games).forEach(id => {
+                const g = games[id];
+                if (g.status === 'finished') return; // Beendete Spiele ausblenden
+
+                const statusBadge = g.status === 'waiting' ? '<span class="badge waiting">Offen</span>' : '<span class="badge playing">Live</span>';
+                
+                let buttons = '';
+                // Join Button falls Platz frei ist und man nicht selbst der Ersteller ist
+                if (g.status === 'waiting' && g.white !== currentUser.uid) {
+                    buttons += `<button onclick="joinGame('${id}')">Mitspielen</button>`;
+                }
+                // Zuschauen Button geht immer
+                buttons += `<button class="btn-spectate" onclick="spectateGame('${id}')">Zuschauen</button>`;
+
+                $list.append(`
+                    <div class="game-item">
+                        <div>
+                            <strong>${g.whiteName}</strong> [${g.whiteRating}] vs <strong>${g.blackName || '???'}</strong> ${g.blackRating ? '['+g.blackRating+']' : ''}
+                            <br><small style="color:#aaa;">ID: ${id}</small>
+                        </div>
+                        <div>
+                            ${statusBadge}
+                            ${buttons}
+                        </div>
+                    </div>
+                `);
+            });
+        });
+    }
+
+    // 3. Spiel erstellen unter chess/games (Als Weiß)
+    $('#createGameBtn').on('click', () => {
+        if (!currentUser) return alert("Bitte logge dich zuerst ein.");
+        gameId = Math.random().toString(36).substr(2, 6).toUpperCase();
+        myColor = 'white';
+
+        gameRef = db.ref('chess/games/' + gameId);
+        gameRef.set({
+            white: currentUser.uid,
+            whiteName: myUsername,
+            whiteRating: myRating,
+            black: "",
+            blackName: "Wartet...",
+            blackRating: 0,
+            fen: game.fen(),
+            status: "waiting",
+            winner: ""
+        }).then(() => {
+            initGameSession();
+        });
+    });
+
+    // 4. Spiel beitreten unter chess/games (Als Schwarz)
+    window.joinGame = function(id) {
+        gameId = id;
+        myColor = 'black';
+        gameRef = db.ref('chess/games/' + gameId);
+
+        gameRef.transaction(currentData => {
+            if (currentData) {
+                if (currentData.black === "") {
+                    currentData.black = currentUser.uid;
+                    currentData.blackName = myUsername;
+                    currentData.blackRating = myRating;
+                    currentData.status = "playing";
+                }
+            }
+            return currentData;
+        }, (error, committed, snapshot) => {
+            if (committed) {
+                initGameSession();
+            } else {
+                alert("Beitritt fehlgeschlagen. Der Raum ist eventuell voll.");
+            }
+        });
+    };
+
+    // 5. Als Zuschauer beitreten
+    window.spectateGame = function(id) {
+        gameId = id;
+        myColor = 'viewer';
+        gameRef = db.ref('chess/games/' + gameId);
+        initGameSession();
+    };
+
+    // 6. Spiel laden & UI umschalten
+    function initGameSession() {
+        $('#lobby-area').hide();
+        $('#game-area').show();
+
+        const config = {
+            draggable: (myColor !== 'viewer'), 
+            position: 'start',
+            orientation: (myColor === 'black' ? 'black' : 'white'), 
+            onDragStart: onDragStart,
+            onDrop: onDrop,
+            onSnapEnd: onSnapEnd,
+            pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+        };
+        board = Chessboard('board', config);
+
+        // Echtzeit-Daten-Sync für das aktuelle Brett
+        gameRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            game.load(data.fen);
+            board.position(data.fen);
+
+            // Spielernamen und Ratings dynamisch setzen
+            if (myColor === 'viewer') {
+                $('#my-info').text(`Weiß: ${data.whiteName} [${data.whiteRating}]`);
+                $('#opponent-info').text(`Schwarz: ${data.blackName} [${data.blackRating}]`);
+            } else if (myColor === 'white') {
+                $('#my-info').text(`Du (Weiß): ${data.whiteName} [${data.whiteRating}]`);
+                $('#opponent-info').text(`Gegner (Schwarz): ${data.blackName} [${data.blackRating}]`);
+            } else {
+                $('#my-info').text(`Du (Schwarz): ${data.blackName} [${data.blackRating}]`);
+                $('#opponent-info').text(`Gegner (Weiß): ${data.whiteName} [${data.whiteRating}]`);
+            }
+
+            updateStatusPanel(data.status, data.winner);
+        });
+    }
+
+    // 7. Schach-Regeln beim Bewegen
+    function onDragStart (source, piece, position, orientation) {
+        if (game.game_over() || myColor === 'viewer') return false;
+
+        if (myColor === 'white' && piece.search(/^b/) !== -1) return false;
+        if (myColor === 'black' && piece.search(/^w/) !== -1) return false;
+
+        if ((game.turn() === 'w' && myColor !== 'white') || (game.turn() === 'b' && myColor !== 'black')) {
+            return false;
+        }
+    }
+
+    function onDrop (source, target) {
+        let move = game.move({ from: source, to: target, promotion: 'q' });
+        if (move === null) return 'snapback';
+
+        gameRef.update({ fen: game.fen() });
+        checkGameOver();
+    }
+
+    function onSnapEnd () {
+        board.position(game.fen());
+    }
+
+    function updateStatusPanel(status, winner) {
+        if (status === 'waiting') {
+            $('#status-panel').html('<span style="color:orange;">Warte auf Mitspieler...</span>');
+            return;
+        }
+        if (status === 'finished') {
+            if (winner === 'draw') $('#status-panel').text("Unentschieden!");
+            else $('#status-panel').text(`Spiel vorbei! Gewinner: ${winner === 'white' ? 'Weiß' : 'Schwarz'}`);
+            return;
+        }
+
+        let turn = game.turn() === 'w' ? 'Weiß' : 'Schwarz';
+        let txt = `${turn} ist am Zug.`;
+        if (game.in_check()) txt += " (Schach!)";
+        if (myColor === 'viewer') txt = "[ZUSCHAUERMODE] " + txt;
+        
+        $('#status-panel').text(txt);
+    }
+
+    // 8. Spielende & Rating-Kalkulation (Vorbereitung)
+    function checkGameOver() {
+        if (game.game_over()) {
+            let winner = "draw";
+            if (game.in_checkmate()) {
+                winner = game.turn() === 'w' ? 'black' : 'white';
+            }
+            gameRef.update({ status: "finished", winner: winner });
+            
+            // Aufruf der Rating-Kalkulationsfunktion
+            calculateAndSaveNewRatings(winner);
+        }
+    }
+
+    function calculateAndSaveNewRatings(winner) {
+        gameRef.once('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            // Elo-Logik hier einbinden.
+            // Die neuen Ratings können dann direkt über db.ref(`chess/ratings/${uid}`).set(neuesRating) hochgeladen werden.
+            console.log("Spiel vorbei. Gewinner:", winner, "Deine Farbe:", myColor);
+        });
+    }
+
+    // Zurück-Button Logik
+    $('#leaveGameBtn').on('click', () => {
+        if (gameRef) gameRef.off(); 
+        $('#game-area').hide();
+        $('#lobby-area').show();
+    });
+</script>
+</body>
+</html>
