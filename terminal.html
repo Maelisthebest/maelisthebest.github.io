@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maelist Storage Terminal</title>
+    <style>
+        body {
+            background-color: #0a0a0a;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .terminal-container {
+            background-color: #000000;
+            color: #00ff00;
+            border: 1px solid #333;
+            border-radius: 6px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.15);
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+        }
+        #terminal-output {
+            flex: 1;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .input-line {
+            display: flex;
+            align-items: center;
+        }
+        #terminal-prompt {
+            color: #00ff00;
+            white-space: pre;
+            font-size: 14px;
+        }
+        #terminal-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            padding-left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="terminal-container">
+    <div id="terminal-output"></div>
+    <div class="input-line">
+        <span id="terminal-prompt"></span>
+        <input type="text" id="terminal-input" autofocus autocomplete="off" spellcheck="false">
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getStorage, ref as sRef, uploadString, listAll, deleteObject } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+    import { getDatabase, ref as dRef, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    // Deine Firebase Konfiguration
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    // Firebase Instanzen
+    const app = initializeApp(firebaseConfig);
+    const storage = getStorage(app);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // Terminal Statusvariablen
+    let currentUid = "gast"; 
+    let currentUsername = "gast";
+    let activeFolder = "public"; // Startverzeichnis: öffentlich
+    let virtualPath = "/public";
+
+    const outputElement = document.getElementById("terminal-output");
+    const inputElement = document.getElementById("terminal-input");
+    const promptElement = document.getElementById("terminal-prompt");
+
+    function print(text, color = "white") {
+        const line = document.createElement("div");
+        line.style.color = color;
+        line.innerText = text;
+        outputElement.appendChild(line);
+        outputElement.scrollTop = outputElement.scrollHeight;
+    }
+
+    function updatePrompt() {
+        promptElement.innerText = `${currentUsername}@maelist-storage:${virtualPath}$ `;
+    }
+
+    // Holt den Usernamen live aus der Realtime Database
+    async function fetchUsername(uid) {
+        try {
+            const userSnap = await get(dRef(db, `users/${uid}/username`));
+            if (userSnap.exists()) {
+                return userSnap.val();
+            }
+        } catch (e) {
+            console.error("Fehler beim Laden des Usernamens:", e);
+        }
+        return uid; 
+    }
+
+    // Auth-State Überwachung
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            currentUid = user.uid;
+            currentUsername = await fetchUsername(user.uid);
+            activeFolder = `users/${currentUid}`;
+            virtualPath = `/${currentUsername}`;
+            print(`Erfolgreich als '${currentUsername}' eingeloggt.`, "#00ff00");
+        } else {
+            currentUid = "gast";
+            currentUsername = "gast";
+            activeFolder = "public";
+            virtualPath = "/public";
+            print("Nicht eingeloggt. Zugriff auf '/public' beschränkt.", "#ff9900");
+        }
+        updatePrompt();
+    });
+
+    // Terminal Befehlssatz
+    const commands = {
+        help: () => {
+            print("Verfügbare Befehle:", "#00ff00");
+            print("  help                 - Zeigt dieses Menü");
+            print("  ls                   - Listet Dateien auf");
+            print("  cd [ordner]          - Wechselt das Verzeichnis (z.B. 'cd public' oder 'cd ..')");
+            print("  mkdir [name]         - Erstellt einen leeren Unterordner");
+            print("  touch [name] [text]  - Erstellt eine Textdatei mit Inhalt");
+            print("  upload [name]        - Erstellt ein Bild im Base64-Format (.txt)");
+            print("  rm [name]            - Löscht eine Datei oder Ordner");
+            print("  clear                - Leert das Terminalfenster");
+        },
+
+        clear: () => { outputElement.innerHTML = ""; },
+
+        ls: async () => {
+            try {
+                const folderRef = sRef(storage, activeFolder);
+                const res = await listAll(folderRef);
+                
+                if (res.prefixes.length === 0 && res.items.length === 0) {
+                    print("(Verzeichnis leer)", "#777");
+                    return;
+                }
+
+                res.prefixes.forEach(f => print(`[DIR]  ${f.name}`, "#3399ff"));
+                res.items.forEach(i => {
+                    if (!i.name.endsWith(".keep")) print(`[FILE] ${i.name}`, "#ffffff");
+                });
+            } catch (err) {
+                print("Fehler beim Auflisten: " + err.message, "red");
+            }
+        },
+
+        cd: async (args) => {
+            const target = args[0];
+            if (!target) return;
+
+            // Zurück-Navigation
+            if (target === "..") {
+                activeFolder = "public";
+                virtualPath = "/public";
+                updatePrompt();
+                return;
+            }
+
+            // Wechseln in den öffentlichen Ordner
+            if (target === "public" || target === "öffentlich") {
+                activeFolder = "public";
+                virtualPath = "/public";
+                updatePrompt();
+                return;
+            }
+
+            // Zielpfad berechnen
+            let targetPath = "";
+            let targetVirtual = "";
+
+            if (target === currentUsername || target === currentUid) {
+                targetPath = `users/${currentUid}`;
+                targetVirtual = `/${currentUsername}`;
+            } else {
+                // Versuch, tiefer zu gehen oder in fremde Ordner zu wechseln
+                targetPath = `${activeFolder}/${target}`;
+                targetVirtual = `${virtualPath}/${target}`;
+            }
+
+            // --- ZUGRIFFSPRÜFUNG ---
+            // Erlaubt, wenn es im public-Zweig liegt ODER im eigenen User-Zweig
+            const istPublic = targetPath.startsWith("public");
+            const istEigenesVerzeichnis = targetPath.startsWith(`users/${currentUid}`);
+
+            if (!istPublic && !istEigenesVerzeichnis) {
+                print("Zugriff verweigert: Du hast keine Rechte für diesen Ordner.", "red");
+                return;
+            }
+
+            activeFolder = targetPath;
+            virtualPath = targetVirtual;
+            updatePrompt();
+        },
+
+        touch: async (args) => {
+            const filename = args[0];
+            const content = args.slice(1).join(" ") || "Leere Datei";
+            if (!filename) return print("Fehler: Dateiname fehlt.", "red");
+
+            try {
+                const fileRef = sRef(storage, `${activeFolder}/${filename}`);
+                await uploadString(fileRef, content);
+                print(`Textdatei '${filename}' erstellt.`, "#00ff00");
+            } catch (err) {
+                print("Fehler beim Erstellen: " + err.message, "red");
+            }
+        },
+
+        mkdir: async (args) => {
+            const folderName = args[0];
+            if (!folderName) return print("Fehler: Ordnername fehlt.", "red");
+
+            try {
+                const fileRef = sRef(storage, `${activeFolder}/${folderName}/.keep`);
+                await uploadString(fileRef, "placeholder");
+                print(`Ordner '${folderName}' angelegt.`, "#00ff00");
+            } catch (err) {
+                print("Fehler: " + err.message, "red");
+            }
+        },
+
+        upload: async (args) => {
+            let filename = args[0] || "bild.txt";
+            // Falls keine Endung da ist, .txt anhängen, da es sich um Base64 Text handelt
+            if (!filename.includes(".")) filename += ".txt";
+
+            // Ein valider Base64 Daten-String für ein kleines grünes Quadrat (PNG)
+            const base64ImageString = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFklEQVR42mNk+M9Qz0AEYBxViCPAQAgA9gYIDcy9Z24AAAAASUVORK5CYII=";
+
+            try {
+                const fileRef = sRef(storage, `${activeFolder}/${filename}`);
+                // Wir laden das Bild direkt als Base64-String hoch
+                await uploadString(fileRef, base64ImageString);
+                print(`Bild '${filename}' als Base64-String erfolgreich hochgeladen!`, "#00ff00");
+            } catch (err) {
+                print("Upload fehlgeschlagen: " + err.message, "red");
+            }
+        },
+
+        rm: async (args) => {
+            const filename = args[0];
+            if (!filename) return print("Fehler: Name fehlt.", "red");
+
+            try {
+                const fileRef = sRef(storage, `${activeFolder}/${filename}`);
+                await deleteObject(fileRef);
+                print(`'${filename}' gelöscht.`, "#00ff00");
+            } catch (err) {
+                try {
+                    const keepRef = sRef(storage, `${activeFolder}/${filename}/.keep`);
+                    await deleteObject(keepRef);
+                    print(`Ordner '${filename}' gelöscht.`, "#00ff00");
+                } catch {
+                    print("Fehler: Datei nicht gefunden.", "red");
+                }
+            }
+        }
+    };
+
+    // Event-Listener für Eingabezeile
+    inputElement.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter") {
+            const rawInput = inputElement.value.trim();
+            inputElement.value = "";
+            if (!rawInput) return;
+
+            print(`${promptElement.innerText}${rawInput}`, "#777");
+
+            const parts = rawInput.split(" ");
+            const cmd = parts[0].toLowerCase();
+            const args = parts.slice(1);
+
+            if (commands[cmd]) {
+                await commands[cmd](args);
+            } else {
+                print(`Befehl unbekannt: '${cmd}'. Nutze 'help'`, "red");
+            }
+        }
+    });
+
+    // Init-Prozedur
+    updatePrompt();
+    print("Maelist OS v1.0.4 Terminal gestartet.", "#00ff00");
+    print("Verbindung zur Realtime Database & Storage stabil. Tippe 'help'.\n---");
+</script>
+</body>
+</html>
