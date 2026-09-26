@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Craft - GitHub Pages Edition</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Custom Scrollbar for Elements Sidebar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 9999px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Grid Background pattern for Canvas */
+        .workspace-grid {
+            background-size: 32px 32px;
+            background-image: 
+                radial-gradient(circle, rgba(255, 255, 255, 0.07) 1.5px, transparent 1.5px);
+        }
+
+        /* Animations */
+        @keyframes popIn {
+            0% { transform: scale(0.6); opacity: 0; }
+            70% { transform: scale(1.08); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.2); }
+            50% { box-shadow: 0 0 25px rgba(99, 102, 241, 0.6); }
+        }
+
+        .element-card {
+            animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+
+        .element-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .combining-active {
+            animation: pulseGlow 0.8s infinite alternate;
+        }
+
+        /* Prevent touch scroll interference on workspace elements */
+        .draggable-item {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex flex-col md:flex-row">
+
+    <!-- Main Interactive Workspace Area -->
+    <main id="workspace" class="relative flex-1 h-full workspace-grid bg-slate-950 overflow-hidden flex flex-col justify-between p-4">
+        
+        <!-- Header Overlay Controls -->
+        <div class="relative z-10 flex items-center justify-between pointer-events-auto">
+            <div class="flex items-center space-x-3">
+                <div class="h-10 w-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-xl shadow-lg shadow-indigo-950/50">
+                    ✨
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        Infinite Craft
+                        <span class="text-xs font-normal px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">GitHub Pages</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Drag or tap elements together to create new items</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button id="btn-clear" title="Clear Canvas" class="px-3 py-2 text-xs font-medium bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg backdrop-blur transition flex items-center gap-1.5 shadow-sm active:scale-95">
+                    <i class="fa-solid fa-eraser"></i>
+                    <span class="hidden sm:inline">Clear Workspace</span>
+                </button>
+                <button id="btn-reset" title="Reset All Saved Progress" class="px-3 py-2 text-xs font-medium bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 rounded-lg backdrop-blur transition flex items-center gap-1.5 shadow-sm active:scale-95">
+                    <i class="fa-solid fa-rotate-left"></i>
+                    <span class="hidden sm:inline">Reset All</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Canvas Floating Hints / Empty State -->
+        <div id="empty-workspace-hint" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-40 text-center px-4">
+            <div class="w-16 h-16 mb-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-2xl text-slate-500">
+                🧩
+            </div>
+            <p class="text-sm font-medium text-slate-300">Workspace is empty</p>
+            <p class="text-xs text-slate-500 max-w-xs mt-1">Select or drag elements from the sidebar to start combining!</p>
+        </div>
+
+        <!-- Dynamic Container where placed element cards reside -->
+        <div id="canvas-container" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-auto"></div>
+
+        <!-- Bottom Stats / Status Bar -->
+        <div class="relative z-10 flex items-center justify-between text-xs text-slate-400 pointer-events-auto bg-slate-900/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800/50 w-fit">
+            <span id="unlocked-count" class="font-medium text-indigo-400">4 Elements Unlocked</span>
+            <span class="mx-2 text-slate-700">|</span>
+            <span id="api-status" class="flex items-center gap-1 text-emerald-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Neal.fun API Ready
+            </span>
+        </div>
+    </main>
+
+    <!-- Discovered Elements Sidebar / Mobile Panel -->
+    <aside class="w-full md:w-80 lg:w-96 h-1/2 md:h-full bg-slate-900/95 border-t md:border-t-0 md:border-l border-slate-800/80 flex flex-col backdrop-blur-xl z-20 shadow-2xl">
+        <!-- Sidebar Search Header -->
+        <div class="p-4 border-b border-slate-800/80 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold tracking-wide text-slate-200 uppercase flex items-center gap-2">
+                    <i class="fa-solid fa-box-archive text-indigo-400"></i> Elements Library
+                </h2>
+                <span id="sidebar-count" class="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded-md text-slate-400">4</span>
+            </div>
+            
+            <!-- Search Bar Input -->
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                <input type="text" id="search-input" placeholder="Search elements..." class="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-8 pr-8 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/60 transition">
+                <button id="clear-search" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Elements Grid Container -->
+        <div id="elements-list" class="flex-1 overflow-y-auto p-3 custom-scrollbar flex flex-wrap content-start gap-2">
+            <!-- Dynamically populated element cards -->
+        </div>
+
+        <!-- Footer / Credits -->
+        <div class="p-3 border-t border-slate-800/60 bg-slate-950/40 text-center text-[10px] text-slate-500 flex items-center justify-between">
+            <span>Data via <a href="https://neal.fun/infinite-craft/" target="_blank" class="underline hover:text-indigo-400">neal.fun</a></span>
+            <span>CorsProxy Bypassed</span>
+        </div>
+    </aside>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        /**
+         * Infinite Craft Client Application
+         * Connects to Neal.fun Infinite Craft API via corsproxy.io wrapper
+         */
+
+        // Initial default elements if local storage is empty
+        const DEFAULT_ELEMENTS = [
+            { text: "Water", emoji: "💧", discovered: false },
+            { text: "Fire", emoji: "🔥", discovered: false },
+            { text: "Wind", emoji: "🌬️", discovered: false },
+            { text: "Earth", emoji: "🌍", discovered: false }
+        ];
+
+        // Application State
+        let elements = [];
+        let workspaceElements = [];
+        let selectedElementForTouch = null; // For click-to-combine on mobile/desktop
+        let activeDragElement = null;
+        let dragOffset = { x: 0, y: 0 };
+        let zIndexCounter = 10;
+
+        // DOM Element Selectors
+        const elementsListContainer = document.getElementById('elements-list');
+        const canvasContainer = document.getElementById('canvas-container');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search');
+        const btnClear = document.getElementById('btn-clear');
+        const btnReset = document.getElementById('btn-reset');
+        const emptyWorkspaceHint = document.getElementById('empty-workspace-hint');
+        const unlockedCountEl = document.getElementById('unlocked-count');
+        const sidebarCountEl = document.getElementById('sidebar-count');
+        const toastContainer = document.getElementById('toast-container');
+        const apiStatusEl = document.getElementById('api-status');
+
+        
+        /**
+         * Load elements from localStorage or set defaults
+         */
+        function loadElements() {
+            const saved = localStorage.getItem('infinite_craft_discovered');
+            if (saved) {
+                try {
+                    elements = JSON.parse(saved);
+                } catch (e) {
+                    console.error("Failed to parse saved elements", e);
+                    elements = [...DEFAULT_ELEMENTS];
+                }
+            } else {
+                elements = [...DEFAULT_ELEMENTS];
+            }
+            saveElements();
+            renderElementsSidebar();
+        }
+
+        /**
+         * Save current elements array to localStorage
+         */
+        function saveElements() {
+            localStorage.setItem('infinite_craft_discovered', JSON.stringify(elements));
+            updateCounts();
+        }
+
+        /**
+         * Update element counters in the UI
+         */
+        function updateCounts() {
+            const count = elements.length;
+            unlockedCountEl.innerText = `${count} Elements Unlocked`;
+            sidebarCountEl.innerText = count.toString();
+        }
+
+        /**
+         * Fetch pair combination from Neal.fun API using CorsProxy Wrapper
+         */
+        async function fetchCombination(first, second) {
+            const targetUrl = `https://neal.fun/api/infinite-craft/pair?first=${encodeURIComponent(first)}&second=${encodeURIComponent(second)}`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+            try {
+                apiStatusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span> Combining...`;
+                apiStatusEl.className = "flex items-center gap-1 text-amber-400";
+
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`API responded with HTTP status ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                apiStatusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Neal.fun API Ready`;
+                apiStatusEl.className = "flex items-center gap-1 text-emerald-400";
+
+                return data; // Returns object: { result: "Name", emoji: "emoji", isNew: boolean }
+            } catch (error) {
+                console.error("API Combination Error:", error);
+                apiStatusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> API Error`;
+                apiStatusEl.className = "flex items-center gap-1 text-rose-400";
+                
+                showToast("Connection Error", "Failed to fetch combination from server", "error");
+                return null;
+            }
+        }
+
+
+        /**
+         * Render Discovered Elements in Sidebar with optional filtering
+         */
+        function renderElementsSidebar(filterText = "") {
+            elementsListContainer.innerHTML = "";
+            const cleanFilter = filterText.trim().toLowerCase();
+
+            // Sort elements alphabetically
+            const sortedElements = [...elements].sort((a, b) => a.text.localeCompare(b.text));
+
+            const filtered = sortedElements.filter(item => 
+                item.text.toLowerCase().includes(cleanFilter)
+            );
+
+            if (filtered.length === 0) {
+                elementsListContainer.innerHTML = `
+                    <div class="w-full py-8 text-center text-xs text-slate-500">
+                        No elements found matching "${filterText}"
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `element-card inline-flex items-center gap-2 bg-slate-950/80 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs px-3 py-2 rounded-xl cursor-grab active:cursor-grabbing shadow-sm transition-all select-none`;
+                card.innerHTML = `<span class="text-sm">${item.emoji || '❓'}</span> <span class="font-medium">${item.text}</span>`;
+                
+                // Event listener to add to workspace on click/tap
+                card.addEventListener('click', (e) => {
+                    // Spawn near center of workspace with a slight random offset
+                    const rect = canvasContainer.getBoundingClientRect();
+                    const x = (rect.width / 2) - 50 + (Math.random() * 40 - 20);
+                    const y = (rect.height / 2) - 20 + (Math.random() * 40 - 20);
+                    spawnWorkspaceElement(item.text, item.emoji, x, y);
+                });
+
+                // Desktop drag start from sidebar
+                card.addEventListener('mousedown', (e) => {
+                    startSidebarDrag(e, item);
+                });
+
+                // Touch drag start from sidebar
+                card.addEventListener('touchstart', (e) => {
+                    const touch = e.touches[0];
+                    startSidebarDrag(touch, item);
+                }, { passive: true });
+
+                elementsListContainer.appendChild(card);
+            });
+        }
+
+
+        /**
+         * Handle starting a drag operation directly from sidebar elements
+         */
+        function startSidebarDrag(e, item) {
+            const rect = canvasContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left - 50;
+            const y = e.clientY - rect.top - 20;
+
+            const newEl = spawnWorkspaceElement(item.text, item.emoji, x, y);
+            initDrag(e, newEl);
+        }
+
+        /**
+         * Spawn an element onto the canvas workspace
+         */
+        function spawnWorkspaceElement(text, emoji, x, y) {
+            emptyWorkspaceHint.style.display = 'none';
+
+            const id = 'ws-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+            const el = document.createElement('div');
+            el.id = id;
+            el.className = `draggable-item absolute inline-flex items-center gap-2 bg-slate-900 border border-slate-700/80 text-slate-100 text-sm px-3.5 py-2.5 rounded-xl cursor-grab active:cursor-grabbing shadow-xl select-none element-card transition-border backdrop-blur-md`;
+            el.style.left = `${Math.max(10, Math.min(x, canvasContainer.clientWidth - 120))}px`;
+            el.style.top = `${Math.max(10, Math.min(y, canvasContainer.clientHeight - 50))}px`;
+            el.style.zIndex = ++zIndexCounter;
+            
+            el.dataset.text = text;
+            el.dataset.emoji = emoji || '❓';
+
+            el.innerHTML = `<span class="text-base pointer-events-none">${emoji || '❓'}</span> <span class="font-medium pointer-events-none">${text}</span>`;
+
+            // Setup Mouse Events
+            el.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                initDrag(e, el);
+            });
+
+            // Setup Touch Events
+            el.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                const touch = e.touches[0];
+                initDrag(touch, el);
+            }, { passive: true });
+
+            // Double click to duplicate element
+            el.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const currentX = parseFloat(el.style.left) + 20;
+                const currentY = parseFloat(el.style.top) + 20;
+                spawnWorkspaceElement(text, emoji, currentX, currentY);
+            });
+
+            canvasContainer.appendChild(el);
+            workspaceElements.push(el);
+
+            return el;
+        }
+
+        /**
+         * Initialize dragging state for workspace elements
+         */
+        function initDrag(e, element) {
+            activeDragElement = element;
+            element.style.zIndex = ++zIndexCounter;
+
+            const rect = element.getBoundingClientRect();
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+
+            element.classList.add('scale-105', 'border-indigo-500', 'shadow-indigo-950/50');
+        }
+
+        /**
+         * Global Pointer/Mouse Move Handler
+         */
+        function handleMove(e) {
+            if (!activeDragElement) return;
+
+            const canvasRect = canvasContainer.getBoundingClientRect();
+            let x = e.clientX - canvasRect.left - dragOffset.x;
+            let y = e.clientY - canvasRect.top - dragOffset.y;
+
+            // Boundary checks
+            x = Math.max(0, Math.min(x, canvasRect.width - activeDragElement.offsetWidth));
+            y = Math.max(0, Math.min(y, canvasRect.height - activeDragElement.offsetHeight));
+
+            activeDragElement.style.left = `${x}px`;
+            activeDragElement.style.top = `${y}px`;
+        }
+
+        /**
+         * Global Pointer/Mouse Release Handler - Checks for overlaps & combinations
+         */
+        async function handleRelease() {
+            if (!activeDragElement) return;
+
+            const draggedEl = activeDragElement;
+            activeDragElement = null;
+            draggedEl.classList.remove('scale-105', 'border-indigo-500', 'shadow-indigo-950/50');
+
+            // Check overlap with any other element on workspace
+            const draggedRect = draggedEl.getBoundingClientRect();
+
+            for (let otherEl of workspaceElements) {
+                if (otherEl === draggedEl) continue;
+
+                const otherRect = otherEl.getBoundingClientRect();
+
+                // Simple AABB Collision Detection
+                const isOverlapping = !(
+                    draggedRect.right < otherRect.left ||
+                    draggedRect.left > otherRect.right ||
+                    draggedRect.bottom < otherRect.top ||
+                    draggedRect.top > otherRect.bottom
+                );
+
+                if (isOverlapping) {
+                    await combineElements(draggedEl, otherEl);
+                    break;
+                }
+            }
+        }
+
+        // Global Move & Release Listeners
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleRelease);
+
+        window.addEventListener('touchmove', (e) => {
+            if (activeDragElement) {
+                handleMove(e.touches[0]);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', handleRelease);
+
+
+        /**
+         * Combine two workspace elements together
+         */
+        async function combineElements(el1, el2) {
+            const first = el1.dataset.text;
+            const second = el2.dataset.text;
+
+            // Positioning for combination indicator
+            const rect1 = el1.getBoundingClientRect();
+            const rect2 = el2.getBoundingClientRect();
+            const canvasRect = canvasContainer.getBoundingClientRect();
+
+            const targetX = ((rect1.left + rect2.left) / 2) - canvasRect.left;
+            const targetY = ((rect1.top + rect2.top) / 2) - canvasRect.top;
+
+            // Visual combining feedback
+            el1.classList.add('combining-active');
+            el2.classList.add('combining-active');
+
+            const result = await fetchCombination(first, second);
+
+            // Clean up old elements from workspace
+            removeWorkspaceElement(el1);
+            removeWorkspaceElement(el2);
+
+            if (!result || !result.result || result.result === "Nothing") {
+                showToast("No Result", `Combining ${first} and ${second} made nothing.`, "info");
+                return;
+            }
+
+            // Spawn newly crafted element at intersection point
+            const newCraftedEl = spawnWorkspaceElement(result.result, result.emoji, targetX, targetY);
+
+            // Check if this is a newly discovered element
+            const alreadyDiscovered = elements.some(item => item.text.toLowerCase() === result.result.toLowerCase());
+
+            if (!alreadyDiscovered) {
+                // Add to discovered elements list
+                const newObj = {
+                    text: result.result,
+                    emoji: result.emoji || '✨',
+                    discovered: result.isNew || false
+                };
+                elements.push(newObj);
+                saveElements();
+                renderElementsSidebar(searchInput.value);
+
+                // Discovery feedback
+                if (result.isNew) {
+                    showToast("FIRST DISCOVERY!", `You discovered "${result.result}" for the first time ever!`, "discovery");
+                } else {
+                    showToast("New Element!", `Unlocked: ${result.emoji} ${result.result}`, "success");
+                }
+            }
+        }
+
+        /**
+         * Remove element from workspace tracking and DOM
+         */
+        function removeWorkspaceElement(el) {
+            workspaceElements = workspaceElements.filter(item => item !== el);
+            if (el && el.parentNode) {
+                el.parentNode.removeChild(el);
+            }
+            if (workspaceElements.length === 0) {
+                emptyWorkspaceHint.style.display = 'flex';
+            }
+        }
+
+        /**
+         * Clear all items from the workspace canvas
+         */
+        function clearWorkspace() {
+            workspaceElements.forEach(el => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            });
+            workspaceElements = [];
+            emptyWorkspaceHint.style.display = 'flex';
+        }
+
+        /**
+         * Reset all progress and clear localStorage
+         */
+        function resetProgress() {
+            if (confirm("Are you sure you want to reset all discovered elements and progress?")) {
+                localStorage.removeItem('infinite_craft_discovered');
+                elements = [...DEFAULT_ELEMENTS];
+                saveElements();
+                renderElementsSidebar();
+                clearWorkspace();
+                showToast("Reset Complete", "All discovered elements have been reset.", "info");
+            }
+        }
+
+
+        /**
+         * Show custom toast notification
+         */
+        function showToast(title, message, type = "info") {
+            const toast = document.createElement('div');
+            
+            let bgStyle = "bg-slate-900 border-slate-700 text-slate-100";
+            let icon = "fa-circle-info text-indigo-400";
+
+            if (type === "success") {
+                bgStyle = "bg-emerald-950/90 border-emerald-700/80 text-emerald-100";
+                icon = "fa-circle-check text-emerald-400";
+            } else if (type === "discovery") {
+                bgStyle = "bg-amber-950/90 border-amber-500 text-amber-100 animate-bounce";
+                icon = "fa-trophy text-amber-400";
+            } else if (type === "error") {
+                bgStyle = "bg-rose-950/90 border-rose-800 text-rose-100";
+                icon = "fa-triangle-exclamation text-rose-400";
+            }
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border ${bgStyle} shadow-2xl backdrop-blur-md text-xs pointer-events-auto transition-all duration-300 opacity-0 transform -translate-y-2`;
+            
+            toast.innerHTML = `
+                <i class="fa-solid ${icon} text-sm"></i>
+                <div>
+                    <div class="font-bold">${title}</div>
+                    <div class="opacity-90">${message}</div>
+                </div>
+            `;
+
+            toastContainer.appendChild(toast);
+
+            // Animate In
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', '-translate-y-2');
+            });
+
+            // Auto Remove
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 300);
+            }, 3500);
+        }
+
+
+        // Search Input Event Listeners
+        searchInput.addEventListener('input', (e) => {
+            const val = e.target.value;
+            clearSearchBtn.classList.toggle('hidden', val.length === 0);
+            renderElementsSidebar(val);
+        });
+
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            clearSearchBtn.classList.add('hidden');
+            renderElementsSidebar('');
+        });
+
+        // Top Action Buttons
+        btnClear.addEventListener('click', clearWorkspace);
+        btnReset.addEventListener('click', resetProgress);
+
+        // Initialize App on Page Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadElements();
+        });
+    </script>
+</body>
+</html>
