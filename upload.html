@@ -26,6 +26,19 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Inter, sans-serif; }
     body { background: var(--bg-dark); color: var(--text); height: 100vh; overflow: hidden; display: flex; }
 
+    /* Lade-Bildschirm während Auth-Prüfung */
+    #authLoader {
+      position: fixed; inset: 0; background: var(--bg-dark);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 9999; font-size: 16px; color: var(--text-muted);
+    }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* App Container */
     .app-container { display: flex; width: 100vw; height: 100vh; }
 
@@ -79,6 +92,12 @@
 </head>
 <body>
 
+  <!-- Lade-Screen während Statusprüfung -->
+  <div id="authLoader">
+    <div class="spinner"></div>
+    <div>Login-Status wird überprüft...</div>
+  </div>
+
   <div class="app-container">
     <!-- Sidebar / Dateisystem -->
     <div class="sidebar">
@@ -110,7 +129,6 @@
   </div>
 
   <script>
-    // 1. Deine Firebase Konfiguration
     const firebaseConfig = {
       apiKey: "DEIN_API_KEY",
       authDomain: "DEIN_PROJEKT.firebaseapp.com",
@@ -126,25 +144,34 @@
     let activeFilePath = null;
     let filesCache = {};
 
-    // 2. Auth Status Prüfung
+    // Prüfe den Auth-Status sauber über den Event-Listener
     auth.onAuthStateChanged(async (user) => {
       if (user) {
         currentUser = user;
-        const snap = await db.ref(`users/${user.uid}/username`).once('value');
-        currentUsername = snap.val();
+        
+        try {
+          const snap = await db.ref(`users/${user.uid}/username`).once('value');
+          currentUsername = snap.val();
 
-        if (!currentUsername) {
-          alert("Fehler: Kein Username für diesen Account gefunden.");
+          if (!currentUsername) {
+            alert("Fehler: Kein Username für diesen Account gefunden.");
+            window.location.href = 'index.html';
+            return;
+          }
+
+          document.getElementById('displayUsername').innerText = "@" + currentUsername;
+          document.getElementById('liveLink').href = `https://maelisthebest.github.io/${currentUsername}`;
+
+          loadUserFiles();
+
+          // Lade-Screen ausblenden, sobald alles bereit ist
+          document.getElementById('authLoader').classList.add('hidden');
+        } catch (e) {
+          console.error("Fehler beim Laden der Nutzerdaten:", e);
           window.location.href = 'index.html';
-          return;
         }
-
-        document.getElementById('displayUsername').innerText = "@" + currentUsername;
-        document.getElementById('liveLink').href = `https://maelisthebest.github.io/${currentUsername}`;
-
-        loadUserFiles();
       } else {
-        // Nicht eingeloggt -> zurück zur Login-Seite
+        // Nicht eingeloggt -> sofort zur Login-Seite weiterleiten
         window.location.href = 'index.html';
       }
     });
@@ -155,7 +182,6 @@
       });
     }
 
-    // 3. Dateien laden & rendern
     function loadUserFiles() {
       db.ref(`usersites/${currentUsername}/files`).on('value', (snapshot) => {
         filesCache = snapshot.val() || {};
@@ -190,7 +216,6 @@
       });
     }
 
-    // 4. Datei im Editor öffnen
     function openFile(file) {
       activeFilePath = file.path;
       document.getElementById('currentFileLabel').innerText = file.path;
@@ -206,7 +231,6 @@
       renderFileTree();
     }
 
-    // 5. Speichern
     async function saveCurrentFile() {
       if (!activeFilePath) return;
       
@@ -220,7 +244,6 @@
       alert("Änderungen gespeichert!");
     }
 
-    // 6. Datei/Unterordner-Pfad anlegen
     function promptCreateFile() {
       const path = prompt("Gib den Pfad ein (z. B. 'index.html' oder 'css/style.css'):");
       if (!path) return;
@@ -234,7 +257,6 @@
       });
     }
 
-    // 7. Bild / Binärdatei als Base64 hochladen
     function triggerFileUpload() { 
       document.getElementById('assetUpload').click(); 
     }
@@ -259,7 +281,6 @@
       reader.readAsDataURL(file);
     }
 
-    // 8. Datei löschen
     async function deleteFile(key, event) {
       event.stopPropagation();
       if (confirm("Möchtest du diese Datei wirklich löschen?")) {
