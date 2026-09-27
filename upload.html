@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Ordner Hochladen (Base64)</title>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <h2>Website-Ordner hochladen</h2>
+  <input type="text" id="username" placeholder="Wunsch-Username (z.B. maxmuster)"><br><br>
+  <input type="file" id="folderInput" webkitdirectory directory multiple><br><br>
+  <button onclick="uploadSite()">Website Veröffentlichen</button>
+
+  <p id="status"></p>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "DEIN_API_KEY",
+      databaseURL: "https://DEIN_PROJEKT.firebaseio.com",
+      projectId: "DEIN_PROJEKT"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Hilfsfunktion: Konvertiert eine Datei zu einer Base64 Data-URL
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    async function uploadSite() {
+      const username = document.getElementById('username').value.trim().toLowerCase();
+      const files = document.getElementById('folderInput').files;
+      const status = document.getElementById('status');
+
+      if (!username || files.length === 0) {
+        alert("Bitte Username eingeben und einen Ordner wählen!");
+        return;
+      }
+
+      status.innerText = "Verarbeite und lade Dateien hoch...";
+
+      const siteData = {};
+
+      for (let file of files) {
+        // Relativen Pfad extrahieren (ohne den Hauptordnernamen)
+        const pathParts = file.webkitRelativePath.split('/');
+        pathParts.shift();
+        const relativePath = pathParts.join('/');
+
+        if (!relativePath) continue;
+
+        // Erlaubte Zeichen für Firebase-Keys herstellen
+        const safeKey = relativePath.replace(/[\.\#\$\[\]\/]/g, '_');
+
+        // Prüfen, ob es eine Textdatei ist (HTML, CSS, JS, SVG...)
+        const isText = file.type.startsWith('text/') || 
+                       file.name.endsWith('.html') || 
+                       file.name.endsWith('.css') || 
+                       file.name.endsWith('.js') ||
+                       file.name.endsWith('.json');
+
+        if (isText) {
+          const textContent = await file.text();
+          siteData[safeKey] = {
+            path: relativePath,
+            isText: true,
+            content: textContent
+          };
+        } else {
+          // Binärdateien (PNG, JPG, GIF, WOFF2 etc.) als Base64 Data-URL einlesen
+          const base64Data = await fileToBase64(file);
+          siteData[safeKey] = {
+            path: relativePath,
+            isText: false,
+            dataUrl: base64Data
+          };
+        }
+      }
+
+      // Gesamten Ordner in der Realtime Database speichern
+      await db.ref(`usersites/${username}/files`).set(siteData);
+
+      status.innerText = `Erfolgreich! Deine Seite ist live unter: maelisthebest.github.io/${username}`;
+    }
+  </script>
+</body>
+</html>
