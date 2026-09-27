@@ -3,12 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web Studio Dashboard</title>
-
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+  <title>Web Studio Dashboard v 1.2</title>
 
   <style>
     :root {
@@ -128,29 +123,36 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, get, set, update, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
     const firebaseConfig = {
-      apiKey: "DEIN_API_KEY",
-      authDomain: "DEIN_PROJEKT.firebaseapp.com",
-      databaseURL: "https://DEIN_PROJEKT.firebaseio.com",
-      projectId: "DEIN_PROJEKT"
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
     };
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.database();
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
 
     let currentUser = null;
     let currentUsername = null;
     let activeFilePath = null;
     let filesCache = {};
 
-    // Prüfe den Auth-Status sauber über den Event-Listener
-    auth.onAuthStateChanged(async (user) => {
+    // 1. Auth Status mit Timeout-Puffer prüfen
+    onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
-        
         try {
-          const snap = await db.ref(`users/${user.uid}/username`).once('value');
+          const snap = await get(ref(db, `users/${user.uid}/username`));
           currentUsername = snap.val();
 
           if (!currentUsername) {
@@ -164,31 +166,38 @@
 
           loadUserFiles();
 
-          // Lade-Screen ausblenden, sobald alles bereit ist
+          // Lade-Bildschirm ausblenden, wenn eingeloggt
           document.getElementById('authLoader').classList.add('hidden');
         } catch (e) {
           console.error("Fehler beim Laden der Nutzerdaten:", e);
           window.location.href = 'index.html';
         }
       } else {
-        // Nicht eingeloggt -> sofort zur Login-Seite weiterleiten
-        window.location.href = 'index.html';
+        // Puffer-Zeit geben (1000ms), um den Auth-Status verlässlich aus dem Speicher auszulesen
+        setTimeout(() => {
+          if (!auth.currentUser) {
+            window.location.href = "index.html";
+          }
+        }, 1000);
       }
     });
 
-    function logout() {
-      auth.signOut().then(() => {
+    // Logout
+    window.logout = () => {
+      signOut(auth).then(() => {
         window.location.href = 'index.html';
       });
-    }
+    };
 
+    // 2. Realtime-Listener für Dateien
     function loadUserFiles() {
-      db.ref(`usersites/${currentUsername}/files`).on('value', (snapshot) => {
+      onValue(ref(db, `usersites/${currentUsername}/files`), (snapshot) => {
         filesCache = snapshot.val() || {};
         renderFileTree();
       });
     }
 
+    // 3. Datei-Explorer rendern
     function renderFileTree() {
       const treeContainer = document.getElementById('fileTree');
       treeContainer.innerHTML = '';
@@ -216,6 +225,7 @@
       });
     }
 
+    // 4. Datei im Editor öffnen
     function openFile(file) {
       activeFilePath = file.path;
       document.getElementById('currentFileLabel').innerText = file.path;
@@ -231,37 +241,40 @@
       renderFileTree();
     }
 
-    async function saveCurrentFile() {
+    // 5. Änderungen speichern
+    window.saveCurrentFile = async () => {
       if (!activeFilePath) return;
       
       const safeKey = activeFilePath.replace(/[\.\#\$\[\]\/]/g, '_');
       const content = document.getElementById('codeEditor').value;
 
-      await db.ref(`usersites/${currentUsername}/files/${safeKey}`).update({
+      await update(ref(db, `usersites/${currentUsername}/files/${safeKey}`), {
         content: content
       });
 
       alert("Änderungen gespeichert!");
-    }
+    };
 
-    function promptCreateFile() {
+    // 6. Datei/Ordner erstellen
+    window.promptCreateFile = () => {
       const path = prompt("Gib den Pfad ein (z. B. 'index.html' oder 'css/style.css'):");
       if (!path) return;
 
       const safeKey = path.replace(/[\.\#\$\[\]\/]/g, '_');
       
-      db.ref(`usersites/${currentUsername}/files/${safeKey}`).set({
+      set(ref(db, `usersites/${currentUsername}/files/${safeKey}`), {
         path: path,
         isText: true,
         content: "<!-- Neue Datei -->\n"
       });
-    }
+    };
 
-    function triggerFileUpload() { 
+    // 7. Bilder hochladen
+    window.triggerFileUpload = () => { 
       document.getElementById('assetUpload').click(); 
-    }
+    };
 
-    async function handleFileUpload(e) {
+    window.handleFileUpload = (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -272,19 +285,20 @@
       const reader = new FileReader();
       reader.onload = async () => {
         const safeKey = path.replace(/[\.\#\$\[\]\/]/g, '_');
-        await db.ref(`usersites/${currentUsername}/files/${safeKey}`).set({
+        await set(ref(db, `usersites/${currentUsername}/files/${safeKey}`), {
           path: path,
           isText: false,
           dataUrl: reader.result
         });
       };
       reader.readAsDataURL(file);
-    }
+    };
 
-    async function deleteFile(key, event) {
+    // 8. Datei löschen
+    window.deleteFile = async (key, event) => {
       event.stopPropagation();
       if (confirm("Möchtest du diese Datei wirklich löschen?")) {
-        await db.ref(`usersites/${currentUsername}/files/${key}`).remove();
+        await remove(ref(db, `usersites/${currentUsername}/files/${key}`));
         if (filesCache[key] && filesCache[key].path === activeFilePath) {
           activeFilePath = null;
           document.getElementById('codeEditor').value = '';
@@ -292,7 +306,7 @@
           document.getElementById('currentFileLabel').innerText = "Keine Datei ausgewählt";
         }
       }
-    }
+    };
   </script>
 </body>
 </html>
