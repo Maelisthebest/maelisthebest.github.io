@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -16,6 +15,7 @@
             --galerie: #e67e22;
             --virus: #e74c3c;      /* Rot für Virus/Download */
             --monitor: #9b59b6;    /* Lila für Überwachung */
+            --upload: #4f46e5;     /* Indigo für Web Studio / Upload */
             --dark: #2c3e50;
             --bg: #f4f7f6;
         }
@@ -66,6 +66,7 @@
         .btn-galerie { background: var(--galerie); }
         .btn-virus { background: var(--virus); }
         .btn-monitor { background: var(--monitor); }
+        .btn-upload { background: var(--upload); }
 
         .choice-btn:hover { transform: translateY(-3px); opacity: 0.9; }
         .footer { margin-top: 25px; font-size: 12px; color: #999; }
@@ -75,6 +76,7 @@
 <div class="hub-container">
     <h1>Wohin als nächstes?</h1>
    
+    <a href="upload.html" class="choice-btn btn-upload">🚀 Zum Web Studio (Upload)</a>
     <a href="game.html" class="choice-btn btn-game">🎮 Zum Spiel (Game)</a>
     <a href="snake2.html" class="choice-btn btn-snake">🐍 Zum Snake-Spiel</a>
     <a href="fangspiel.html" class="choice-btn btn-fangspiel">🏃 Zum Fangspiel</a>
@@ -109,11 +111,20 @@
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            const snap = await get(ref(db, `users/${user.uid}/username`));
-            const name = snap.val() || "User";
-            document.getElementById("user-display").innerText = `Eingeloggt als ${name}`;
+            try {
+                const snap = await get(ref(db, `users/${user.uid}/username`));
+                const name = snap.val() || "User";
+                document.getElementById("user-display").innerText = `Eingeloggt als ${name}`;
+            } catch (e) {
+                console.error("Fehler beim Abrufen des Usernamens:", e);
+            }
         } else {
-            window.location.href = "index.html";
+            // Timeout-Puffer, damit man nicht fälschlicherweise rausgeworfen wird
+            setTimeout(() => {
+                if (!auth.currentUser) {
+                    window.location.href = "index.html";
+                }
+            }, 1000);
         }
     });
 </script>
