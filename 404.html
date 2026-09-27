@@ -1,19 +1,124 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seite nicht gefunden - 404</title>
-    <style>
-        body { text-align: center; font-family: sans-serif; padding: 50px; }
-        h1 { font-size: 50px; }
-        p { font-size: 20px; color: #666; }
-        a { color: #0066cc; text-decoration: none; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Lade Website...</title>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
 <body>
-    <h1>Ups! 404</h1>
-    <p>Die gesuchte Seite existiert leider nicht.</p>
-    <a href="/">Zurück zur Startseite</a>
+  <div id="loader" style="font-family: sans-serif; padding: 20px;">Website wird geladen...</div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "DEIN_API_KEY",
+      databaseURL: "https://DEIN_PROJEKT.firebaseio.com",
+      projectId: "DEIN_PROJEKT"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Extrahiere Username und angeforderte Datei aus der URL
+    const pathParts = window.location.pathname.split('/').filter(p => p);
+    const username = pathParts[0];
+    const requestedFilePath = pathParts.slice(1).join('/') || 'index.html';
+
+    // Hilfsfunktion: Löst relative Pfade auf (z. B. "css/../images/bg.png" -> "images/bg.png")
+    function resolvePath(basePath, relativePath) {
+      // Protokolle/Data-URLs nicht verändern
+      if (relativePath.startsWith('data:') || relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+        return relativePath;
+      }
+      
+      const stack = basePath.split('/').slice(0, -1); // Ordnerpfad der Quelldatei
+      const parts = relativePath.split('/');
+
+      for (const part of parts) {
+        if (part === '.' || part === '') continue;
+        if (part === '..') {
+          if (stack.length > 0) stack.pop();
+        } else {
+          stack.push(part);
+        }
+      }
+      return stack.join('/');
+    }
+
+    if (username) {
+      db.ref(`usersites/${username}/files`).once('value').then((snapshot) => {
+        const filesMap = snapshot.val();
+
+        if (!filesMap) {
+          document.body.innerHTML = "<h1>404 - Nutzerseite nicht gefunden</h1>";
+          return;
+        }
+
+        // 1. Virtuelle Zuordnungstabelle für Bilder/Fonts/Medien (Base64) erstellen
+        const rawAssetMap = {};
+        for (let key in filesMap) {
+          const file = filesMap[key];
+          if (!file.isText && file.dataUrl) {
+            rawAssetMap[file.path] = file.dataUrl;
+          }
+        }
+
+        // 2. CSS-Dateien verarbeiten: relative url(...)-Pfade ersetzen
+        const processedAssetMap = { ...rawAssetMap };
+
+        for (let key in filesMap) {
+          const file = filesMap[key];
+          if (file.isText && file.path.endsWith('.css')) {
+            let cssContent = file.content;
+
+            // Suche nach url('...') oder url("...") oder url(...)
+            cssContent = cssContent.replace(/url\((['"]?)([^'"]+)\1\)/g, (match, quote, relPath) => {
+              const cleanRelPath = relPath.trim();
+              const absolutePath = resolvePath(file.path, cleanRelPath);
+
+              if (rawAssetMap[absolutePath]) {
+                return `url("${rawAssetMap[absolutePath]}")`;
+              }
+              return match; // Falls Pfad nicht gefunden wurde, unverändert lassen
+            });
+
+            // Das verarbeitete CSS in einen Blob umwandeln
+            const blob = new Blob([cssContent], { type: 'text/css' });
+            processedAssetMap[file.path] = URL.createObjectURL(blob);
+          } else if (file.isText && file.path.endsWith('.js')) {
+            // JS-Dateien als Blob hinterlegen
+            const blob = new Blob([file.content], { type: 'application/javascript' });
+            processedAssetMap[file.path] = URL.createObjectURL(blob);
+          }
+        }
+
+        // 3. Ziel-HTML-Datei finden
+        const targetKey = Object.keys(filesMap).find(k => filesMap[k].path === requestedFilePath);
+
+        if (targetKey && filesMap[targetKey].isText) {
+          let htmlContent = filesMap[targetKey].content;
+
+          // 4. Relative Links im HTML ersetzen (src="..." und href="...")
+          for (let filePath in processedAssetMap) {
+            // Verarbeitet href="css/style.css", href="../css/style.css" etc.
+            const escapedPath = filePath.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+            const regex = new RegExp(`(src|href)=["'](\\.\\/|\\/)?${escapedPath}["']`, 'g');
+            htmlContent = htmlContent.replace(regex, `$1="${processedAssetMap[filePath]}"`);
+          }
+
+          // 5. HTML in das Dokument schreiben
+          document.open();
+          document.write(htmlContent);
+          document.close();
+        } else {
+          document.body.innerHTML = "<h1>404 - Datei im Nutzerordner nicht gefunden</h1>";
+        }
+      }).catch((error) => {
+        console.error("Fehler beim Laden:", error);
+        document.body.innerHTML = "<h1>Fehler beim Laden der Seite</h1>";
+      });
+    } else {
+      document.body.innerHTML = "<h1>Willkommen auf der Hauptseite</h1>";
+    }
+  </script>
 </body>
 </html>
