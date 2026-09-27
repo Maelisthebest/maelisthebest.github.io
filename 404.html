@@ -11,9 +11,14 @@
 
   <script>
     const firebaseConfig = {
-      apiKey: "DEIN_API_KEY",
-      databaseURL: "https://DEIN_PROJEKT.firebaseio.com",
-      projectId: "DEIN_PROJEKT"
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        // HIER DIE ECHTE URL EINSETZEN:
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/", 
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
