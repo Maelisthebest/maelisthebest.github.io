@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.8</title>
+    <title>Maelist - Tichu Online v 1.9</title>
     <style>
         :root {
             --card-w: 70px;
@@ -173,7 +173,7 @@
         .card:hover { transform: translateY(-12px); z-index: 100 !important; }
         .card.selected { transform: translateY(-20px); border: 3px solid #ffca28; z-index: 101 !important; }
 
-        /* Sortiertes Layout ohne Scrollen */
+        /* Handkarten Fächer */
         .hand {
             display: flex;
             justify-content: center;
@@ -192,7 +192,7 @@
             margin-right: 0;
         }
 
-        /* Schupf Overlay */
+        /* 3-Bereiche Schupf Area */
         #schupfen-board {
             display: none;
             position: absolute;
@@ -318,17 +318,17 @@
 
             <!-- Schupfen Overlay (3 Bereiche) -->
             <div id="schupfen-board">
-                <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Handkarte, dann ein Feld (oder klicke ein Feld zum Abwählen)</span>
+                <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Karte unten, dann ein Feld zum Ablegen (Erneuter Klick entfernt)</span>
                 <div class="schupf-targets">
-                    <div class="schupf-box" id="target-left" onclick="handleSchupfTargetClick('left')">
+                    <div class="schupf-box" id="target-left" onclick="toggleOrPlaceSchupf('left')">
                         <strong>Links (Gegner)</strong>
                         <div id="slot-left"></div>
                     </div>
-                    <div class="schupf-box" id="target-top" onclick="handleSchupfTargetClick('top')">
+                    <div class="schupf-box" id="target-top" onclick="toggleOrPlaceSchupf('top')">
                         <strong>Oben (Partner)</strong>
                         <div id="slot-top"></div>
                     </div>
-                    <div class="schupf-box" id="target-right" onclick="handleSchupfTargetClick('right')">
+                    <div class="schupf-box" id="target-right" onclick="toggleOrPlaceSchupf('right')">
                         <strong>Rechts (Gegner)</strong>
                         <div id="slot-right"></div>
                     </div>
@@ -372,7 +372,7 @@
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // Deck initialisieren
+        // Deck Erstellen
         const DECK = [];
         let cardId = 0;
         for (let r = 1; r <= 4; r++) {
@@ -401,9 +401,7 @@
         let isHost = false;
         let roomData = null;
         
-        // Mehrfachauswahl im Hauptspiel
-        let selectedHandCardIds = [];
-        // Schupfen Auswahl
+        let selectedHandCards = []; // Mehrere Karten auswählbar beim Legen
         let schupfSelection = { left: null, top: null, right: null };
 
         onAuthStateChanged(auth, async (user) => {
@@ -487,13 +485,18 @@
             listenToRoom();
         };
 
-        // Spiel Starten (Nur Host)
+        // Spiel Starten (Nur Host) - Echter Zufall
         document.getElementById("btn-start-game").onclick = () => {
             if (!isHost || !roomData) return;
             const playerSeats = Object.keys(roomData.players || {});
             if (playerSeats.length < 4) return alert("Es werden genau 4 Spieler benötigt!");
 
-            const shuffled = [...DECK].sort(() => Math.random() - 0.5);
+            // Fisher-Yates Shuffle für echten Zufall
+            const shuffled = [...DECK];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
             
             const hands8 = {
                 0: shuffled.slice(0, 8).map(c => c.id),
@@ -516,6 +519,7 @@
                 gtichuCalls: {},
                 schupfData: {},
                 playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] },
+                lastPlayedCombo: null,
                 currentTurn: 0
             });
         };
@@ -531,49 +535,45 @@
             });
         }
 
-        // Handkarte anklicken (Auswählen / Abwählen)
-        window.toggleSelectCardFromHand = function(cardId) {
+        // Handkarte anklicken (Toggle Auswahl)
+        window.selectCardFromHand = function(cardId) {
             if (roomData.status === "schupfen") {
-                // Beim Schupfen wird immer eine Karte als "aktiv" markiert
-                if (selectedHandCardIds.includes(cardId)) {
-                    selectedHandCardIds = [];
+                // Beim Schupfen maximal 3 Karten insgesamt ausgewählt
+                if (selectedHandCards.includes(cardId)) {
+                    selectedHandCards = selectedHandCards.filter(id => id !== cardId);
                 } else {
-                    selectedHandCardIds = [cardId];
+                    if (selectedHandCards.length >= 3) {
+                        selectedHandCards.shift(); // Älteste Karte abwählen
+                    }
+                    selectedHandCards.push(cardId);
                 }
             } else {
-                // Beim normalen Spielen: Mehrfache Auswahl / Abwählen
-                if (selectedHandCardIds.includes(cardId)) {
-                    selectedHandCardIds = selectedHandCardIds.filter(id => id !== cardId);
+                // Beim normalen Spielen: Mehrere Karten frei wählen/abwählen
+                if (selectedHandCards.includes(cardId)) {
+                    selectedHandCards = selectedHandCards.filter(id => id !== cardId);
                 } else {
-                    selectedHandCardIds.push(cardId);
+                    selectedHandCards.push(cardId);
                 }
             }
             renderHand(roomData.hands[mySeat]);
         };
 
-        // Schupfen Target Anwählen / Abwählen
-        window.handleSchupfTargetClick = function(target) {
-            // Wenn bereits eine Karte im Fach liegt -> Abwählen
-            if (schupfSelection[target] !== null && selectedHandCardIds.length === 0) {
+        // Schupfen: Abwählen oder Ablegen
+        window.toggleOrPlaceSchupf = function(target) {
+            // Wenn in diesem Slot bereits eine Karte liegt -> Abwählen
+            if (schupfSelection[target] !== null) {
+                const removedId = schupfSelection[target];
                 schupfSelection[target] = null;
-                updateSchupfDisplay();
-                renderHand(roomData.hands[mySeat]);
-                return;
+                selectedHandCards = selectedHandCards.filter(id => id !== removedId);
+            } else {
+                // Ansonsten die aktuellste gewählte Handkarte auf diesen Slot legen
+                const available = selectedHandCards.filter(id => !Object.values(schupfSelection).includes(id));
+                if (available.length > 0) {
+                    schupfSelection[target] = available[available.length - 1];
+                } else {
+                    alert("Klicke zuerst eine Handkarte an!");
+                }
             }
-
-            if (selectedHandCardIds.length === 0) {
-                return alert("Klicke zuerst eine Handkarte an!");
-            }
-
-            const cardToPlace = selectedHandCardIds[0];
-
-            // Falls Karte schon woanders verwendet wird, dort entfernen
-            for (let k in schupfSelection) {
-                if (schupfSelection[k] === cardToPlace) schupfSelection[k] = null;
-            }
-
-            schupfSelection[target] = cardToPlace;
-            selectedHandCardIds = [];
 
             updateSchupfDisplay();
             renderHand(roomData.hands[mySeat]);
@@ -598,8 +598,8 @@
         }
 
         document.getElementById("btn-confirm-schupf").onclick = () => {
-            if (!schupfSelection.left || !schupfSelection.top || !schupfSelection.right) {
-                return alert("Du musst für alle 3 Plätze genau 1 Karte auswählen!");
+            if (schupfSelection.left === null || schupfSelection.top === null || schupfSelection.right === null) {
+                return alert("Du musst für alle 3 Plätze eine Karte auswählen!");
             }
 
             update(ref(db, `tichu_rooms/${currentRoomCode}/schupfData/${mySeat}`), schupfSelection);
@@ -607,25 +607,120 @@
             document.getElementById("btn-confirm-schupf").innerText = "Warte auf andere Spieler...";
         };
 
-        // Karten ausspielen (Legen Button)
+        // Tichu Kombinations-Prüfung
+        function parseCombo(cardIds) {
+            if (!cardIds || cardIds.length === 0) return null;
+            const cards = cardIds.map(id => DECK[id]).sort((a,b) => a.value - b.value);
+            const len = cards.length;
+
+            // Einzelkarte
+            if (len === 1) return { type: 'single', value: cards[0].value, len: 1 };
+
+            const values = cards.map(c => c.value);
+            const allSame = values.every(v => v === values[0]);
+
+            // Paar
+            if (len === 2 && allSame) return { type: 'pair', value: values[0], len: 2 };
+
+            // Drilling
+            if (len === 3 && allSame) return { type: 'trio', value: values[0], len: 3 };
+
+            // Vierling (Bombe)
+            if (len === 4 && allSame) return { type: 'bomb_quad', value: values[0], len: 4 };
+
+            // Full House (3 + 2)
+            if (len === 5) {
+                if ((values[0] === values[1] && values[1] === values[2] && values[3] === values[4])) {
+                    return { type: 'fullhouse', value: values[2], len: 5 };
+                }
+                if ((values[0] === values[1] && values[2] === values[3] && values[3] === values[4])) {
+                    return { type: 'fullhouse', value: values[4], len: 5 };
+                }
+            }
+
+            // Straße (mind. 5 fortlaufende Karten)
+            let isStreet = true;
+            for (let i = 0; i < len - 1; i++) {
+                if (values[i+1] !== values[i] + 1) { isStreet = false; break; }
+            }
+            if (isStreet && len >= 5) {
+                // Farbreihe (Bombe)?
+                const sameSuit = cards.every(c => c.suit === cards[0].suit);
+                if (sameSuit) return { type: 'bomb_street', value: values[len-1], len: len };
+                return { type: 'street', value: values[len-1], len: len };
+            }
+
+            // Treppe (aufeinanderfolgende Paare)
+            if (len >= 4 && len % 2 === 0) {
+                let isStairs = true;
+                for (let i = 0; i < len; i += 2) {
+                    if (values[i] !== values[i+1]) { isStairs = false; break; }
+                    if (i > 0 && values[i] !== values[i-2] + 1) { isStairs = false; break; }
+                }
+                if (isStairs) return { type: 'stairs', value: values[len-1], len: len };
+            }
+
+            return null; // Ungültige Kombination
+        }
+
+        function isHigherCombo(newCombo, lastCombo) {
+            if (!lastCombo) return true; // Tisch ist leer
+
+            // Bomben schlagen normale Kombinationen
+            if (newCombo.type.startsWith('bomb_') && !lastCombo.type.startsWith('bomb_')) return true;
+
+            if (newCombo.type.startsWith('bomb_') && lastCombo.type.startsWith('bomb_')) {
+                if (newCombo.type === 'bomb_street' && lastCombo.type === 'bomb_quad') return true;
+                if (newCombo.type === lastCombo.type) {
+                    if (newCombo.len !== lastCombo.len) return newCombo.len > lastCombo.len;
+                    return newCombo.value > lastCombo.value;
+                }
+                return false;
+            }
+
+            // Normale Kombinationen müssen vom gleichen Typ und gleicher Länge sein
+            if (newCombo.type !== lastCombo.type || newCombo.len !== lastCombo.len) return false;
+
+            return newCombo.value > lastCombo.value;
+        }
+
+        // Legen-Button
         document.getElementById("btn-play").onclick = async () => {
-            if (roomData.status !== "playing") return;
-            if (roomData.currentTurn !== mySeat) return alert("Du bist nicht an der Reihe!");
-            if (selectedHandCardIds.length === 0) return alert("Wähle mindestens eine Karte zum Legen aus!");
+            if (!roomData || roomData.currentTurn !== mySeat || roomData.status !== "playing") {
+                return alert("Du bist nicht an der Reihe!");
+            }
 
-            let currentHand = roomData.hands[mySeat] || [];
-            let newHand = currentHand.filter(id => !selectedHandCardIds.includes(id));
+            if (selectedHandCards.length === 0) return alert("Wähle Karten aus, die du legen möchtest!");
 
-            let currentPlayed = roomData.playedCardsBySeat || { 0: [], 1: [], 2: [], 3: [] };
-            currentPlayed[mySeat] = selectedHandCardIds;
+            const combo = parseCombo(selectedHandCards);
+            if (!combo) return alert("Ungültige Kartenkombination!");
 
-            let nextTurn = (mySeat + 1) % 4;
+            if (!isHigherCombo(combo, roomData.lastPlayedCombo)) {
+                return alert("Deine Kombination schlägt die aktuelle Tischkombination nicht!");
+            }
 
-            selectedHandCardIds = [];
+            // Ausspielen
+            const updatedHand = roomData.hands[mySeat].filter(id => !selectedHandCards.includes(id));
+            const newPlayedCards = { ...(roomData.playedCardsBySeat || {}) };
+            newPlayedCards[mySeat] = selectedHandCards;
+
+            const nextTurn = (mySeat + 1) % 4;
+
+            selectedHandCards = [];
 
             await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
-                [`hands/${mySeat}`]: newHand,
-                playedCardsBySeat: currentPlayed,
+                [`hands/${mySeat}`]: updatedHand,
+                playedCardsBySeat: newPlayedCards,
+                lastPlayedCombo: combo,
+                currentTurn: nextTurn
+            });
+        };
+
+        // Passen-Button
+        document.getElementById("btn-pass").onclick = async () => {
+            if (!roomData || roomData.currentTurn !== mySeat || roomData.status !== "playing") return;
+            const nextTurn = (mySeat + 1) % 4;
+            await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
                 currentTurn: nextTurn
             });
         };
@@ -640,7 +735,7 @@
                 document.getElementById("status-bar").innerText = 
                     `RAUM-CODE: ${currentRoomCode} | Status: ${roomData.status.toUpperCase()} (${playerCount}/4 Spieler)`;
 
-                // 1. Phase: Großes Tichu
+                // Phase 1: Großes Tichu
                 if (roomData.status === "gtichu_phase") {
                     const gtCalls = roomData.gtichuCalls || {};
                     if (gtCalls[mySeat] === undefined) {
@@ -662,13 +757,13 @@
                         });
                     }
                 } 
-                // 2. Phase: Schupfen
+                // Phase 2: Schupfen
                 else if (roomData.status === "schupfen") {
                     document.getElementById("gtichu-overlay").style.display = "none";
                     document.getElementById("schupfen-board").style.display = "flex";
                     checkAutoSchupfComplete();
                 } 
-                // 3. Phase: Hauptspiel
+                // Phase 3: Hauptspiel
                 else if (roomData.status === "playing") {
                     document.getElementById("gtichu-overlay").style.display = "none";
                     document.getElementById("schupfen-board").style.display = "none";
@@ -694,7 +789,7 @@
                         if (roomData.gtichuCalls && roomData.gtichuCalls[i] === "GROSSES TICHU") {
                             nameStr += " (Gr. Tichu!)";
                         }
-                        nameEl.innerText = nameStr;
+                        if (nameEl) nameEl.innerText = nameStr;
                     }
 
                     if (roomData.hands && roomData.hands[i] && countEl) {
@@ -706,7 +801,7 @@
             });
         }
 
-        // Schupfen automatisch verarbeiten & Startspieler (Mahjong / 1) ermitteln
+        // Schupfen Beenden & Startspieler mit Mahjong (Wert 1) finden
         function checkAutoSchupfComplete() {
             const sData = roomData.schupfData || {};
             if (Object.keys(sData).length === 4 && isHost) {
@@ -723,12 +818,11 @@
                     newHands[rightSeat].push(sData[s].right);
                 }
 
-                // Ermittlung, wer das Mahjong (Wert 1 / Mahjong) besitzt
-                let startingPlayer = 0;
-                for (let seat = 0; seat < 4; seat++) {
-                    const hasMahjong = newHands[seat].some(cardId => DECK[cardId].type === "mahjong");
-                    if (hasMahjong) {
-                        startingPlayer = seat;
+                // Startspieler ermitteln (Wer hat den Mahjong / Karte mit Wert 1?)
+                let startingSeat = 0;
+                for (let s = 0; s < 4; s++) {
+                    if (newHands[s].some(cardId => DECK[cardId].value === 1)) {
+                        startingSeat = s;
                         break;
                     }
                 }
@@ -736,7 +830,7 @@
                 update(ref(db, `tichu_rooms/${currentRoomCode}`), {
                     hands: newHands,
                     status: "playing",
-                    currentTurn: startingPlayer
+                    currentTurn: startingSeat
                 });
             }
         }
@@ -752,17 +846,17 @@
             });
 
             sortedCards.forEach((card, index) => {
-                const isSelected = selectedHandCardIds.includes(card.id) || Object.values(schupfSelection).includes(card.id);
+                const isSelected = selectedHandCards.includes(card.id);
                 const div = document.createElement("div");
                 div.className = `card ${isSelected ? 'selected' : ''}`;
                 div.style.backgroundImage = `url('${card.file}')`;
                 div.style.zIndex = index;
-                div.onclick = () => toggleSelectCardFromHand(card.id);
+                div.onclick = () => selectCardFromHand(card.id);
                 handEl.appendChild(div);
             });
         }
 
-        // Gespielte Karten direkt vor den jeweiligen Spieler legen
+        // Gespielte Karten vor den jeweiligen Spielern rendern
         function renderPlayedCards(playedCardsBySeat) {
             for (let i = 0; i < 4; i++) {
                 const relativeSeat = (i - mySeat + 4) % 4;
