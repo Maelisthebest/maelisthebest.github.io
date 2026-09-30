@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.5</title>
+    <title>Maelist - Tichu Online v 1.6</title>
     <style>
         :root {
-            --card-w: 75px;
-            --card-h: 115px;
+            --card-w: 70px;
+            --card-h: 108px;
             --bg-color: #0d3b2e;
         }
 
@@ -88,12 +88,12 @@
         #table-container {
             width: 100%;
             max-width: 1050px;
-            height: 640px;
+            height: 650px;
             background: #145240;
             border: 4px solid #075e54;
             border-radius: 12px;
             display: grid;
-            grid-template-rows: 1fr 2fr 1.4fr;
+            grid-template-rows: 1fr 2.2fr 1.4fr;
             grid-template-columns: 1fr 2.5fr 1fr;
             gap: 10px;
             padding: 10px;
@@ -127,12 +127,33 @@
             border: 2px solid #25d366;
             border-radius: 10px;
             background: rgba(0, 0, 0, 0.2);
+            display: grid;
+            grid-template-rows: 1fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
+            padding: 8px;
+            position: relative;
+        }
+
+        /* Vor jedem Spieler abgelegte Karten */
+        .played-area {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            min-height: 50px;
+        }
+
+        .played-top    { grid-area: 1 / 2 / 2 / 3; align-items: flex-start; }
+        .played-left   { grid-area: 2 / 1 / 3 / 2; justify-content: flex-start; }
+        .played-right  { grid-area: 2 / 3 / 3 / 4; justify-content: flex-end; }
+        .played-bottom { grid-area: 3 / 2 / 4 / 3; align-items: flex-end; }
+
+        .center-action {
+            grid-area: 2 / 2 / 3 / 3;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            padding: 10px;
-            position: relative;
+            justify-content: center;
         }
 
         .card {
@@ -158,36 +179,31 @@
             justify-content: center;
             align-items: center;
             width: 100%;
-            height: 130px;
+            height: 120px;
             padding: 10px 20px;
             overflow: visible;
         }
 
         .hand .card {
-            margin-right: -42px; /* Karten überlappen kompakt */
+            margin-right: -42px;
         }
 
         .hand .card:last-child {
             margin-right: 0;
         }
 
-        #played-cards {
-            display: flex;
-            gap: 6px;
-            min-height: var(--card-h);
-            align-items: center;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
         /* 3-Bereiche Schupf Area */
         #schupfen-board {
             display: none;
-            width: 100%;
-            height: 100%;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(20, 82, 64, 0.95);
+            border-radius: 8px;
+            z-index: 150;
             flex-direction: column;
             align-items: center;
             justify-content: space-around;
+            padding: 10px;
         }
 
         .schupf-targets {
@@ -198,8 +214,8 @@
         }
 
         .schupf-box {
-            width: 95px;
-            height: 130px;
+            width: 90px;
+            height: 125px;
             border: 2px dashed #ffca28;
             border-radius: 8px;
             background: rgba(0, 0, 0, 0.4);
@@ -276,6 +292,20 @@
 
         <!-- Tischmitte -->
         <div class="table-center">
+            <!-- Gespielte Kombis vor den jeweiligen Spielern -->
+            <div class="played-area played-top" id="played-2"></div>
+            <div class="played-area played-left" id="played-3"></div>
+            <div class="played-area played-right" id="played-1"></div>
+            <div class="played-area played-bottom" id="played-0"></div>
+
+            <div class="center-action">
+                <div class="controls">
+                    <button class="btn" id="btn-play">Legen</button>
+                    <button class="btn btn-danger" id="btn-pass">Passen</button>
+                    <button class="btn btn-warn" id="btn-call-tichu">Tichu Ansagen!</button>
+                </div>
+            </div>
+
             <!-- Overlay Großes Tichu -->
             <div id="gtichu-overlay">
                 <h3 style="color: #ffca28;">Du hast deine ersten 8 Karten erhalten!</h3>
@@ -283,17 +313,6 @@
                 <div style="display: flex; gap: 10px;">
                     <button class="btn btn-warn" id="btn-call-gtichu">Großes Tichu!</button>
                     <button class="btn" id="btn-pass-gtichu">Nein / Weiter</button>
-                </div>
-            </div>
-
-            <!-- Normales Spielfeld -->
-            <div id="playing-board" style="display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%; justify-content: space-between;">
-                <span style="font-size: 12px; color: #aaa;">TISCHMITTE</span>
-                <div id="played-cards"></div>
-                <div class="controls">
-                    <button class="btn" id="btn-play">Legen</button>
-                    <button class="btn btn-danger" id="btn-pass">Passen</button>
-                    <button class="btn btn-warn" id="btn-call-tichu">Tichu Ansagen!</button>
                 </div>
             </div>
 
@@ -353,7 +372,7 @@
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // Deck initialisieren mit exaktem Pfad-Format
+        // Deck initialisieren
         const DECK = [];
         let cardId = 0;
         for (let r = 1; r <= 4; r++) {
@@ -361,7 +380,6 @@
                 let type = "normal";
                 let value = c;
                 
-                // Sonderkarten Zuordnung
                 if (c === 1) {
                     if (r === 1) { type = "dragon"; value = 15; }
                     else if (r === 2) { type = "phoenix"; value = 1.5; }
@@ -395,7 +413,6 @@
             }
         });
 
-        // Automatische Prüfung bei Reload: Bin ich schon in einem Raum?
         async function checkExistingRoom() {
             const roomsRef = ref(db, "tichu_rooms");
             const snapshot = await get(roomsRef);
@@ -467,7 +484,7 @@
             listenToRoom();
         };
 
-        // Spiel Starten (Nur Host) - Teilt erst 8 Karten aus!
+        // Spiel Starten (Nur Host)
         document.getElementById("btn-start-game").onclick = () => {
             if (!isHost || !roomData) return;
             const playerSeats = Object.keys(roomData.players || {});
@@ -475,7 +492,6 @@
 
             const shuffled = [...DECK].sort(() => Math.random() - 0.5);
             
-            // 8 Karten für erstes Vergeben (Großes Tichu) + 6 Verbleibende
             const hands8 = {
                 0: shuffled.slice(0, 8).map(c => c.id),
                 1: shuffled.slice(14, 22).map(c => c.id),
@@ -496,7 +512,7 @@
                 remaining6: remaining6,
                 gtichuCalls: {},
                 schupfData: {},
-                table: [],
+                playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] },
                 currentTurn: 0
             });
         };
@@ -582,7 +598,9 @@
                     if (Object.keys(gtCalls).length === 4 && isHost) {
                         let fullHands = {};
                         for (let s = 0; s < 4; s++) {
-                            fullHands[s] = [...roomData.hands[s], ...roomData.remaining6[s]];
+                            const initialHand = roomData.hands[s] || [];
+                            const extraCards = roomData.remaining6[s] || [];
+                            fullHands[s] = [...initialHand, ...extraCards];
                         }
                         update(ref(db, `tichu_rooms/${currentRoomCode}`), {
                             hands: fullHands,
@@ -593,16 +611,13 @@
                 // 2. Phase: Schupfen
                 else if (roomData.status === "schupfen") {
                     document.getElementById("gtichu-overlay").style.display = "none";
-                    document.getElementById("playing-board").style.display = "none";
                     document.getElementById("schupfen-board").style.display = "flex";
                     checkAutoSchupfComplete();
                 } 
                 // 3. Phase: Hauptspiel
                 else if (roomData.status === "playing") {
                     document.getElementById("gtichu-overlay").style.display = "none";
-                    document.getElementById("schupfen-board").style.display = "flex";
                     document.getElementById("schupfen-board").style.display = "none";
-                    document.getElementById("playing-board").style.display = "flex";
                 }
 
                 // Handkarten rendern
@@ -610,16 +625,15 @@
                     renderHand(roomData.hands[mySeat]);
                 }
 
-                // Tischmitte rendern
-                if (roomData.table) {
-                    renderTable(roomData.table);
-                }
+                // Vor den Spielern abgelegte Karten rendern
+                renderPlayedCards(roomData.playedCardsBySeat || {});
 
-                // Spieleranzeige
+                // Spieleranzeige & Turn-Markierung
                 for (let i = 0; i < 4; i++) {
                     const relativeSeat = (i - mySeat + 4) % 4;
                     const nameEl = document.getElementById(`name-${relativeSeat}`);
                     const boxEl = document.getElementById(`box-${relativeSeat}`);
+                    const countEl = document.getElementById(`count-${relativeSeat}`);
                     
                     if (roomData.players && roomData.players[i]) {
                         let nameStr = (i === mySeat) ? "Du" : "Spieler " + (i+1);
@@ -628,12 +642,16 @@
                         }
                         nameEl.innerText = nameStr;
                     }
+
+                    if (roomData.hands && roomData.hands[i] && countEl) {
+                        countEl.innerText = `Karten: ${roomData.hands[i].length}`;
+                    }
+
                     if (boxEl) boxEl.classList.toggle("active-turn", roomData.currentTurn === i && roomData.status === "playing");
                 }
             });
         }
 
-        // Schupfen automatisch ausführen, sobald alle gewählt haben
         function checkAutoSchupfComplete() {
             const sData = roomData.schupfData || {};
             if (Object.keys(sData).length === 4 && isHost) {
@@ -657,12 +675,11 @@
             }
         }
 
-        // Handkarten sortiert und im Fächer-Layout anzeigen
+        // Handkarten sortiert anzeigen
         function renderHand(cardIds) {
             const handEl = document.getElementById("my-hand");
             handEl.innerHTML = "";
 
-            // Nach Kartenwert & Farbe sortieren
             const sortedCards = cardIds.map(id => DECK[id]).sort((a, b) => {
                 if (a.value === b.value) return a.suit - b.suit;
                 return a.value - b.value;
@@ -679,16 +696,24 @@
             });
         }
 
-        function renderTable(cardIds) {
-            const tableEl = document.getElementById("played-cards");
-            tableEl.innerHTML = "";
-            cardIds.forEach(id => {
-                const card = DECK[id];
-                const div = document.createElement("div");
-                div.className = "card";
-                div.style.backgroundImage = `url('${card.file}')`;
-                tableEl.appendChild(div);
-            });
+        // Gespielte Karten direkt vor den jeweiligen Spieler legen
+        function renderPlayedCards(playedCardsBySeat) {
+            for (let i = 0; i < 4; i++) {
+                const relativeSeat = (i - mySeat + 4) % 4;
+                const playedEl = document.getElementById(`played-${relativeSeat}`);
+                if (!playedEl) continue;
+
+                playedEl.innerHTML = "";
+                const cardIds = playedCardsBySeat[i] || [];
+
+                cardIds.forEach(id => {
+                    const card = DECK[id];
+                    const div = document.createElement("div");
+                    div.className = "card";
+                    div.style.backgroundImage = `url('${card.file}')`;
+                    playedEl.appendChild(div);
+                });
+            }
         }
     </script>
 </body>
