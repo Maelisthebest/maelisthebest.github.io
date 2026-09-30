@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.9</title>
+    <title>Maelist - Tichu Online v 1.10</title>
     <style>
         :root {
             --card-w: 70px;
@@ -318,7 +318,7 @@
 
             <!-- Schupfen Overlay (3 Bereiche) -->
             <div id="schupfen-board">
-                <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Karte unten, dann ein Feld zum Ablegen (Erneuter Klick entfernt)</span>
+                <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Karte unten, dann ein Feld zum Ablegen</span>
                 <div class="schupf-targets">
                     <div class="schupf-box" id="target-left" onclick="toggleOrPlaceSchupf('left')">
                         <strong>Links (Gegner)</strong>
@@ -401,7 +401,7 @@
         let isHost = false;
         let roomData = null;
         
-        let selectedHandCards = []; // Mehrere Karten auswählbar beim Legen
+        let selectedHandCards = []; 
         let schupfSelection = { left: null, top: null, right: null };
 
         onAuthStateChanged(auth, async (user) => {
@@ -491,7 +491,7 @@
             const playerSeats = Object.keys(roomData.players || {});
             if (playerSeats.length < 4) return alert("Es werden genau 4 Spieler benötigt!");
 
-            // Fisher-Yates Shuffle für echten Zufall
+            // Fisher-Yates Shuffle
             const shuffled = [...DECK];
             for (let i = shuffled.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -535,20 +535,17 @@
             });
         }
 
-        // Handkarte anklicken (Toggle Auswahl)
+        // Handkarte anklicken
         window.selectCardFromHand = function(cardId) {
             if (roomData.status === "schupfen") {
-                // Beim Schupfen maximal 3 Karten insgesamt ausgewählt
+                // Beim Schupfen: NUR genau 1 Karte gleichzeitig auswählen
                 if (selectedHandCards.includes(cardId)) {
-                    selectedHandCards = selectedHandCards.filter(id => id !== cardId);
+                    selectedHandCards = [];
                 } else {
-                    if (selectedHandCards.length >= 3) {
-                        selectedHandCards.shift(); // Älteste Karte abwählen
-                    }
-                    selectedHandCards.push(cardId);
+                    selectedHandCards = [cardId];
                 }
             } else {
-                // Beim normalen Spielen: Mehrere Karten frei wählen/abwählen
+                // Beim Legen: Mehrere Karten frei wählbar/abwählbar
                 if (selectedHandCards.includes(cardId)) {
                     selectedHandCards = selectedHandCards.filter(id => id !== cardId);
                 } else {
@@ -560,16 +557,14 @@
 
         // Schupfen: Abwählen oder Ablegen
         window.toggleOrPlaceSchupf = function(target) {
-            // Wenn in diesem Slot bereits eine Karte liegt -> Abwählen
             if (schupfSelection[target] !== null) {
                 const removedId = schupfSelection[target];
                 schupfSelection[target] = null;
                 selectedHandCards = selectedHandCards.filter(id => id !== removedId);
             } else {
-                // Ansonsten die aktuellste gewählte Handkarte auf diesen Slot legen
-                const available = selectedHandCards.filter(id => !Object.values(schupfSelection).includes(id));
-                if (available.length > 0) {
-                    schupfSelection[target] = available[available.length - 1];
+                if (selectedHandCards.length > 0) {
+                    schupfSelection[target] = selectedHandCards[0];
+                    selectedHandCards = [];
                 } else {
                     alert("Klicke zuerst eine Handkarte an!");
                 }
@@ -644,7 +639,6 @@
                 if (values[i+1] !== values[i] + 1) { isStreet = false; break; }
             }
             if (isStreet && len >= 5) {
-                // Farbreihe (Bombe)?
                 const sameSuit = cards.every(c => c.suit === cards[0].suit);
                 if (sameSuit) return { type: 'bomb_street', value: values[len-1], len: len };
                 return { type: 'street', value: values[len-1], len: len };
@@ -660,13 +654,12 @@
                 if (isStairs) return { type: 'stairs', value: values[len-1], len: len };
             }
 
-            return null; // Ungültige Kombination
+            return null;
         }
 
         function isHigherCombo(newCombo, lastCombo) {
-            if (!lastCombo) return true; // Tisch ist leer
+            if (!lastCombo) return true;
 
-            // Bomben schlagen normale Kombinationen
             if (newCombo.type.startsWith('bomb_') && !lastCombo.type.startsWith('bomb_')) return true;
 
             if (newCombo.type.startsWith('bomb_') && lastCombo.type.startsWith('bomb_')) {
@@ -678,7 +671,6 @@
                 return false;
             }
 
-            // Normale Kombinationen müssen vom gleichen Typ und gleicher Länge sein
             if (newCombo.type !== lastCombo.type || newCombo.len !== lastCombo.len) return false;
 
             return newCombo.value > lastCombo.value;
@@ -699,7 +691,6 @@
                 return alert("Deine Kombination schlägt die aktuelle Tischkombination nicht!");
             }
 
-            // Ausspielen
             const updatedHand = roomData.hands[mySeat].filter(id => !selectedHandCards.includes(id));
             const newPlayedCards = { ...(roomData.playedCardsBySeat || {}) };
             newPlayedCards[mySeat] = selectedHandCards;
@@ -735,7 +726,6 @@
                 document.getElementById("status-bar").innerText = 
                     `RAUM-CODE: ${currentRoomCode} | Status: ${roomData.status.toUpperCase()} (${playerCount}/4 Spieler)`;
 
-                // Phase 1: Großes Tichu
                 if (roomData.status === "gtichu_phase") {
                     const gtCalls = roomData.gtichuCalls || {};
                     if (gtCalls[mySeat] === undefined) {
@@ -757,27 +747,22 @@
                         });
                     }
                 } 
-                // Phase 2: Schupfen
                 else if (roomData.status === "schupfen") {
                     document.getElementById("gtichu-overlay").style.display = "none";
                     document.getElementById("schupfen-board").style.display = "flex";
                     checkAutoSchupfComplete();
                 } 
-                // Phase 3: Hauptspiel
                 else if (roomData.status === "playing") {
                     document.getElementById("gtichu-overlay").style.display = "none";
                     document.getElementById("schupfen-board").style.display = "none";
                 }
 
-                // Handkarten rendern
                 if (roomData.hands && roomData.hands[mySeat]) {
                     renderHand(roomData.hands[mySeat]);
                 }
 
-                // Vor den Spielern abgelegte Karten rendern
                 renderPlayedCards(roomData.playedCardsBySeat || {});
 
-                // Spieleranzeige & Turn-Markierung
                 for (let i = 0; i < 4; i++) {
                     const relativeSeat = (i - mySeat + 4) % 4;
                     const nameEl = document.getElementById(`name-${relativeSeat}`);
@@ -801,7 +786,7 @@
             });
         }
 
-        // Schupfen Beenden & Startspieler mit Mahjong (Wert 1) finden
+        // Schupfen Beenden & Startspieler ermitteln
         function checkAutoSchupfComplete() {
             const sData = roomData.schupfData || {};
             if (Object.keys(sData).length === 4 && isHost) {
@@ -818,7 +803,6 @@
                     newHands[rightSeat].push(sData[s].right);
                 }
 
-                // Startspieler ermitteln (Wer hat den Mahjong / Karte mit Wert 1?)
                 let startingSeat = 0;
                 for (let s = 0; s < 4; s++) {
                     if (newHands[s].some(cardId => DECK[cardId].value === 1)) {
@@ -835,7 +819,7 @@
             }
         }
 
-        // Handkarten sortiert anzeigen
+        // Handkarten rendern
         function renderHand(cardIds) {
             const handEl = document.getElementById("my-hand");
             handEl.innerHTML = "";
@@ -856,7 +840,7 @@
             });
         }
 
-        // Gespielte Karten vor den jeweiligen Spielern rendern
+        // Gespielte Karten rendern
         function renderPlayedCards(playedCardsBySeat) {
             for (let i = 0; i < 4; i++) {
                 const relativeSeat = (i - mySeat + 4) % 4;
