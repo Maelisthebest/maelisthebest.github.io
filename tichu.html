@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.7</title>
+    <title>Maelist - Tichu Online</title>
     <style>
         :root {
             --card-w: 70px;
@@ -173,7 +173,7 @@
         .card:hover { transform: translateY(-12px); z-index: 100 !important; }
         .card.selected { transform: translateY(-20px); border: 3px solid #ffca28; z-index: 101 !important; }
 
-        /* Sortiertes, fächerförmiges Layout ohne Scrollen */
+        /* Sortiertes Layout ohne Scrollen */
         .hand {
             display: flex;
             justify-content: center;
@@ -192,7 +192,7 @@
             margin-right: 0;
         }
 
-        /* 3-Bereiche Schupf Area */
+        /* Schupf Overlay */
         #schupfen-board {
             display: none;
             position: absolute;
@@ -318,17 +318,17 @@
 
             <!-- Schupfen Overlay (3 Bereiche) -->
             <div id="schupfen-board">
-                <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Karte unten, dann ein Feld</span>
+                <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Handkarte, dann ein Feld (oder klicke ein Feld zum Abwählen)</span>
                 <div class="schupf-targets">
-                    <div class="schupf-box" id="target-left" onclick="placeSchupfCard('left')">
+                    <div class="schupf-box" id="target-left" onclick="handleSchupfTargetClick('left')">
                         <strong>Links (Gegner)</strong>
                         <div id="slot-left"></div>
                     </div>
-                    <div class="schupf-box" id="target-top" onclick="placeSchupfCard('top')">
+                    <div class="schupf-box" id="target-top" onclick="handleSchupfTargetClick('top')">
                         <strong>Oben (Partner)</strong>
                         <div id="slot-top"></div>
                     </div>
-                    <div class="schupf-box" id="target-right" onclick="placeSchupfCard('right')">
+                    <div class="schupf-box" id="target-right" onclick="handleSchupfTargetClick('right')">
                         <strong>Rechts (Gegner)</strong>
                         <div id="slot-right"></div>
                     </div>
@@ -343,7 +343,7 @@
             <span id="count-1">Karten: 0</span>
         </div>
 
-        <!-- Eigene Hand Unten (Reihe ohne Scrollen) -->
+        <!-- Eigene Hand Unten -->
         <div class="player-box player-bottom" id="box-0">
             <div style="display: flex; justify-content: space-between; width: 100%; padding: 0 15px;">
                 <h4 id="name-0">Deine Handkarten</h4>
@@ -400,7 +400,10 @@
         let mySeat = -1;
         let isHost = false;
         let roomData = null;
-        let selectedHandCard = null;
+        
+        // Mehrfachauswahl im Hauptspiel
+        let selectedHandCardIds = [];
+        // Schupfen Auswahl
         let schupfSelection = { left: null, top: null, right: null };
 
         onAuthStateChanged(auth, async (user) => {
@@ -517,34 +520,60 @@
             });
         };
 
-        // Großes Tichu Interaktion (KORRIGIERT)
+        // Großes Tichu Interaktion
         document.getElementById("btn-call-gtichu").onclick = () => submitGtichu(true);
         document.getElementById("btn-pass-gtichu").onclick = () => submitGtichu(false);
-        
+
         async function submitGtichu(called) {
             document.getElementById("gtichu-overlay").style.display = "none";
-            
-            // update() benötigt ein Objekt als Parameter
             await update(ref(db, `tichu_rooms/${currentRoomCode}/gtichuCalls`), {
                 [mySeat]: called ? "GROSSES TICHU" : "NEIN"
             });
         }
-        // Handkarte anklicken
-        window.selectCardFromHand = function(cardId) {
-            selectedHandCard = cardId;
+
+        // Handkarte anklicken (Auswählen / Abwählen)
+        window.toggleSelectCardFromHand = function(cardId) {
+            if (roomData.status === "schupfen") {
+                // Beim Schupfen wird immer eine Karte als "aktiv" markiert
+                if (selectedHandCardIds.includes(cardId)) {
+                    selectedHandCardIds = [];
+                } else {
+                    selectedHandCardIds = [cardId];
+                }
+            } else {
+                // Beim normalen Spielen: Mehrfache Auswahl / Abwählen
+                if (selectedHandCardIds.includes(cardId)) {
+                    selectedHandCardIds = selectedHandCardIds.filter(id => id !== cardId);
+                } else {
+                    selectedHandCardIds.push(cardId);
+                }
+            }
             renderHand(roomData.hands[mySeat]);
         };
 
-        // Schupf-Ablage Ziel anwählen
-        window.placeSchupfCard = function(target) {
-            if (selectedHandCard === null) return alert("Klicke zuerst eine Handkarte an!");
-            
-            for (let k in schupfSelection) {
-                if (schupfSelection[k] === selectedHandCard) schupfSelection[k] = null;
+        // Schupfen Target Anwählen / Abwählen
+        window.handleSchupfTargetClick = function(target) {
+            // Wenn bereits eine Karte im Fach liegt -> Abwählen
+            if (schupfSelection[target] !== null && selectedHandCardIds.length === 0) {
+                schupfSelection[target] = null;
+                updateSchupfDisplay();
+                renderHand(roomData.hands[mySeat]);
+                return;
             }
 
-            schupfSelection[target] = selectedHandCard;
-            selectedHandCard = null;
+            if (selectedHandCardIds.length === 0) {
+                return alert("Klicke zuerst eine Handkarte an!");
+            }
+
+            const cardToPlace = selectedHandCardIds[0];
+
+            // Falls Karte schon woanders verwendet wird, dort entfernen
+            for (let k in schupfSelection) {
+                if (schupfSelection[k] === cardToPlace) schupfSelection[k] = null;
+            }
+
+            schupfSelection[target] = cardToPlace;
+            selectedHandCardIds = [];
 
             updateSchupfDisplay();
             renderHand(roomData.hands[mySeat]);
@@ -570,12 +599,35 @@
 
         document.getElementById("btn-confirm-schupf").onclick = () => {
             if (!schupfSelection.left || !schupfSelection.top || !schupfSelection.right) {
-                return alert("Du musst für alle 3 Plätze eine Karte auswählen!");
+                return alert("Du musst für alle 3 Plätze genau 1 Karte auswählen!");
             }
 
             update(ref(db, `tichu_rooms/${currentRoomCode}/schupfData/${mySeat}`), schupfSelection);
             document.getElementById("btn-confirm-schupf").disabled = true;
             document.getElementById("btn-confirm-schupf").innerText = "Warte auf andere Spieler...";
+        };
+
+        // Karten ausspielen (Legen Button)
+        document.getElementById("btn-play").onclick = async () => {
+            if (roomData.status !== "playing") return;
+            if (roomData.currentTurn !== mySeat) return alert("Du bist nicht an der Reihe!");
+            if (selectedHandCardIds.length === 0) return alert("Wähle mindestens eine Karte zum Legen aus!");
+
+            let currentHand = roomData.hands[mySeat] || [];
+            let newHand = currentHand.filter(id => !selectedHandCardIds.includes(id));
+
+            let currentPlayed = roomData.playedCardsBySeat || { 0: [], 1: [], 2: [], 3: [] };
+            currentPlayed[mySeat] = selectedHandCardIds;
+
+            let nextTurn = (mySeat + 1) % 4;
+
+            selectedHandCardIds = [];
+
+            await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
+                [`hands/${mySeat}`]: newHand,
+                playedCardsBySeat: currentPlayed,
+                currentTurn: nextTurn
+            });
         };
 
         // Raum Synchronisieren
@@ -597,7 +649,6 @@
                         document.getElementById("gtichu-overlay").style.display = "none";
                     }
 
-                    // Sobald alle 4 geantwortet haben -> Restliche 6 Karten austeilen & Schupfen starten
                     if (Object.keys(gtCalls).length === 4 && isHost) {
                         let fullHands = {};
                         for (let s = 0; s < 4; s++) {
@@ -655,6 +706,7 @@
             });
         }
 
+        // Schupfen automatisch verarbeiten & Startspieler (Mahjong / 1) ermitteln
         function checkAutoSchupfComplete() {
             const sData = roomData.schupfData || {};
             if (Object.keys(sData).length === 4 && isHost) {
@@ -671,9 +723,20 @@
                     newHands[rightSeat].push(sData[s].right);
                 }
 
+                // Ermittlung, wer das Mahjong (Wert 1 / Mahjong) besitzt
+                let startingPlayer = 0;
+                for (let seat = 0; seat < 4; seat++) {
+                    const hasMahjong = newHands[seat].some(cardId => DECK[cardId].type === "mahjong");
+                    if (hasMahjong) {
+                        startingPlayer = seat;
+                        break;
+                    }
+                }
+
                 update(ref(db, `tichu_rooms/${currentRoomCode}`), {
                     hands: newHands,
-                    status: "playing"
+                    status: "playing",
+                    currentTurn: startingPlayer
                 });
             }
         }
@@ -689,12 +752,12 @@
             });
 
             sortedCards.forEach((card, index) => {
-                const isSelected = (selectedHandCard === card.id) || Object.values(schupfSelection).includes(card.id);
+                const isSelected = selectedHandCardIds.includes(card.id) || Object.values(schupfSelection).includes(card.id);
                 const div = document.createElement("div");
                 div.className = `card ${isSelected ? 'selected' : ''}`;
                 div.style.backgroundImage = `url('${card.file}')`;
                 div.style.zIndex = index;
-                div.onclick = () => selectCardFromHand(card.id);
+                div.onclick = () => toggleSelectCardFromHand(card.id);
                 handEl.appendChild(div);
             });
         }
