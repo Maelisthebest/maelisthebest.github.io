@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.11</title>
+    <title>Maelist - Tichu Online v 1.12</title>
     <style>
         :root {
             --card-w: 70px;
@@ -71,6 +71,7 @@
         .btn:disabled { background: #666; cursor: not-allowed; }
         .btn-danger { background: #d32f2f; }
         .btn-warn { background: #ff9800; }
+        .btn-bomb { background: #e65100; border: 2px solid #ff3d00; box-shadow: 0 0 10px #ff3d00; }
 
         #status-bar {
             width: 100%;
@@ -82,6 +83,8 @@
             text-align: center;
             font-weight: bold;
             color: #ffca28;
+            display: flex;
+            justify-content: space-around;
         }
 
         #table-container {
@@ -152,6 +155,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            gap: 5px;
         }
 
         .card {
@@ -184,7 +188,7 @@
         .hand .card { margin-right: -42px; }
         .hand .card:last-child { margin-right: 0; }
 
-        #schupfen-board, #dragon-gift-overlay {
+        #schupfen-board, #dragon-gift-overlay, #wish-overlay {
             display: none;
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -246,6 +250,23 @@
             flex-wrap: wrap;
             justify-content: center;
         }
+
+        .wish-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .wish-btn {
+            padding: 8px;
+            font-weight: bold;
+            background: #ffca28;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: black;
+        }
     </style>
 </head>
 <body>
@@ -265,21 +286,23 @@
         </div>
     </header>
 
-    <div id="status-bar">Prüfe Raum-Status...</div>
+    <div id="status-bar">
+        <span id="room-info">Prüfe Raum-Status...</span>
+        <span id="team-scores">Team 0/2: 0 Pkt | Team 1/3: 0 Pkt</span>
+        <span id="wish-info" style="color: #64ffda;">Wunsch: Keiner</span>
+    </div>
 
     <div id="table-container">
-        <!-- Partner Oben -->
+        <!-- Partner Oben (Platz 2) -->
         <div class="player-box player-top" id="box-2">
             <h3 id="name-2">Warte auf Spieler...</h3>
             <span id="count-2">Karten: 0</span>
-            <small id="score-2">Punkte: 0</small>
         </div>
 
-        <!-- Gegner Links -->
+        <!-- Gegner Links (Platz 3) -->
         <div class="player-box player-left" id="box-3">
             <h3 id="name-3">Warte auf Spieler...</h3>
             <span id="count-3">Karten: 0</span>
-            <small id="score-3">Punkte: 0</small>
         </div>
 
         <!-- Tischmitte -->
@@ -293,7 +316,28 @@
                 <div class="controls">
                     <button class="btn" id="btn-play">Legen</button>
                     <button class="btn btn-danger" id="btn-pass">Passen</button>
-                    <button class="btn btn-warn" id="btn-call-tichu">Tichu Ansagen!</button>
+                    <button class="btn btn-bomb" id="btn-bomb" style="display:none;">BOMBE!</button>
+                </div>
+            </div>
+
+            <!-- Mah Jong Wunsch Overlay -->
+            <div id="wish-overlay">
+                <h3 style="color: #ffca28;">Mah Jong Wunsch äußern</h3>
+                <p>Welchen Kartenwert wünschst du dir?</p>
+                <div class="wish-grid">
+                    <button class="wish-btn" onclick="makeWish(2)">2</button>
+                    <button class="wish-btn" onclick="makeWish(3)">3</button>
+                    <button class="wish-btn" onclick="makeWish(4)">4</button>
+                    <button class="wish-btn" onclick="makeWish(5)">5</button>
+                    <button class="wish-btn" onclick="makeWish(6)">6</button>
+                    <button class="wish-btn" onclick="makeWish(7)">7</button>
+                    <button class="wish-btn" onclick="makeWish(8)">8</button>
+                    <button class="wish-btn" onclick="makeWish(9)">9</button>
+                    <button class="wish-btn" onclick="makeWish(10)">10</button>
+                    <button class="wish-btn" onclick="makeWish(11)">B</button>
+                    <button class="wish-btn" onclick="makeWish(12)">D</button>
+                    <button class="wish-btn" onclick="makeWish(13)">K</button>
+                    <button class="wish-btn" onclick="makeWish(14)">A</button>
                 </div>
             </div>
 
@@ -338,18 +382,16 @@
             </div>
         </div>
 
-        <!-- Gegner Rechts -->
+        <!-- Gegner Rechts (Platz 1) -->
         <div class="player-box player-right" id="box-1">
             <h3 id="name-1">Warte auf Spieler...</h3>
             <span id="count-1">Karten: 0</span>
-            <small id="score-1">Punkte: 0</small>
         </div>
 
-        <!-- Eigene Hand Unten -->
+        <!-- Eigene Hand Unten (Platz 0) -->
         <div class="player-box player-bottom" id="box-0">
             <div style="display: flex; justify-content: space-between; width: 100%; padding: 0 15px;">
                 <h4 id="name-0">Deine Handkarten</h4>
-                <span id="team-scores" style="color: #ffca28; font-weight: bold;"></span>
             </div>
             <div class="hand" id="my-hand"></div>
         </div>
@@ -412,7 +454,7 @@
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 myUid = user.uid;
-                document.getElementById("user-display").innerText = `Eingeloggt mit ID: ${user.uid.substring(0, 6)}`;
+                document.getElementById("user-display").innerText = `Eingeloggt: ${user.uid.substring(0, 6)}`;
                 await checkExistingRoom();
             } else {
                 window.location.href = "index.html";
@@ -431,14 +473,13 @@
                             currentRoomCode = code;
                             mySeat = parseInt(seat);
                             isHost = (rooms[code].host === myUid);
-                            if (isHost) document.getElementById("btn-start-game").disabled = false;
                             listenToRoom();
                             return;
                         }
                     }
                 }
             }
-            document.getElementById("status-bar").innerText = "Erstelle einen Raum oder tritt per Code bei!";
+            document.getElementById("room-info").innerText = "Erstelle ein Spiel oder tritt bei!";
         }
 
         document.getElementById("btn-create-room").onclick = async () => {
@@ -451,7 +492,8 @@
             await set(roomRef, {
                 host: myUid,
                 status: "lobby",
-                players: { 0: myUid }
+                players: { 0: myUid },
+                totalScores: { team02: 0, team13: 0 }
             });
 
             document.getElementById("btn-start-game").disabled = false;
@@ -460,7 +502,7 @@
 
         document.getElementById("btn-join-room").onclick = async () => {
             const code = document.getElementById("room-code-input").value.trim().toUpperCase();
-            if (code.length !== 6) return alert("Der Raum-Code muss genau 6 Zeichen lang sein!");
+            if (code.length !== 6) return alert("Code muss 6 Zeichen lang sein!");
 
             const roomRef = ref(db, `tichu_rooms/${code}`);
             const snapshot = await get(roomRef);
@@ -476,13 +518,13 @@
                 if (players[i] === undefined && assignedSeat === -1) { assignedSeat = i; }
             }
 
-            if (assignedSeat === -1) return alert("Raum ist bereits voll!");
+            if (assignedSeat === -1) return alert("Raum voll!");
 
             currentRoomCode = code;
             mySeat = assignedSeat;
             isHost = (data.host === myUid);
 
-            if (isHost) document.getElementById("btn-start-game").disabled = false;
+            if (isHost && data.status === "lobby") document.getElementById("btn-start-game").disabled = false;
 
             await update(ref(db, `tichu_rooms/${code}/players`), { [assignedSeat]: myUid });
             listenToRoom();
@@ -493,6 +535,13 @@
             const playerSeats = Object.keys(roomData.players || {});
             if (playerSeats.length < 4) return alert("Es werden genau 4 Spieler benötigt!");
 
+            // Start-Button sofort deaktivieren
+            document.getElementById("btn-start-game").disabled = true;
+
+            startNewRound();
+        };
+
+        function startNewRound() {
             const shuffled = [...DECK];
             for (let i = shuffled.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -525,9 +574,10 @@
                 lastPlayerWhoLaid: -1,
                 consecutivePasses: 0,
                 currentTurn: 0,
-                scores: { 0: 0, 1: 0, 2: 0, 3: 0 }
+                roundScores: { 0: 0, 1: 0, 2: 0, 3: 0 },
+                activeWish: null
             });
-        };
+        }
 
         document.getElementById("btn-call-gtichu").onclick = () => submitGtichu(true);
         document.getElementById("btn-pass-gtichu").onclick = () => submitGtichu(false);
@@ -554,7 +604,18 @@
                 }
             }
             renderHand(roomData.hands[mySeat]);
+            checkBombAvailable();
         };
+
+        function checkBombAvailable() {
+            const btnBomb = document.getElementById("btn-bomb");
+            const combo = parseCombo(selectedHandCards);
+            if (combo && combo.type.startsWith("bomb_")) {
+                btnBomb.style.display = "inline-block";
+            } else {
+                btnBomb.style.display = "none";
+            }
+        }
 
         window.toggleOrPlaceSchupf = function(target) {
             if (schupfSelection[target] !== null) {
@@ -599,10 +660,11 @@
 
             update(ref(db, `tichu_rooms/${currentRoomCode}/schupfData/${mySeat}`), schupfSelection);
             document.getElementById("btn-confirm-schupf").disabled = true;
-            document.getElementById("btn-confirm-schupf").innerText = "Warte auf andere Spieler...";
+            document.getElementById("btn-confirm-schupf").innerText = "Warte auf Mitspieler...";
         };
 
-        function parseCombo(cardIds, lastCombo) {
+        // Phönix / Combo Parser
+        function parseCombo(cardIds, lastCombo = null) {
             if (!cardIds || cardIds.length === 0) return null;
             const cards = cardIds.map(id => DECK[id]).sort((a,b) => a.value - b.value);
             const len = cards.length;
@@ -614,12 +676,17 @@
                     const val = lastCombo ? lastCombo.value + 0.5 : 1.5;
                     return { type: 'single', value: val, len: 1, isPhoenix: true };
                 }
-                return { type: 'single', value: c.value, len: 1, isDragon: c.type === 'dragon' };
+                return { type: 'single', value: c.value, len: 1, isDragon: c.type === 'dragon', isMahjong: c.type === 'mahjong' };
             }
 
             const hasPhoenix = cards.some(c => c.type === 'phoenix');
             const normCards = cards.filter(c => c.type !== 'phoenix');
             const values = normCards.map(c => c.value);
+
+            // Bombe: 4 Gleiche ohne Phönix
+            if (len === 4 && normCards.length === 4 && values[0] === values[3]) {
+                return { type: 'bomb_quad', value: values[0], len: 4 };
+            }
 
             // Paar
             if (len === 2) {
@@ -633,31 +700,38 @@
                 }
             }
 
-            // Vierling (Bombe)
-            if (len === 4 && normCards.length === 4 && values[0] === values[3]) {
-                return { type: 'bomb_quad', value: values[0], len: 4 };
-            }
-
             // Full House
             if (len === 5) {
                 if (!hasPhoenix) {
                     if (values[0] === values[1] && values[2] === values[4]) return { type: 'fullhouse', value: values[2], len: 5 };
                     if (values[0] === values[2] && values[3] === values[4]) return { type: 'fullhouse', value: values[0], len: 5 };
+                } else {
+                    // Phönix ergänzt Full House
+                    if (values[0] === values[1] && values[2] === values[3]) return { type: 'fullhouse', value: values[2], len: 5 };
                 }
             }
 
-            // Straße
+            // Straße / Treppe (Phönix als Joker zugelassen)
             if (len >= 5) {
+                let sortedValues = [...values];
+                let phoenixUsed = false;
                 let isStreet = true;
-                for (let i = 0; i < normCards.length - 1; i++) {
-                    if (normCards[i+1].value !== normCards[i].value + 1) {
-                        isStreet = false; break;
+
+                for (let i = 0; i < sortedValues.length - 1; i++) {
+                    let diff = sortedValues[i+1] - sortedValues[i];
+                    if (diff === 1) continue;
+                    if (diff === 2 && hasPhoenix && !phoenixUsed) {
+                        phoenixUsed = true; 
+                        continue;
                     }
+                    isStreet = false;
+                    break;
                 }
+
                 if (isStreet) {
-                    const highest = normCards[normCards.length - 1].value;
+                    const highest = sortedValues[sortedValues.length - 1];
                     const sameSuit = normCards.every(c => c.suit === normCards[0].suit) && !hasPhoenix;
-                    if (sameSuit) return { type: 'bomb_street', value: highest, len: len };
+                    if (sameSuit && normCards.length >= 5) return { type: 'bomb_street', value: highest, len: len };
                     return { type: 'street', value: highest, len: len };
                 }
             }
@@ -685,27 +759,36 @@
         }
 
         // Legen-Button
-        document.getElementById("btn-play").onclick = async () => {
-            if (!roomData || roomData.currentTurn !== mySeat || roomData.status !== "playing") {
+        document.getElementById("btn-play").onclick = () => executePlay(false);
+        document.getElementById("btn-bomb").onclick = () => executePlay(true);
+
+        async function executePlay(isBomb = false) {
+            if (!roomData || (roomData.currentTurn !== mySeat && !isBomb) || roomData.status !== "playing") {
                 return alert("Du bist nicht an der Reihe!");
             }
 
-            if (selectedHandCards.length === 0) return alert("Wähle Karten aus, die du legen möchtest!");
+            if (selectedHandCards.length === 0) return alert("Wähle Karten aus!");
 
             const combo = parseCombo(selectedHandCards, roomData.lastPlayedCombo);
-            if (!combo) return alert("Ungültige Kartenkombination!");
+            if (!combo) return alert("Ungültige Kombination!");
 
             if (!isHigherCombo(combo, roomData.lastPlayedCombo)) {
-                return alert("Deine Kombination schlägt die aktuelle Tischkombination nicht!");
+                return alert("Diese Karten schlagen das aktuelle Spiel auf dem Tisch nicht!");
             }
 
-            // Hund Spezialregel: Anspielrecht an Partner übergeben
+            // Mah Jong Wunsch Abfrage
+            const hasMahjong = selectedHandCards.some(id => DECK[id].type === "mahjong");
+            if (hasMahjong) {
+                document.getElementById("wish-overlay").style.display = "flex";
+            }
+
+            // Hund Spezialregel
             if (combo.type === 'dog') {
                 if (roomData.lastPlayedCombo !== null) {
-                    return alert("Der Hund kann nur beim Anspielen gelegt werden!");
+                    return alert("Der Hund kann nur gespielt werden, wenn der Tisch leer ist!");
                 }
                 const updatedHand = roomData.hands[mySeat].filter(id => !selectedHandCards.includes(id));
-                const partnerSeat = (mySeat + 2) % 4;
+                const partnerSeat = getNextActivePlayer((mySeat + 2) % 4);
                 selectedHandCards = [];
 
                 await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
@@ -725,7 +808,14 @@
             const currentTrick = roomData.trickPile || [];
             const newTrick = [...currentTrick, ...selectedHandCards];
 
-            const nextTurn = (mySeat + 1) % 4;
+            // Prüfen ob Wunsch erfüllt wurde
+            let currentWish = roomData.activeWish || null;
+            if (currentWish) {
+                const wishFulfilled = selectedHandCards.some(id => DECK[id].value === currentWish);
+                if (wishFulfilled) currentWish = null;
+            }
+
+            const nextTurn = getNextActivePlayer((mySeat + 1) % 4, updatedHand);
             selectedHandCards = [];
 
             await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
@@ -735,28 +825,44 @@
                 lastPlayedCombo: combo,
                 lastPlayerWhoLaid: mySeat,
                 consecutivePasses: 0,
-                currentTurn: nextTurn
+                currentTurn: nextTurn,
+                activeWish: currentWish
             });
+        }
+
+        window.makeWish = async function(val) {
+            document.getElementById("wish-overlay").style.display = "none";
+            await update(ref(db, `tichu_rooms/${currentRoomCode}`), { activeWish: val });
         };
+
+        // Nächsten aktiven Spieler ermitteln (keine Karten mehr = überspringen)
+        function getNextActivePlayer(startSeat, myUpdatedHand = null) {
+            for (let i = 0; i < 4; i++) {
+                const targetSeat = (startSeat + i) % 4;
+                let hand = roomData.hands[targetSeat] || [];
+                if (targetSeat === mySeat && myUpdatedHand !== null) hand = myUpdatedHand;
+
+                if (hand.length > 0) return targetSeat;
+            }
+            return startSeat;
+        }
 
         // Passen-Button
         document.getElementById("btn-pass").onclick = async () => {
             if (!roomData || roomData.currentTurn !== mySeat || roomData.status !== "playing") return;
 
-            // MAN KANN NICHT PASSEN WENN MAN ANSPELT (Tisch ist leer)
             if (!roomData.lastPlayedCombo) {
-                return alert("Du spielst an und kannst nicht passen!");
+                return alert("Du musst anspielen und kannst nicht passen!");
             }
 
             const passes = (roomData.consecutivePasses || 0) + 1;
 
-            // 3 mal in Folge gepasst -> Stich beendet!
-            if (passes === 3) {
+            if (passes >= 3) {
                 const winnerSeat = roomData.lastPlayerWhoLaid;
                 const trickCards = roomData.trickPile || [];
                 const lastCombo = roomData.lastPlayedCombo;
 
-                // Prüfen ob Drache im Stich gewonnen wurde
+                // Drachen-Sonderregel: Gewinner entscheidet Gegner
                 if (lastCombo && lastCombo.isDragon) {
                     if (winnerSeat === mySeat) {
                         document.getElementById("dragon-gift-overlay").style.display = "flex";
@@ -766,7 +872,7 @@
 
                 await awardTrickToPlayer(winnerSeat, trickCards);
             } else {
-                const nextTurn = (mySeat + 1) % 4;
+                const nextTurn = getNextActivePlayer((mySeat + 1) % 4);
                 await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
                     currentTurn: nextTurn,
                     consecutivePasses: passes
@@ -774,7 +880,7 @@
             }
         };
 
-        // Drachen-Punkte verschenken
+        // Drachen-Stich verschenken
         document.getElementById("btn-give-left").onclick = () => giftDragonTrick((mySeat + 3) % 4);
         document.getElementById("btn-give-right").onclick = () => giftDragonTrick((mySeat + 1) % 4);
 
@@ -784,25 +890,55 @@
             await awardTrickToPlayer(targetSeat, trickCards);
         }
 
-        // Stich gutschreiben & Punkte berechnen
+        // Stich gutschreiben & Rundenende / 1000 Pkt Check
         async function awardTrickToPlayer(winnerSeat, trickCards) {
             let trickPoints = 0;
             trickCards.forEach(id => {
                 trickPoints += DECK[id].points;
             });
 
-            const currentScores = roomData.scores || { 0: 0, 1: 0, 2: 0, 3: 0 };
-            currentScores[winnerSeat] = (currentScores[winnerSeat] || 0) + trickPoints;
+            const roundScores = roomData.roundScores || { 0: 0, 1: 0, 2: 0, 3: 0 };
+            roundScores[winnerSeat] = (roundScores[winnerSeat] || 0) + trickPoints;
 
-            await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
-                scores: currentScores,
-                trickPile: [],
-                lastPlayedCombo: null,
-                lastPlayerWhoLaid: -1,
-                consecutivePasses: 0,
-                playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] },
-                currentTurn: winnerSeat
-            });
+            // Prüfen ob Runde zu Ende ist (3 Spieler fertig)
+            let activePlayersCount = 0;
+            for (let s = 0; s < 4; s++) {
+                if ((roomData.hands[s] || []).length > 0) activePlayersCount++;
+            }
+
+            if (activePlayersCount <= 1 && isHost) {
+                // Punkte auf Teamständer aufrechnen
+                const team02Round = roundScores[0] + roundScores[2];
+                const team13Round = roundScores[1] + roundScores[3];
+
+                const totalScores = roomData.totalScores || { team02: 0, team13: 0 };
+                totalScores.team02 += team02Round;
+                totalScores.team13 += team13Round;
+
+                if (totalScores.team02 >= 1000 || totalScores.team13 >= 1000) {
+                    const winnerTeam = totalScores.team02 >= 1000 ? "Team 0 & 2" : "Team 1 & 3";
+                    alert(`SPIELENDE! ${winnerTeam} hat über 1000 Punkte erreicht und gewinnt das Spiel!`);
+                    await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
+                        status: "game_over",
+                        totalScores: totalScores
+                    });
+                } else {
+                    alert(`Runde beendet!\nTeam 0/2: +${team02Round} Pkt\nTeam 1/3: +${team13Round} Pkt`);
+                    await update(ref(db, `tichu_rooms/${currentRoomCode}`), { totalScores });
+                    startNewRound();
+                }
+            } else {
+                const nextTurn = getNextActivePlayer(winnerSeat);
+                await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
+                    roundScores: roundScores,
+                    trickPile: [],
+                    lastPlayedCombo: null,
+                    lastPlayerWhoLaid: -1,
+                    consecutivePasses: 0,
+                    playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] },
+                    currentTurn: nextTurn
+                });
+            }
         }
 
         function listenToRoom() {
@@ -811,8 +947,20 @@
                 if (!roomData) return;
 
                 const playerCount = Object.keys(roomData.players || {}).length;
-                document.getElementById("status-bar").innerText = 
-                    `RAUM-CODE: ${currentRoomCode} | Status: ${roomData.status.toUpperCase()} (${playerCount}/4 Spieler)`;
+                document.getElementById("room-info").innerText = 
+                    `RAUM: ${currentRoomCode} | STATUS: ${roomData.status.toUpperCase()} (${playerCount}/4)`;
+
+                const totals = roomData.totalScores || { team02: 0, team13: 0 };
+                document.getElementById("team-scores").innerText = 
+                    `Team 0/2: ${totals.team02} Pkt | Team 1/3: ${totals.team13} Pkt`;
+
+                document.getElementById("wish-info").innerText = 
+                    roomData.activeWish ? `Wunsch: ${roomData.activeWish}` : "Wunsch: Keiner";
+
+                // Start Button Sperre
+                if (roomData.status !== "lobby") {
+                    document.getElementById("btn-start-game").disabled = true;
+                }
 
                 if (roomData.status === "gtichu_phase") {
                     const gtCalls = roomData.gtichuCalls || {};
@@ -856,7 +1004,6 @@
                     const nameEl = document.getElementById(`name-${relativeSeat}`);
                     const boxEl = document.getElementById(`box-${relativeSeat}`);
                     const countEl = document.getElementById(`count-${relativeSeat}`);
-                    const scoreEl = document.getElementById(`score-${relativeSeat}`);
                     
                     if (roomData.players && roomData.players[i]) {
                         let nameStr = (i === mySeat) ? "Du" : "Spieler " + (i+1);
@@ -868,10 +1015,6 @@
 
                     if (roomData.hands && roomData.hands[i] && countEl) {
                         countEl.innerText = `Karten: ${roomData.hands[i].length}`;
-                    }
-
-                    if (roomData.scores && scoreEl) {
-                        scoreEl.innerText = `Punkte: ${roomData.scores[i] || 0}`;
                     }
 
                     if (boxEl) boxEl.classList.toggle("active-turn", roomData.currentTurn === i && roomData.status === "playing");
