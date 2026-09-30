@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.10</title>
+    <title>Maelist - Tichu Online v 1.11</title>
     <style>
         :root {
             --card-w: 70px;
@@ -28,7 +28,6 @@
             padding: 10px;
         }
 
-        /* Top Lobby Nav */
         header {
             width: 100%;
             max-width: 1050px;
@@ -134,7 +133,6 @@
             position: relative;
         }
 
-        /* Vor jedem Spieler abgelegte Karten */
         .played-area {
             display: flex;
             gap: 4px;
@@ -173,7 +171,6 @@
         .card:hover { transform: translateY(-12px); z-index: 100 !important; }
         .card.selected { transform: translateY(-20px); border: 3px solid #ffca28; z-index: 101 !important; }
 
-        /* Handkarten Fächer */
         .hand {
             display: flex;
             justify-content: center;
@@ -184,16 +181,10 @@
             overflow: visible;
         }
 
-        .hand .card {
-            margin-right: -42px;
-        }
+        .hand .card { margin-right: -42px; }
+        .hand .card:last-child { margin-right: 0; }
 
-        .hand .card:last-child {
-            margin-right: 0;
-        }
-
-        /* 3-Bereiche Schupf Area */
-        #schupfen-board {
+        #schupfen-board, #dragon-gift-overlay {
             display: none;
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -234,7 +225,6 @@
             background: rgba(37, 211, 102, 0.2);
         }
 
-        /* Overlay für Großes Tichu */
         #gtichu-overlay {
             display: none;
             position: absolute;
@@ -282,17 +272,18 @@
         <div class="player-box player-top" id="box-2">
             <h3 id="name-2">Warte auf Spieler...</h3>
             <span id="count-2">Karten: 0</span>
+            <small id="score-2">Punkte: 0</small>
         </div>
 
         <!-- Gegner Links -->
         <div class="player-box player-left" id="box-3">
             <h3 id="name-3">Warte auf Spieler...</h3>
             <span id="count-3">Karten: 0</span>
+            <small id="score-3">Punkte: 0</small>
         </div>
 
         <!-- Tischmitte -->
         <div class="table-center">
-            <!-- Gespielte Kombis vor den jeweiligen Spielern -->
             <div class="played-area played-top" id="played-2"></div>
             <div class="played-area played-left" id="played-3"></div>
             <div class="played-area played-right" id="played-1"></div>
@@ -316,7 +307,7 @@
                 </div>
             </div>
 
-            <!-- Schupfen Overlay (3 Bereiche) -->
+            <!-- Schupfen Overlay -->
             <div id="schupfen-board">
                 <span style="font-size: 13px; font-weight: bold; color: #ffca28;">SCHUPF-PHASE: Klicke Karte unten, dann ein Feld zum Ablegen</span>
                 <div class="schupf-targets">
@@ -335,19 +326,30 @@
                 </div>
                 <button class="btn btn-warn" id="btn-confirm-schupf">Schupf-Wahl Bestätigen</button>
             </div>
+
+            <!-- Drache Vergeben Overlay -->
+            <div id="dragon-gift-overlay">
+                <h3 style="color: #ffca28;">Du hast den Stich mit dem Drachen gewonnen!</h3>
+                <p>Wähle einen Gegner aus, dem du die Punkte des Stiches schenken musst:</p>
+                <div style="display: flex; gap: 15px; margin-top: 15px;">
+                    <button class="btn" id="btn-give-left">Gegner Links</button>
+                    <button class="btn" id="btn-give-right">Gegner Rechts</button>
+                </div>
+            </div>
         </div>
 
         <!-- Gegner Rechts -->
         <div class="player-box player-right" id="box-1">
             <h3 id="name-1">Warte auf Spieler...</h3>
             <span id="count-1">Karten: 0</span>
+            <small id="score-1">Punkte: 0</small>
         </div>
 
         <!-- Eigene Hand Unten -->
         <div class="player-box player-bottom" id="box-0">
             <div style="display: flex; justify-content: space-between; width: 100%; padding: 0 15px;">
                 <h4 id="name-0">Deine Handkarten</h4>
-                <span id="gtichu-status" style="color: #ffca28; font-weight: bold;"></span>
+                <span id="team-scores" style="color: #ffca28; font-weight: bold;"></span>
             </div>
             <div class="hand" id="my-hand"></div>
         </div>
@@ -372,25 +374,28 @@
         const auth = getAuth(app);
         const db = getDatabase(app);
 
-        // Deck Erstellen
         const DECK = [];
         let cardId = 0;
         for (let r = 1; r <= 4; r++) {
             for (let c = 1; c <= 14; c++) {
                 let type = "normal";
                 let value = c;
-                
+                let points = 0;
+
+                if (c === 5) points = 5;
+                if (c === 10 || c === 13) points = 10; 
+
                 if (c === 1) {
-                    if (r === 1) { type = "dragon"; value = 15; }
-                    else if (r === 2) { type = "phoenix"; value = 1.5; }
-                    else if (r === 3) { type = "dog"; value = 0; }
-                    else if (r === 4) { type = "mahjong"; value = 1; }
+                    if (r === 1) { type = "dragon"; value = 15; points = 25; }
+                    else if (r === 2) { type = "phoenix"; value = 1.5; points = -25; }
+                    else if (r === 3) { type = "dog"; value = 0; points = 0; }
+                    else if (r === 4) { type = "mahjong"; value = 1; points = 0; }
                 }
 
                 DECK.push({
                     id: cardId++,
                     file: `tichukarten/row-${r}-column-${c}.webp`,
-                    type, value, suit: r
+                    type, value, suit: r, points
                 });
             }
         }
@@ -436,7 +441,6 @@
             document.getElementById("status-bar").innerText = "Erstelle einen Raum oder tritt per Code bei!";
         }
 
-        // Raum Erstellen
         document.getElementById("btn-create-room").onclick = async () => {
             const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
             currentRoomCode = roomCode;
@@ -454,7 +458,6 @@
             listenToRoom();
         };
 
-        // Raum Beitreten
         document.getElementById("btn-join-room").onclick = async () => {
             const code = document.getElementById("room-code-input").value.trim().toUpperCase();
             if (code.length !== 6) return alert("Der Raum-Code muss genau 6 Zeichen lang sein!");
@@ -485,13 +488,11 @@
             listenToRoom();
         };
 
-        // Spiel Starten (Nur Host) - Echter Zufall
         document.getElementById("btn-start-game").onclick = () => {
             if (!isHost || !roomData) return;
             const playerSeats = Object.keys(roomData.players || {});
             if (playerSeats.length < 4) return alert("Es werden genau 4 Spieler benötigt!");
 
-            // Fisher-Yates Shuffle
             const shuffled = [...DECK];
             for (let i = shuffled.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -519,12 +520,15 @@
                 gtichuCalls: {},
                 schupfData: {},
                 playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] },
+                trickPile: [],
                 lastPlayedCombo: null,
-                currentTurn: 0
+                lastPlayerWhoLaid: -1,
+                consecutivePasses: 0,
+                currentTurn: 0,
+                scores: { 0: 0, 1: 0, 2: 0, 3: 0 }
             });
         };
 
-        // Großes Tichu Interaktion
         document.getElementById("btn-call-gtichu").onclick = () => submitGtichu(true);
         document.getElementById("btn-pass-gtichu").onclick = () => submitGtichu(false);
 
@@ -535,17 +539,14 @@
             });
         }
 
-        // Handkarte anklicken
         window.selectCardFromHand = function(cardId) {
             if (roomData.status === "schupfen") {
-                // Beim Schupfen: NUR genau 1 Karte gleichzeitig auswählen
                 if (selectedHandCards.includes(cardId)) {
                     selectedHandCards = [];
                 } else {
                     selectedHandCards = [cardId];
                 }
             } else {
-                // Beim Legen: Mehrere Karten frei wählbar/abwählbar
                 if (selectedHandCards.includes(cardId)) {
                     selectedHandCards = selectedHandCards.filter(id => id !== cardId);
                 } else {
@@ -555,7 +556,6 @@
             renderHand(roomData.hands[mySeat]);
         };
 
-        // Schupfen: Abwählen oder Ablegen
         window.toggleOrPlaceSchupf = function(target) {
             if (schupfSelection[target] !== null) {
                 const removedId = schupfSelection[target];
@@ -602,56 +602,64 @@
             document.getElementById("btn-confirm-schupf").innerText = "Warte auf andere Spieler...";
         };
 
-        // Tichu Kombinations-Prüfung
-        function parseCombo(cardIds) {
+        function parseCombo(cardIds, lastCombo) {
             if (!cardIds || cardIds.length === 0) return null;
             const cards = cardIds.map(id => DECK[id]).sort((a,b) => a.value - b.value);
             const len = cards.length;
 
-            // Einzelkarte
-            if (len === 1) return { type: 'single', value: cards[0].value, len: 1 };
+            if (len === 1) {
+                const c = cards[0];
+                if (c.type === 'dog') return { type: 'dog', value: 0, len: 1 };
+                if (c.type === 'phoenix') {
+                    const val = lastCombo ? lastCombo.value + 0.5 : 1.5;
+                    return { type: 'single', value: val, len: 1, isPhoenix: true };
+                }
+                return { type: 'single', value: c.value, len: 1, isDragon: c.type === 'dragon' };
+            }
 
-            const values = cards.map(c => c.value);
-            const allSame = values.every(v => v === values[0]);
+            const hasPhoenix = cards.some(c => c.type === 'phoenix');
+            const normCards = cards.filter(c => c.type !== 'phoenix');
+            const values = normCards.map(c => c.value);
 
             // Paar
-            if (len === 2 && allSame) return { type: 'pair', value: values[0], len: 2 };
+            if (len === 2) {
+                if (values[0] === values[1] || hasPhoenix) return { type: 'pair', value: values[0] || 14, len: 2 };
+            }
 
             // Drilling
-            if (len === 3 && allSame) return { type: 'trio', value: values[0], len: 3 };
+            if (len === 3) {
+                if ((values.length === 3 && values[0] === values[2]) || (hasPhoenix && values[0] === values[1])) {
+                    return { type: 'trio', value: values[0], len: 3 };
+                }
+            }
 
             // Vierling (Bombe)
-            if (len === 4 && allSame) return { type: 'bomb_quad', value: values[0], len: 4 };
+            if (len === 4 && normCards.length === 4 && values[0] === values[3]) {
+                return { type: 'bomb_quad', value: values[0], len: 4 };
+            }
 
-            // Full House (3 + 2)
+            // Full House
             if (len === 5) {
-                if ((values[0] === values[1] && values[1] === values[2] && values[3] === values[4])) {
-                    return { type: 'fullhouse', value: values[2], len: 5 };
-                }
-                if ((values[0] === values[1] && values[2] === values[3] && values[3] === values[4])) {
-                    return { type: 'fullhouse', value: values[4], len: 5 };
+                if (!hasPhoenix) {
+                    if (values[0] === values[1] && values[2] === values[4]) return { type: 'fullhouse', value: values[2], len: 5 };
+                    if (values[0] === values[2] && values[3] === values[4]) return { type: 'fullhouse', value: values[0], len: 5 };
                 }
             }
 
-            // Straße (mind. 5 fortlaufende Karten)
-            let isStreet = true;
-            for (let i = 0; i < len - 1; i++) {
-                if (values[i+1] !== values[i] + 1) { isStreet = false; break; }
-            }
-            if (isStreet && len >= 5) {
-                const sameSuit = cards.every(c => c.suit === cards[0].suit);
-                if (sameSuit) return { type: 'bomb_street', value: values[len-1], len: len };
-                return { type: 'street', value: values[len-1], len: len };
-            }
-
-            // Treppe (aufeinanderfolgende Paare)
-            if (len >= 4 && len % 2 === 0) {
-                let isStairs = true;
-                for (let i = 0; i < len; i += 2) {
-                    if (values[i] !== values[i+1]) { isStairs = false; break; }
-                    if (i > 0 && values[i] !== values[i-2] + 1) { isStairs = false; break; }
+            // Straße
+            if (len >= 5) {
+                let isStreet = true;
+                for (let i = 0; i < normCards.length - 1; i++) {
+                    if (normCards[i+1].value !== normCards[i].value + 1) {
+                        isStreet = false; break;
+                    }
                 }
-                if (isStairs) return { type: 'stairs', value: values[len-1], len: len };
+                if (isStreet) {
+                    const highest = normCards[normCards.length - 1].value;
+                    const sameSuit = normCards.every(c => c.suit === normCards[0].suit) && !hasPhoenix;
+                    if (sameSuit) return { type: 'bomb_street', value: highest, len: len };
+                    return { type: 'street', value: highest, len: len };
+                }
             }
 
             return null;
@@ -684,25 +692,49 @@
 
             if (selectedHandCards.length === 0) return alert("Wähle Karten aus, die du legen möchtest!");
 
-            const combo = parseCombo(selectedHandCards);
+            const combo = parseCombo(selectedHandCards, roomData.lastPlayedCombo);
             if (!combo) return alert("Ungültige Kartenkombination!");
 
             if (!isHigherCombo(combo, roomData.lastPlayedCombo)) {
                 return alert("Deine Kombination schlägt die aktuelle Tischkombination nicht!");
             }
 
+            // Hund Spezialregel: Anspielrecht an Partner übergeben
+            if (combo.type === 'dog') {
+                if (roomData.lastPlayedCombo !== null) {
+                    return alert("Der Hund kann nur beim Anspielen gelegt werden!");
+                }
+                const updatedHand = roomData.hands[mySeat].filter(id => !selectedHandCards.includes(id));
+                const partnerSeat = (mySeat + 2) % 4;
+                selectedHandCards = [];
+
+                await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
+                    [`hands/${mySeat}`]: updatedHand,
+                    currentTurn: partnerSeat,
+                    lastPlayedCombo: null,
+                    consecutivePasses: 0,
+                    playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] }
+                });
+                return;
+            }
+
             const updatedHand = roomData.hands[mySeat].filter(id => !selectedHandCards.includes(id));
             const newPlayedCards = { ...(roomData.playedCardsBySeat || {}) };
             newPlayedCards[mySeat] = selectedHandCards;
 
-            const nextTurn = (mySeat + 1) % 4;
+            const currentTrick = roomData.trickPile || [];
+            const newTrick = [...currentTrick, ...selectedHandCards];
 
+            const nextTurn = (mySeat + 1) % 4;
             selectedHandCards = [];
 
             await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
                 [`hands/${mySeat}`]: updatedHand,
                 playedCardsBySeat: newPlayedCards,
+                trickPile: newTrick,
                 lastPlayedCombo: combo,
+                lastPlayerWhoLaid: mySeat,
+                consecutivePasses: 0,
                 currentTurn: nextTurn
             });
         };
@@ -710,13 +742,69 @@
         // Passen-Button
         document.getElementById("btn-pass").onclick = async () => {
             if (!roomData || roomData.currentTurn !== mySeat || roomData.status !== "playing") return;
-            const nextTurn = (mySeat + 1) % 4;
-            await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
-                currentTurn: nextTurn
-            });
+
+            // MAN KANN NICHT PASSEN WENN MAN ANSPELT (Tisch ist leer)
+            if (!roomData.lastPlayedCombo) {
+                return alert("Du spielst an und kannst nicht passen!");
+            }
+
+            const passes = (roomData.consecutivePasses || 0) + 1;
+
+            // 3 mal in Folge gepasst -> Stich beendet!
+            if (passes === 3) {
+                const winnerSeat = roomData.lastPlayerWhoLaid;
+                const trickCards = roomData.trickPile || [];
+                const lastCombo = roomData.lastPlayedCombo;
+
+                // Prüfen ob Drache im Stich gewonnen wurde
+                if (lastCombo && lastCombo.isDragon) {
+                    if (winnerSeat === mySeat) {
+                        document.getElementById("dragon-gift-overlay").style.display = "flex";
+                        return;
+                    }
+                }
+
+                await awardTrickToPlayer(winnerSeat, trickCards);
+            } else {
+                const nextTurn = (mySeat + 1) % 4;
+                await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
+                    currentTurn: nextTurn,
+                    consecutivePasses: passes
+                });
+            }
         };
 
-        // Raum Synchronisieren
+        // Drachen-Punkte verschenken
+        document.getElementById("btn-give-left").onclick = () => giftDragonTrick((mySeat + 3) % 4);
+        document.getElementById("btn-give-right").onclick = () => giftDragonTrick((mySeat + 1) % 4);
+
+        async function giftDragonTrick(targetSeat) {
+            document.getElementById("dragon-gift-overlay").style.display = "none";
+            const trickCards = roomData.trickPile || [];
+            await awardTrickToPlayer(targetSeat, trickCards);
+        }
+
+        // Stich gutschreiben & Punkte berechnen
+        async function awardTrickToPlayer(winnerSeat, trickCards) {
+            let trickPoints = 0;
+            trickCards.forEach(id => {
+                trickPoints += DECK[id].points;
+            });
+
+            const currentScores = roomData.scores || { 0: 0, 1: 0, 2: 0, 3: 0 };
+            currentScores[winnerSeat] = (currentScores[winnerSeat] || 0) + trickPoints;
+
+            await update(ref(db, `tichu_rooms/${currentRoomCode}`), {
+                scores: currentScores,
+                trickPile: [],
+                lastPlayedCombo: null,
+                lastPlayerWhoLaid: -1,
+                consecutivePasses: 0,
+                playedCardsBySeat: { 0: [], 1: [], 2: [], 3: [] },
+                currentTurn: winnerSeat
+            });
+        }
+
         function listenToRoom() {
             onValue(ref(db, `tichu_rooms/${currentRoomCode}`), (snapshot) => {
                 roomData = snapshot.val();
@@ -768,6 +856,7 @@
                     const nameEl = document.getElementById(`name-${relativeSeat}`);
                     const boxEl = document.getElementById(`box-${relativeSeat}`);
                     const countEl = document.getElementById(`count-${relativeSeat}`);
+                    const scoreEl = document.getElementById(`score-${relativeSeat}`);
                     
                     if (roomData.players && roomData.players[i]) {
                         let nameStr = (i === mySeat) ? "Du" : "Spieler " + (i+1);
@@ -781,12 +870,15 @@
                         countEl.innerText = `Karten: ${roomData.hands[i].length}`;
                     }
 
+                    if (roomData.scores && scoreEl) {
+                        scoreEl.innerText = `Punkte: ${roomData.scores[i] || 0}`;
+                    }
+
                     if (boxEl) boxEl.classList.toggle("active-turn", roomData.currentTurn === i && roomData.status === "playing");
                 }
             });
         }
 
-        // Schupfen Beenden & Startspieler ermitteln
         function checkAutoSchupfComplete() {
             const sData = roomData.schupfData || {};
             if (Object.keys(sData).length === 4 && isHost) {
@@ -805,7 +897,7 @@
 
                 let startingSeat = 0;
                 for (let s = 0; s < 4; s++) {
-                    if (newHands[s].some(cardId => DECK[cardId].value === 1)) {
+                    if (newHands[s].some(cardId => DECK[cardId].value === 1 && DECK[cardId].type === "mahjong")) {
                         startingSeat = s;
                         break;
                     }
@@ -819,7 +911,6 @@
             }
         }
 
-        // Handkarten rendern
         function renderHand(cardIds) {
             const handEl = document.getElementById("my-hand");
             handEl.innerHTML = "";
@@ -840,7 +931,6 @@
             });
         }
 
-        // Gespielte Karten rendern
         function renderPlayedCards(playedCardsBySeat) {
             for (let i = 0; i < 4; i++) {
                 const relativeSeat = (i - mySeat + 4) % 4;
