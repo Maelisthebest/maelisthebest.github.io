@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Tichu Online v 1.6</title>
+    <title>Maelist - Tichu Online v 1.7</title>
     <style>
         :root {
             --card-w: 70px;
@@ -517,15 +517,18 @@
             });
         };
 
-        // Großes Tichu Interaktion
+        // Großes Tichu Interaktion (KORRIGIERT)
         document.getElementById("btn-call-gtichu").onclick = () => submitGtichu(true);
         document.getElementById("btn-pass-gtichu").onclick = () => submitGtichu(false);
-
+        
         async function submitGtichu(called) {
             document.getElementById("gtichu-overlay").style.display = "none";
-            await update(ref(db, `tichu_rooms/${currentRoomCode}/gtichuCalls/${mySeat}`), called ? "GROSSES TICHU" : "NEIN");
+            
+            // update() benötigt ein Objekt als Parameter
+            await update(ref(db, `tichu_rooms/${currentRoomCode}/gtichuCalls`), {
+                [mySeat]: called ? "GROSSES TICHU" : "NEIN"
+            });
         }
-
         // Handkarte anklicken
         window.selectCardFromHand = function(cardId) {
             selectedHandCard = cardId;
