@@ -118,13 +118,17 @@
             } catch (e) {
                 console.error("Fehler beim Abrufen des Usernamens:", e);
             }
-        } else {
-            // Timeout-Puffer, damit man nicht fälschlicherweise rausgeworfen wird
+        }
+        else {
             setTimeout(() => {
-                if (!auth.currentUser) {
+                // Prüft, ob der Crawler von Google (oder anderen Suchmaschinen) die Seite besucht
+                const isBot = /bot|google|baidu|bing|msn|duckduckbot|teoma|slurp|crawler/i.test(navigator.userAgent);
+                
+                if (!auth.currentUser && !isBot) {
                     window.location.href = "index.html";
                 }
             }, 1000);
+        }
         }
     });
 </script>
