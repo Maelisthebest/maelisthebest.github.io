@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maelist - Infinite Craft</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: #f4f7f6; 
+            margin: 0; 
+            padding: 20px; 
+            text-align: center; 
+        }
+        .container { 
+            background: white; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 25px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        }
+
+        /* Crafting Zone */
+        .craft-area {
+            background: #f8f9fa;
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .input-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .input-row input {
+            width: 40%;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .btn-combine {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-combine:hover { background: #2980b9; }
+
+        #result-status {
+            font-size: 18px;
+            font-weight: 500;
+            min-height: 30px;
+            color: #333;
+        }
+
+        /* Inventory */
+        .inventory-section {
+            text-align: left;
+            margin-top: 25px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        .inventory-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+        .element-item {
+            background: #eef2f7;
+            border: 1px solid #cbd5e1;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .element-item:hover {
+            background: #3498db;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .nav-btn {
+            background: none; 
+            border: none; 
+            color: #999; 
+            cursor: pointer; 
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Infinite Craft</h2>
+    <p>Spieler: <strong id="username-display">Lädt...</strong></p>
+
+    <!-- Kombinations-Bereich -->
+    <div class="craft-area">
+        <div class="input-row">
+            <input type="text" id="elem1" placeholder="Element 1">
+            <span>+</span>
+            <input type="text" id="elem2" placeholder="Element 2">
+        </div>
+        <button class="btn-combine" onclick="combineElements()">Kombinieren</button>
+        <div id="result-status">Wähle oder tippe zwei Begriffe ein...</div>
+    </div>
+
+    <!-- Inventar -->
+    <div class="inventory-section">
+        <h3>Deine Freigeschalteten Elemente (<span id="elem-count">0</span>)</h3>
+        <div id="inventory" class="inventory-grid">Lädt...</div>
+    </div>
+
+    <button class="nav-btn" onclick="window.location.href='ueberleitung.html'">Zurück zum Hauptmenü</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    // 1. Firebase Konfiguration (Nutzt deine genauen Daten)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // 2. Deine Worker URL
+    const WORKER_URL = "https://DEIN_WORKER_NAME.workers.dev"; // ERSETZEN durch deine .workers.dev URL
+
+    // Start-Elemente
+    const DEFAULT_ELEMENTS = [
+        { name: "Water", emoji: "💧" },
+        { name: "Fire", emoji: "🔥" },
+        { name: "Wind", emoji: "🌬️" },
+        { name: "Earth", emoji: "🌍" }
+    ];
+
+    let myUid, myName;
+    let myElements = [];
+
+    // Authentifizierung prüfen
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            myUid = user.uid;
+
+            // Username aus DB abrufen
+            const userSnap = await get(ref(db, `users/${myUid}/username`));
+            myName = userSnap.val() || "Unbekannt";
+            document.getElementById("username-display").innerText = myName;
+
+            // Live-Listener für die Infinite-Craft Elemente aus der DB
+            onValue(ref(db, `users/${myUid}/infiniteCraft/elements`), (snap) => {
+                const data = snap.val();
+                if (data) {
+                    myElements = Object.values(data);
+                } else {
+                    // Falls noch keine Elemente existieren: Standard-Elemente anlegen
+                    myElements = DEFAULT_ELEMENTS;
+                    set(ref(db, `users/${myUid}/infiniteCraft/elements`), DEFAULT_ELEMENTS);
+                }
+                renderInventory();
+            });
+
+        } else {
+            // Nicht eingeloggt -> zurück zum Login
+            window.location.href = "index.html";
+        }
+    });
+
+    // Inventar rendern
+    function renderInventory() {
+        const grid = document.getElementById("inventory");
+        document.getElementById("elem-count").innerText = myElements.length;
+        grid.innerHTML = "";
+
+        myElements.forEach(item => {
+            const el = document.createElement("div");
+            el.className = "element-item";
+            el.innerHTML = `${item.emoji || '✨'} ${item.name}`;
+            el.onclick = () => selectElement(item.name);
+            grid.appendChild(el);
+        });
+    }
+
+    // Element per Klick in die Input-Felder einfügen
+    function selectElement(name) {
+        const input1 = document.getElementById("elem1");
+        const input2 = document.getElementById("elem2");
+
+        if (!input1.value) {
+            input1.value = name;
+        } else if (!input2.value) {
+            input2.value = name;
+        } else {
+            input1.value = name;
+            input2.value = "";
+        }
+    }
+
+    // API Kombinieren Aufruf
+    window.combineElements = async () => {
+        const first = document.getElementById("elem1").value.trim();
+        const second = document.getElementById("elem2").value.trim();
+        const status = document.getElementById("result-status");
+
+        if (!first || !second) {
+            status.innerText = "Bitte zwei Felder mit Begriffen füllen.";
+            return;
+        }
+
+        status.innerText = "Kombiniere... ⏳";
+
+        try {
+            const res = await fetch(`${WORKER_URL}?first=${encodeURIComponent(first)}&second=${encodeURIComponent(second)}`);
+            
+            if (!res.ok) throw new Error(`HTTP Fehler ${res.status}`);
+
+            const data = await res.json();
+
+            if (!data.result || data.result === "Nothing") {
+                status.innerText = "Keine Kombination möglich ❌";
+            } else {
+                const newElem = {
+                    name: data.result,
+                    emoji: data.emoji || "✨"
+                };
+
+                status.innerHTML = `Ergebnis: <strong>${newElem.emoji} ${newElem.name}</strong> ${data.isNew ? '✨ (Neues Element!)' : ''}`;
+
+                // In Realtime Database speichern, falls neu
+                const exists = myElements.some(e => e.name.toLowerCase() === newElem.name.toLowerCase());
+                if (!exists) {
+                    myElements.push(newElem);
+                    await set(ref(db, `users/${myUid}/infiniteCraft/elements`), myElements);
+                }
+
+                // Feldeingaben für den nächsten Zug vorbereiten
+                document.getElementById("elem1").value = newElem.name;
+                document.getElementById("elem2").value = "";
+            }
+        } catch (err) {
+            status.innerText = `Fehler: ${err.message}`;
+        }
+    };
+</script>
+
+</body>
+</html>
