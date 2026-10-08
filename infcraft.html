@@ -49,6 +49,7 @@
       background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
       background-size: 24px 24px;
       overflow: hidden;
+      touch-action: none;
     }
 
     /* Schnelleingabe oben */
@@ -221,6 +222,7 @@
       font-size: 14px;
       cursor: grab;
       box-shadow: var(--item-shadow);
+      touch-action: none;
     }
 
     .inventory-item:hover {
@@ -274,10 +276,10 @@
       }
       .sidebar {
         width: 100%;
-        height: 35vh;
+        height: 38vh;
       }
       .play-area {
-        height: 65vh;
+        height: 62vh;
       }
       .top-bar {
         top: 8px;
@@ -295,7 +297,7 @@
 
 <div class="app-container">
   <!-- Spielfeld -->
-  <div class="play-area" id="play-area" ondragover="allowDrop(event)" ondrop="handleDrop(event)">
+  <div class="play-area" id="play-area">
     <div class="top-bar">
       <input type="text" id="quick-elem1" placeholder="Element 1">
       <span>+</span>
@@ -423,71 +425,116 @@
     itemsToDisplay.forEach(item => {
       const el = document.createElement("div");
       el.className = `inventory-item ${item.isDiscovery ? 'discovery-item' : ''}`;
-      el.draggable = true;
       el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
 
-      // Desktop Drag Start
-      el.ondragstart = (e) => {
-        e.dataTransfer.setData("application/json", JSON.stringify(item));
+      // Klick als direkter Spawn in der Mitte als Fallback
+      el.onclick = () => {
+        const x = (playArea.clientWidth / 2 - 50) + (Math.random() * 40 - 20);
+        const y = (playArea.clientHeight / 2 - 20) + (Math.random() * 40 - 20);
+        spawnElementOnBoard(item, Math.max(10, x), Math.max(10, y));
       };
 
-      // Mobile Tap / Klick fügt Element ein
-      el.onclick = () => spawnElementOnBoard(item, playArea.clientWidth / 2 - 50 + (Math.random()*30-15), playArea.clientHeight / 2 - 20 + (Math.random()*30-15));
-      
+      enableSidebarDrag(el, item);
       inventoryList.appendChild(el);
     });
 
     document.getElementById("elem-count").innerText = myElements.length;
   };
 
+  function enableSidebarDrag(el, item) {
+    function startDrag(e) {
+      // Verhindert Textmarkierung beim Ziehen
+      e.preventDefault();
+
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      const clone = document.createElement("div");
+      clone.className = "draggable-item";
+      clone.style.position = "fixed";
+      clone.style.zIndex = "1000";
+      clone.style.pointerEvents = "none";
+      clone.style.opacity = "1"; // Garantiert volle Sichtbarkeit des gezogenen Elements
+      clone.style.left = (clientX - 50) + "px";
+      clone.style.top = (clientY - 20) + "px";
+      clone.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
+      document.body.appendChild(clone);
+
+      function onMove(moveEvent) {
+        const cx = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+        const cy = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+        clone.style.left = (cx - 50) + "px";
+        clone.style.top = (cy - 20) + "px";
+      }
+
+      function onEnd(endEvent) {
+        if (e.touches) {
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend', onEnd);
+        } else {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onEnd);
+        }
+
+        const cx = endEvent.changedTouches ? endEvent.changedTouches[0].clientX : endEvent.clientX;
+        const cy = endEvent.changedTouches ? endEvent.changedTouches[0].clientY : endEvent.clientY;
+        const areaRect = playArea.getBoundingClientRect();
+
+        // Erst den Klon sauber entfernen, bevor das Board aktualisiert wird
+        clone.remove();
+
+        // Prüfen, ob das Element auf dem Spielfeld losgelassen wurde
+        if (
+          cx >= areaRect.left &&
+          cx <= areaRect.right &&
+          cy >= areaRect.top &&
+          cy <= areaRect.bottom
+        ) {
+          const allItemsOnBoard = document.querySelectorAll('.play-area .draggable-item');
+          let targetElement = null;
+
+          allItemsOnBoard.forEach(boardEl => {
+            const rect = boardEl.getBoundingClientRect();
+            if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+              targetElement = boardEl;
+            }
+          });
+
+          if (targetElement) {
+            const rect = targetElement.getBoundingClientRect();
+            combineTwoElements(
+              item.name,
+              targetElement.dataset.name,
+              rect.left - areaRect.left,
+              rect.top - areaRect.top,
+              [targetElement]
+            );
+          } else {
+            const x = cx - areaRect.left - 50;
+            const y = cy - areaRect.top - 20;
+            spawnElementOnBoard(item, Math.max(0, x), Math.max(0, y));
+          }
+        }
+      }
+
+      if (e.touches) {
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+      } else {
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+      }
+    }
+
+    el.addEventListener('mousedown', startDrag);
+    el.addEventListener('touchstart', startDrag, { passive: false });
+  }
+
   window.toggleDiscoveryFilter = function() {
     showOnlyDiscoveries = !showOnlyDiscoveries;
     const btn = document.getElementById("discovery-toggle");
     btn.classList.toggle("active", showOnlyDiscoveries);
     renderInventory();
-  };
-
-  window.allowDrop = function(e) {
-    e.preventDefault();
-  };
-
-  // Drag & Drop vom Inventar ins Spielfeld
-  window.handleDrop = function(e) {
-    e.preventDefault();
-    const dataText = e.dataTransfer.getData("application/json");
-    if (!dataText) return;
-
-    const item = JSON.parse(dataText);
-    const dropX = e.clientX;
-    const dropY = e.clientY;
-
-    const allItemsOnBoard = document.querySelectorAll('.draggable-item');
-    let targetElement = null;
-
-    allItemsOnBoard.forEach(boardEl => {
-      const rect = boardEl.getBoundingClientRect();
-      if (dropX >= rect.left && dropX <= rect.right && dropY >= rect.top && dropY <= rect.bottom) {
-        targetElement = boardEl;
-      }
-    });
-
-    if (targetElement) {
-      const rect = targetElement.getBoundingClientRect();
-      const areaRect = playArea.getBoundingClientRect();
-      
-      combineTwoElements(
-        item.name,
-        targetElement.dataset.name,
-        rect.left - areaRect.left,
-        rect.top - areaRect.top,
-        [targetElement]
-      );
-    } else {
-      const areaRect = playArea.getBoundingClientRect();
-      const x = dropX - areaRect.left - 50;
-      const y = dropY - areaRect.top - 15;
-      spawnElementOnBoard(item, Math.max(0, x), Math.max(0, y));
-    }
   };
 
   function spawnElementOnBoard(item, x, y, isNew = false) {
@@ -497,6 +544,7 @@
     el.dataset.emoji = item.emoji || "✨";
     el.style.left = `${Math.max(0, x)}px`;
     el.style.top = `${Math.max(0, y)}px`;
+    el.style.opacity = "1"; // Verhindert unsichtbaren Render-Zustand
     el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
 
     makeMovable(el);
@@ -504,7 +552,6 @@
     checkOverlap(el);
   }
 
-  // Robuste Steuerung für Maus und Touch auf dem Spielfeld
   function makeMovable(element) {
     let startX = 0, startY = 0;
 
@@ -515,7 +562,7 @@
       startX = clientX;
       startY = clientY;
 
-      document.querySelectorAll('.draggable-item').forEach(el => el.style.zIndex = 5);
+      document.querySelectorAll('.play-area .draggable-item').forEach(el => el.style.zIndex = 5);
       element.style.zIndex = 50;
 
       if (e.touches) {
@@ -558,7 +605,7 @@
 
   function checkOverlap(draggedEl) {
     const rect1 = draggedEl.getBoundingClientRect();
-    const allItems = document.querySelectorAll('.draggable-item');
+    const allItems = document.querySelectorAll('.play-area .draggable-item');
 
     allItems.forEach(otherEl => {
       if (otherEl === draggedEl) return;
@@ -621,7 +668,12 @@
           isDiscovery: isDiscovery
         };
 
-        elementsToRemove.forEach(el => el.remove());
+        elementsToRemove.forEach(el => {
+          if (el && el.parentNode === playArea) {
+            el.remove();
+          }
+        });
+
         spawnElementOnBoard(newElem, posX, posY, true);
 
         const exists = myElements.some(e => e.name.toLowerCase() === newElem.name.toLowerCase());
@@ -654,7 +706,7 @@
   };
 
   window.clearPlayArea = function() {
-    document.querySelectorAll('.draggable-item').forEach(el => el.remove());
+    document.querySelectorAll('.play-area .draggable-item').forEach(el => el.remove());
   };
 
   function showToast(msg) {
