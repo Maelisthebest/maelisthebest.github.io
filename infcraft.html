@@ -335,7 +335,7 @@
 
   const WORKER_URL = "https://infcraftproxy.maeldermeister.workers.dev";
 
-  // Standard-Elemente mit fortlaufender Erstellungsnummer id
+  // Korrekte Start-Elemente
   const DEFAULT_ELEMENTS = [
     { id: 1, name: "Water", emoji: "💧", isDiscovery: false },
     { id: 2, name: "Fire", emoji: "🔥", isDiscovery: false },
@@ -355,18 +355,24 @@
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       myUid = user.uid;
-      const userSnap = await get(ref(db, `users/${myUid}/username`));
-      myName = userSnap.val() || "User";
-      document.getElementById("user-display").innerText = myName;
+      
+      // Username holen
+      try {
+        const userSnap = await get(ref(db, `users/${myUid}/username`));
+        myName = userSnap.val() || "User";
+        document.getElementById("user-display").innerText = myName;
+      } catch (e) {
+        document.getElementById("user-display").innerText = "User";
+      }
 
-      // Speicherpfad DIREKT im Hauptverzeichnis "infcraftitems"
-      onValue(ref(db, `infcraftitems`), (snap) => {
+      // Nutzerbezogenes Verzeichnis: infcraftitems/${myUid}
+      onValue(ref(db, `infcraftitems/${myUid}`), (snap) => {
         const data = snap.val();
         if (data) {
           myElements = Object.values(data);
         } else {
           myElements = DEFAULT_ELEMENTS;
-          set(ref(db, `infcraftitems`), DEFAULT_ELEMENTS);
+          set(ref(db, `infcraftitems/${myUid}`), DEFAULT_ELEMENTS);
         }
         renderInventory();
       });
@@ -375,7 +381,7 @@
     }
   });
 
-  // Inventar rendern mit Sortierung nach Name/ID & Filter
+  // Inventar rendern
   window.renderInventory = function() {
     const filterText = document.getElementById("search-box").value.toLowerCase();
     const sortBy = document.getElementById("sort-select").value;
@@ -383,22 +389,19 @@
 
     let itemsToDisplay = [...myElements];
 
-    // Discovery Filter
     if (showOnlyDiscoveries) {
       itemsToDisplay = itemsToDisplay.filter(item => item.isDiscovery);
     }
 
-    // Textsuche Filter
     if (filterText) {
       itemsToDisplay = itemsToDisplay.filter(item => item.name.toLowerCase().includes(filterText));
     }
 
-    // Sortierung nach Name oder Erstellungsnummer (id)
     itemsToDisplay.sort((a, b) => {
       if (sortBy === "name") {
         return a.name.localeCompare(b.name);
       } else {
-        return (a.id || 0) - (b.id || 0); // Nach Erstellungsnummer aufsteigend
+        return (a.id || 0) - (b.id || 0);
       }
     });
 
@@ -408,12 +411,10 @@
       el.draggable = true;
       el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
 
-      // Drag-Event starten
       el.ondragstart = (e) => {
         e.dataTransfer.setData("application/json", JSON.stringify(item));
       };
 
-      // Klick fügt Element mittig ein
       el.onclick = () => spawnElementOnBoard(item, playArea.clientWidth / 2 - 50 + (Math.random()*40-20), playArea.clientHeight / 2 - 20 + (Math.random()*40-20));
       
       inventoryList.appendChild(el);
@@ -429,22 +430,49 @@
     renderInventory();
   };
 
-  // Drag & Drop vom Inventar ins Spielfeld
   window.allowDrop = function(e) {
     e.preventDefault();
   };
 
+  // Drag & Drop vom Inventar ins Feld / auf ein anderes Element
   window.handleDrop = function(e) {
     e.preventDefault();
     const dataText = e.dataTransfer.getData("application/json");
     if (!dataText) return;
 
     const item = JSON.parse(dataText);
-    const rect = playArea.getBoundingClientRect();
-    const x = e.clientX - rect.left - 50;
-    const y = e.clientY - rect.top - 15;
+    const dropX = e.clientX;
+    const dropY = e.clientY;
 
-    spawnElementOnBoard(item, Math.max(0, x), Math.max(0, y));
+    const allItemsOnBoard = document.querySelectorAll('.draggable-item');
+    let targetElement = null;
+
+    allItemsOnBoard.forEach(boardEl => {
+      const rect = boardEl.getBoundingClientRect();
+      if (dropX >= rect.left && dropX <= rect.right && dropY >= rect.top && dropY <= rect.bottom) {
+        targetElement = boardEl;
+      }
+    });
+
+    if (targetElement) {
+      // Auf existierendes Element gedroppt -> Verschmelzen
+      const rect = targetElement.getBoundingClientRect();
+      const areaRect = playArea.getBoundingClientRect();
+      
+      combineTwoElements(
+        item.name,
+        targetElement.dataset.name,
+        rect.left - areaRect.left,
+        rect.top - areaRect.top,
+        [targetElement]
+      );
+    } else {
+      // Auf leeres Feld gedroppt -> Platzieren
+      const areaRect = playArea.getBoundingClientRect();
+      const x = dropX - areaRect.left - 50;
+      const y = dropY - areaRect.top - 15;
+      spawnElementOnBoard(item, Math.max(0, x), Math.max(0, y));
+    }
   };
 
   // Element auf das Feld setzen
@@ -459,9 +487,10 @@
 
     makeDraggable(el);
     playArea.appendChild(el);
+
+    checkOverlap(el);
   }
 
-  // Element Verschieben
   function makeDraggable(element) {
     let offsetX = 0, offsetY = 0, startX = 0, startY = 0;
 
@@ -497,7 +526,6 @@
     }
   }
 
-  // Kollisionsprüfung
   function checkOverlap(draggedEl) {
     const rect1 = draggedEl.getBoundingClientRect();
     const allItems = document.querySelectorAll('.draggable-item');
@@ -524,7 +552,6 @@
     });
   }
 
-  // Fetch mit Retry gegen Error 502
   async function fetchCombineWithRetry(first, second, retries = 2) {
     const url = `${WORKER_URL}?first=${encodeURIComponent(first)}&second=${encodeURIComponent(second)}`;
     
@@ -543,7 +570,6 @@
     }
   }
 
-  // Kombinieren Logik & Speichern im Hauptverzeichnis "infcraftitems"
   async function combineTwoElements(first, second, posX, posY, elementsToRemove = []) {
     if (isCrafting) return;
     isCrafting = true;
@@ -557,8 +583,6 @@
         showToast("Keine Kombination ❌");
       } else {
         const isDiscovery = !!data.isNew;
-        
-        // Fortlaufende Erstellungsnummer (Höchste bisherige ID + 1)
         const nextId = myElements.length > 0 ? Math.max(...myElements.map(e => e.id || 0)) + 1 : 1;
 
         const newElem = { 
@@ -571,11 +595,10 @@
         elementsToRemove.forEach(el => el.remove());
         spawnElementOnBoard(newElem, posX, posY, true);
 
-        // Prüfen & unter infcraftitems im Hauptpfad speichern
         const exists = myElements.some(e => e.name.toLowerCase() === newElem.name.toLowerCase());
         if (!exists) {
           myElements.push(newElem);
-          await set(ref(db, `infcraftitems`), myElements);
+          await set(ref(db, `infcraftitems/${myUid}`), myElements);
           showToast(isDiscovery ? `✨ Erste Entdeckung (Discovery)! ${newElem.emoji} ${newElem.name}` : `Neues Element (#${nextId}): ${newElem.emoji} ${newElem.name}`);
         } else {
           showToast(`Ergebnis: ${newElem.emoji} ${newElem.name}`);
