@@ -1,273 +1,615 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Maelist - Infinite Craft</title>
-    <style>
-        * { box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', sans-serif; 
-            background: #f4f7f6; 
-            margin: 0; 
-            padding: 20px; 
-            text-align: center; 
-        }
-        .container { 
-            background: white; 
-            max-width: 600px; 
-            margin: 0 auto; 
-            padding: 25px; 
-            border-radius: 16px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maelist - Infinite Craft</title>
+  
+  <style>
+    :root {
+      --bg-color: #ffffff;
+      --sidebar-bg: #fafafa;
+      --border-color: #e5e7eb;
+      --text-color: #1f2937;
+      --accent-color: #3b82f6;
+      --item-bg: #ffffff;
+      --item-shadow: 0 2px 5px rgba(0,0,0,0.06);
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-        /* Crafting Zone */
-        .craft-area {
-            background: #f8f9fa;
-            border: 2px dashed #cbd5e1;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-        .input-row {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        .input-row input {
-            width: 40%;
-            padding: 12px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            text-align: center;
-        }
-        .btn-combine {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .btn-combine:hover { background: #2980b9; }
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
 
-        #result-status {
-            font-size: 18px;
-            font-weight: 500;
-            min-height: 30px;
-            color: #333;
-        }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-family);
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
 
-        /* Inventory */
-        .inventory-section {
-            text-align: left;
-            margin-top: 25px;
-            border-top: 1px solid #eee;
-            padding-top: 15px;
-        }
-        .inventory-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            max-height: 250px;
-            overflow-y: auto;
-            padding: 5px;
-        }
-        .element-item {
-            background: #eef2f7;
-            border: 1px solid #cbd5e1;
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 14px;
-            cursor: pointer;
-            user-select: none;
-            transition: background 0.2s, transform 0.1s;
-        }
-        .element-item:hover {
-            background: #3498db;
-            color: white;
-            transform: translateY(-2px);
-        }
-        .nav-btn {
-            background: none; 
-            border: none; 
-            color: #999; 
-            cursor: pointer; 
-            margin-top: 15px;
-        }
-    </style>
+    .app-container {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* SPIELFELD */
+    .play-area {
+      flex: 1;
+      position: relative;
+      background-color: #ffffff;
+      background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+      background-size: 24px 24px;
+      overflow: hidden;
+    }
+
+    /* Schnelleingabe oben */
+    .top-bar {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      backdrop-filter: blur(5px);
+    }
+
+    .top-bar input {
+      width: 120px;
+      padding: 6px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      text-align: center;
+    }
+
+    .top-bar button {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .top-bar button:hover { background: #059669; }
+
+    .status-toast {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(31, 41, 55, 0.9);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 100;
+    }
+
+    .status-toast.show { opacity: 1; }
+
+    /* Drag-Elemente auf dem Feld */
+    .draggable-item {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: var(--item-shadow);
+      font-size: 15px;
+      font-weight: 500;
+      cursor: grab;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      z-index: 5;
+    }
+
+    .draggable-item:active {
+      cursor: grabbing;
+      transform: scale(1.05);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+      z-index: 50;
+    }
+
+    /* SIDEBAR (INVENTAR) */
+    .sidebar {
+      width: 340px;
+      height: 100%;
+      background-color: var(--sidebar-bg);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      z-index: 20;
+    }
+
+    .sidebar-header {
+      padding: 15px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sidebar-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .search-box {
+      flex: 1;
+      padding: 7px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .select-sort {
+      padding: 7px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .filter-btn {
+      padding: 7px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: white;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .filter-btn.active {
+      background: #f59e0b;
+      color: white;
+      border-color: #d97706;
+      font-weight: bold;
+    }
+
+    .inventory-list {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-content: flex-start;
+    }
+
+    .inventory-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--item-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: grab;
+      box-shadow: var(--item-shadow);
+      transition: border-color 0.15s, transform 0.1s;
+    }
+
+    .inventory-item:hover {
+      border-color: var(--accent-color);
+      transform: translateY(-1px);
+    }
+
+    .inventory-item.discovery-item {
+      border-color: #f59e0b;
+      background: #fffbe0;
+    }
+
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .btn-action {
+      background: none;
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .btn-action:hover {
+      background: #f3f4f6;
+      color: var(--text-color);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.5); opacity: 0; }
+      70% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .new-discovery {
+      animation: popIn 0.3s ease-out forwards;
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.4) !important;
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Infinite Craft</h2>
-    <p>Spieler: <strong id="username-display">Lädt...</strong></p>
-
-    <!-- Kombinations-Bereich -->
-    <div class="craft-area">
-        <div class="input-row">
-            <input type="text" id="elem1" placeholder="Element 1">
-            <span>+</span>
-            <input type="text" id="elem2" placeholder="Element 2">
-        </div>
-        <button class="btn-combine" onclick="combineElements()">Kombinieren</button>
-        <div id="result-status">Wähle oder tippe zwei Begriffe ein...</div>
+<div class="app-container">
+  <!-- Spielfeld -->
+  <div class="play-area" id="play-area" ondragover="allowDrop(event)" ondrop="handleDrop(event)">
+    <div class="top-bar">
+      <input type="text" id="quick-elem1" placeholder="Element 1">
+      <span>+</span>
+      <input type="text" id="quick-elem2" placeholder="Element 2">
+      <button onclick="quickCombine()">Craft</button>
     </div>
 
-    <!-- Inventar -->
-    <div class="inventory-section">
-        <h3>Deine Freigeschalteten Elemente (<span id="elem-count">0</span>)</h3>
-        <div id="inventory" class="inventory-grid">Lädt...</div>
+    <div class="status-toast" id="status-toast">Lade...</div>
+  </div>
+
+  <!-- Rechte Seitenleiste -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">
+        <span>Infinite Craft</span>
+        <span id="user-display" style="font-size: 12px; color: #6b7280;">Lade...</span>
+      </div>
+
+      <div class="controls-row">
+        <input type="text" class="search-box" id="search-box" placeholder="Suchen..." oninput="renderInventory()">
+        <select class="select-sort" id="sort-select" onchange="renderInventory()">
+          <option value="name">Name</option>
+          <option value="id">Nr. (Erstellung)</option>
+        </select>
+        <button class="filter-btn" id="discovery-toggle" onclick="toggleDiscoveryFilter()">✨ Discoveries</button>
+      </div>
     </div>
 
-    <button class="nav-btn" onclick="window.location.href='ueberleitung.html'">Zurück zum Hauptmenü</button>
+    <div class="inventory-list" id="inventory-list"></div>
+
+    <div class="sidebar-footer">
+      <button class="btn-action" onclick="clearPlayArea()">Feld leeren</button>
+      <span style="font-size: 13px; color: #6b7280;"><b id="elem-count">0</b> Elemente</span>
+      <button class="btn-action" onclick="window.location.href='ueberleitung.html'">Menü</button>
+    </div>
+  </div>
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-    // 1. Firebase Konfiguration (Nutzt deine genauen Daten)
-    const firebaseConfig = {
-        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
-        authDomain: "maelist-chat.firebaseapp.com",
-        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
-        projectId: "maelist-chat",
-        storageBucket: "maelist-chat.firebasestorage.app",
-        messagingSenderId: "87392900284",
-        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+    authDomain: "maelist-chat.firebaseapp.com",
+    databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+    projectId: "maelist-chat",
+    storageBucket: "maelist-chat.firebasestorage.app",
+    messagingSenderId: "87392900284",
+    appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
 
-    // 2. Deine Worker URL
-    const WORKER_URL = "https://infcraftproxy.maeldermeister.workers.dev"; // ERSETZEN durch deine .workers.dev URL
+  const WORKER_URL = "https://infcraftproxy.maeldermeister.workers.dev";
 
-    // Start-Elemente
-    const DEFAULT_ELEMENTS = [
-        { name: "Water", emoji: "💧" },
-        { name: "Fire", emoji: "🔥" },
-        { name: "Wind", emoji: "🌬️" },
-        { name: "Earth", emoji: "🌍" }
-    ];
+  // Standard-Elemente mit fortlaufender Erstellungsnummer id
+  const DEFAULT_ELEMENTS = [
+    { id: 1, name: "Water", emoji: "💧", isDiscovery: false },
+    { id: 2, name: "Fire", emoji: "🔥", isDiscovery: false },
+    { id: 3, name: "Wind", emoji: "🌬️", isDiscovery: false },
+    { id: 4, name: "Earth", emoji: "🌍", isDiscovery: false }
+  ];
 
-    let myUid, myName;
-    let myElements = [];
+  let myUid, myName;
+  let myElements = [];
+  let isCrafting = false;
+  let showOnlyDiscoveries = false;
 
-    // Authentifizierung prüfen
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            myUid = user.uid;
+  const playArea = document.getElementById("play-area");
+  const inventoryList = document.getElementById("inventory-list");
+  const toast = document.getElementById("status-toast");
 
-            // Username aus DB abrufen
-            const userSnap = await get(ref(db, `users/${myUid}/username`));
-            myName = userSnap.val() || "Unbekannt";
-            document.getElementById("username-display").innerText = myName;
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      myUid = user.uid;
+      const userSnap = await get(ref(db, `users/${myUid}/username`));
+      myName = userSnap.val() || "User";
+      document.getElementById("user-display").innerText = myName;
 
-            // Live-Listener für die Infinite-Craft Elemente aus der DB
-            onValue(ref(db, `users/${myUid}/infiniteCraft/elements`), (snap) => {
-                const data = snap.val();
-                if (data) {
-                    myElements = Object.values(data);
-                } else {
-                    // Falls noch keine Elemente existieren: Standard-Elemente anlegen
-                    myElements = DEFAULT_ELEMENTS;
-                    set(ref(db, `users/${myUid}/infiniteCraft/elements`), DEFAULT_ELEMENTS);
-                }
-                renderInventory();
-            });
-
+      // Speicherpfad DIREKT im Hauptverzeichnis "infcraftitems"
+      onValue(ref(db, `infcraftitems`), (snap) => {
+        const data = snap.val();
+        if (data) {
+          myElements = Object.values(data);
         } else {
-            // Nicht eingeloggt -> zurück zum Login
-            window.location.href = "index.html";
+          myElements = DEFAULT_ELEMENTS;
+          set(ref(db, `infcraftitems`), DEFAULT_ELEMENTS);
         }
+        renderInventory();
+      });
+    } else {
+      window.location.href = "index.html";
+    }
+  });
+
+  // Inventar rendern mit Sortierung nach Name/ID & Filter
+  window.renderInventory = function() {
+    const filterText = document.getElementById("search-box").value.toLowerCase();
+    const sortBy = document.getElementById("sort-select").value;
+    inventoryList.innerHTML = "";
+
+    let itemsToDisplay = [...myElements];
+
+    // Discovery Filter
+    if (showOnlyDiscoveries) {
+      itemsToDisplay = itemsToDisplay.filter(item => item.isDiscovery);
+    }
+
+    // Textsuche Filter
+    if (filterText) {
+      itemsToDisplay = itemsToDisplay.filter(item => item.name.toLowerCase().includes(filterText));
+    }
+
+    // Sortierung nach Name oder Erstellungsnummer (id)
+    itemsToDisplay.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      } else {
+        return (a.id || 0) - (b.id || 0); // Nach Erstellungsnummer aufsteigend
+      }
     });
 
-    // Inventar rendern
-    function renderInventory() {
-        const grid = document.getElementById("inventory");
-        document.getElementById("elem-count").innerText = myElements.length;
-        grid.innerHTML = "";
+    itemsToDisplay.forEach(item => {
+      const el = document.createElement("div");
+      el.className = `inventory-item ${item.isDiscovery ? 'discovery-item' : ''}`;
+      el.draggable = true;
+      el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
 
-        myElements.forEach(item => {
-            const el = document.createElement("div");
-            el.className = "element-item";
-            el.innerHTML = `${item.emoji || '✨'} ${item.name}`;
-            el.onclick = () => selectElement(item.name);
-            grid.appendChild(el);
-        });
+      // Drag-Event starten
+      el.ondragstart = (e) => {
+        e.dataTransfer.setData("application/json", JSON.stringify(item));
+      };
+
+      // Klick fügt Element mittig ein
+      el.onclick = () => spawnElementOnBoard(item, playArea.clientWidth / 2 - 50 + (Math.random()*40-20), playArea.clientHeight / 2 - 20 + (Math.random()*40-20));
+      
+      inventoryList.appendChild(el);
+    });
+
+    document.getElementById("elem-count").innerText = myElements.length;
+  };
+
+  window.toggleDiscoveryFilter = function() {
+    showOnlyDiscoveries = !showOnlyDiscoveries;
+    const btn = document.getElementById("discovery-toggle");
+    btn.classList.toggle("active", showOnlyDiscoveries);
+    renderInventory();
+  };
+
+  // Drag & Drop vom Inventar ins Spielfeld
+  window.allowDrop = function(e) {
+    e.preventDefault();
+  };
+
+  window.handleDrop = function(e) {
+    e.preventDefault();
+    const dataText = e.dataTransfer.getData("application/json");
+    if (!dataText) return;
+
+    const item = JSON.parse(dataText);
+    const rect = playArea.getBoundingClientRect();
+    const x = e.clientX - rect.left - 50;
+    const y = e.clientY - rect.top - 15;
+
+    spawnElementOnBoard(item, Math.max(0, x), Math.max(0, y));
+  };
+
+  // Element auf das Feld setzen
+  function spawnElementOnBoard(item, x, y, isNew = false) {
+    const el = document.createElement("div");
+    el.className = `draggable-item ${isNew ? 'new-discovery' : ''}`;
+    el.dataset.name = item.name;
+    el.dataset.emoji = item.emoji || "✨";
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
+
+    makeDraggable(el);
+    playArea.appendChild(el);
+  }
+
+  // Element Verschieben
+  function makeDraggable(element) {
+    let offsetX = 0, offsetY = 0, startX = 0, startY = 0;
+
+    element.onmousedown = dragMouseDown;
+
+    function dragMouseDown(e) {
+      e.preventDefault();
+      startX = e.clientX;
+      startY = e.clientY;
+
+      document.querySelectorAll('.draggable-item').forEach(el => el.style.zIndex = 5);
+      element.style.zIndex = 50;
+
+      document.onmouseup = closeDragElement;
+      document.onmousemove = elementDrag;
     }
 
-    // Element per Klick in die Input-Felder einfügen
-    function selectElement(name) {
-        const input1 = document.getElementById("elem1");
-        const input2 = document.getElementById("elem2");
+    function elementDrag(e) {
+      e.preventDefault();
+      offsetX = startX - e.clientX;
+      offsetY = startY - e.clientY;
+      startX = e.clientX;
+      startY = e.clientY;
 
-        if (!input1.value) {
-            input1.value = name;
-        } else if (!input2.value) {
-            input2.value = name;
+      element.style.top = (element.offsetTop - offsetY) + "px";
+      element.style.left = (element.offsetLeft - offsetX) + "px";
+    }
+
+    function closeDragElement() {
+      document.onmouseup = null;
+      document.onmousemove = null;
+      checkOverlap(element);
+    }
+  }
+
+  // Kollisionsprüfung
+  function checkOverlap(draggedEl) {
+    const rect1 = draggedEl.getBoundingClientRect();
+    const allItems = document.querySelectorAll('.draggable-item');
+
+    allItems.forEach(otherEl => {
+      if (otherEl === draggedEl) return;
+
+      const rect2 = otherEl.getBoundingClientRect();
+
+      const overlap = !(rect1.right < rect2.left || 
+                        rect1.left > rect2.right || 
+                        rect1.bottom < rect2.top || 
+                        rect1.top > rect2.bottom);
+
+      if (overlap) {
+        combineTwoElements(
+          draggedEl.dataset.name, 
+          otherEl.dataset.name, 
+          rect2.left - playArea.getBoundingClientRect().left, 
+          rect2.top - playArea.getBoundingClientRect().top, 
+          [draggedEl, otherEl]
+        );
+      }
+    });
+  }
+
+  // Fetch mit Retry gegen Error 502
+  async function fetchCombineWithRetry(first, second, retries = 2) {
+    const url = `${WORKER_URL}?first=${encodeURIComponent(first)}&second=${encodeURIComponent(second)}`;
+    
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const res = await fetch(url);
+        if (res.status === 502 && i < retries) {
+          await new Promise(r => setTimeout(r, 600));
+          continue;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (err) {
+        if (i === retries) throw err;
+      }
+    }
+  }
+
+  // Kombinieren Logik & Speichern im Hauptverzeichnis "infcraftitems"
+  async function combineTwoElements(first, second, posX, posY, elementsToRemove = []) {
+    if (isCrafting) return;
+    isCrafting = true;
+
+    showToast(`Kombiniere ${first} + ${second}...`);
+
+    try {
+      const data = await fetchCombineWithRetry(first, second);
+
+      if (!data || !data.result || data.result === "Nothing") {
+        showToast("Keine Kombination ❌");
+      } else {
+        const isDiscovery = !!data.isNew;
+        
+        // Fortlaufende Erstellungsnummer (Höchste bisherige ID + 1)
+        const nextId = myElements.length > 0 ? Math.max(...myElements.map(e => e.id || 0)) + 1 : 1;
+
+        const newElem = { 
+          id: nextId,
+          name: data.result, 
+          emoji: data.emoji || "✨",
+          isDiscovery: isDiscovery
+        };
+
+        elementsToRemove.forEach(el => el.remove());
+        spawnElementOnBoard(newElem, posX, posY, true);
+
+        // Prüfen & unter infcraftitems im Hauptpfad speichern
+        const exists = myElements.some(e => e.name.toLowerCase() === newElem.name.toLowerCase());
+        if (!exists) {
+          myElements.push(newElem);
+          await set(ref(db, `infcraftitems`), myElements);
+          showToast(isDiscovery ? `✨ Erste Entdeckung (Discovery)! ${newElem.emoji} ${newElem.name}` : `Neues Element (#${nextId}): ${newElem.emoji} ${newElem.name}`);
         } else {
-            input1.value = name;
-            input2.value = "";
+          showToast(`Ergebnis: ${newElem.emoji} ${newElem.name}`);
         }
+      }
+    } catch (err) {
+      showToast(`Fehler: ${err.message}`);
+    } finally {
+      setTimeout(() => { isCrafting = false; }, 400);
+    }
+  }
+
+  window.quickCombine = function() {
+    const el1 = document.getElementById("quick-elem1").value.trim();
+    const el2 = document.getElementById("quick-elem2").value.trim();
+
+    if (!el1 || !el2) {
+      showToast("Bitte zwei Begriffe eingeben");
+      return;
     }
 
-    // API Kombinieren Aufruf
-    window.combineElements = async () => {
-        const first = document.getElementById("elem1").value.trim();
-        const second = document.getElementById("elem2").value.trim();
-        const status = document.getElementById("result-status");
+    combineTwoElements(el1, el2, playArea.clientWidth / 2 - 50, playArea.clientHeight / 2 - 20);
+    document.getElementById("quick-elem2").value = "";
+  };
 
-        if (!first || !second) {
-            status.innerText = "Bitte zwei Felder mit Begriffen füllen.";
-            return;
-        }
+  window.clearPlayArea = function() {
+    document.querySelectorAll('.draggable-item').forEach(el => el.remove());
+  };
 
-        status.innerText = "Kombiniere... ⏳";
-
-        try {
-            const res = await fetch(`${WORKER_URL}?first=${encodeURIComponent(first)}&second=${encodeURIComponent(second)}`);
-            
-            if (!res.ok) throw new Error(`HTTP Fehler ${res.status}`);
-
-            const data = await res.json();
-
-            if (!data.result || data.result === "Nothing") {
-                status.innerText = "Keine Kombination möglich ❌";
-            } else {
-                const newElem = {
-                    name: data.result,
-                    emoji: data.emoji || "✨"
-                };
-
-                status.innerHTML = `Ergebnis: <strong>${newElem.emoji} ${newElem.name}</strong> ${data.isNew ? '✨ (Neues Element!)' : ''}`;
-
-                // In Realtime Database speichern, falls neu
-                const exists = myElements.some(e => e.name.toLowerCase() === newElem.name.toLowerCase());
-                if (!exists) {
-                    myElements.push(newElem);
-                    await set(ref(db, `users/${myUid}/infiniteCraft/elements`), myElements);
-                }
-
-                // Feldeingaben für den nächsten Zug vorbereiten
-                document.getElementById("elem1").value = newElem.name;
-                document.getElementById("elem2").value = "";
-            }
-        } catch (err) {
-            status.innerText = `Fehler: ${err.message}`;
-        }
-    };
+  function showToast(msg) {
+    toast.innerText = msg;
+    toast.classList.add("show");
+    setTimeout(() => { toast.classList.remove("show"); }, 2500);
+  }
 </script>
 
 </body>
