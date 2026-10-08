@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Maelist - Infinite Craft</title>
   
   <style>
@@ -20,6 +20,7 @@
     * {
       box-sizing: border-box;
       user-select: none;
+      -webkit-user-select: none;
     }
 
     body, html {
@@ -37,6 +38,7 @@
       display: flex;
       width: 100vw;
       height: 100vh;
+      flex-direction: row;
     }
 
     /* SPIELFELD */
@@ -56,7 +58,7 @@
       left: 15px;
       z-index: 10;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
       background: rgba(255, 255, 255, 0.9);
       padding: 8px 14px;
@@ -67,7 +69,7 @@
     }
 
     .top-bar input {
-      width: 120px;
+      width: 110px;
       padding: 6px 10px;
       border: 1px solid var(--border-color);
       border-radius: 6px;
@@ -80,14 +82,11 @@
       background: #10b981;
       color: white;
       border: none;
-      padding: 7px 14px;
+      padding: 7px 12px;
       border-radius: 6px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
     }
-
-    .top-bar button:hover { background: #059669; }
 
     .status-toast {
       position: absolute;
@@ -103,6 +102,8 @@
       opacity: 0;
       transition: opacity 0.3s;
       z-index: 100;
+      text-align: center;
+      max-width: 90%;
     }
 
     .status-toast.show { opacity: 1; }
@@ -113,22 +114,21 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 14px;
+      padding: 10px 16px;
       background: var(--item-bg);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
+      border-radius: 10px;
       box-shadow: var(--item-shadow);
       font-size: 15px;
       font-weight: 500;
       cursor: grab;
-      transition: transform 0.1s ease, box-shadow 0.1s ease;
+      touch-action: none;
       z-index: 5;
     }
 
     .draggable-item:active {
       cursor: grabbing;
       transform: scale(1.05);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.12);
       z-index: 50;
     }
 
@@ -191,7 +191,6 @@
       font-size: 12px;
       cursor: pointer;
       white-space: nowrap;
-      transition: all 0.2s;
     }
 
     .filter-btn.active {
@@ -222,12 +221,10 @@
       font-size: 14px;
       cursor: grab;
       box-shadow: var(--item-shadow);
-      transition: border-color 0.15s, transform 0.1s;
     }
 
     .inventory-item:hover {
       border-color: var(--accent-color);
-      transform: translateY(-1px);
     }
 
     .inventory-item.discovery-item {
@@ -269,6 +266,29 @@
       border-color: #f59e0b !important;
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.4) !important;
     }
+
+    /* Mobile Responsive Anpassung */
+    @media (max-width: 768px) {
+      .app-container {
+        flex-direction: column-reverse;
+      }
+      .sidebar {
+        width: 100%;
+        height: 35vh;
+      }
+      .play-area {
+        height: 65vh;
+      }
+      .top-bar {
+        top: 8px;
+        left: 8px;
+        padding: 6px 8px;
+      }
+      .top-bar input {
+        width: 85px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -298,7 +318,7 @@
         <input type="text" class="search-box" id="search-box" placeholder="Suchen..." oninput="renderInventory()">
         <select class="select-sort" id="sort-select" onchange="renderInventory()">
           <option value="name">Name</option>
-          <option value="id">Nr. (Erstellung)</option>
+          <option value="id">Nr.</option>
         </select>
         <button class="filter-btn" id="discovery-toggle" onclick="toggleDiscoveryFilter()">✨ Discoveries</button>
       </div>
@@ -307,8 +327,8 @@
     <div class="inventory-list" id="inventory-list"></div>
 
     <div class="sidebar-footer">
-      <button class="btn-action" onclick="clearPlayArea()">Feld leeren</button>
-      <span style="font-size: 13px; color: #6b7280;"><b id="elem-count">0</b> Elemente</span>
+      <button class="btn-action" onclick="clearPlayArea()">Leeren</button>
+      <span style="font-size: 13px; color: #6b7280;"><b id="elem-count">0</b> Items</span>
       <button class="btn-action" onclick="window.location.href='ueberleitung.html'">Menü</button>
     </div>
   </div>
@@ -335,7 +355,6 @@
 
   const WORKER_URL = "https://infcraftproxy.maeldermeister.workers.dev";
 
-  // Korrekte Start-Elemente
   const DEFAULT_ELEMENTS = [
     { id: 1, name: "Water", emoji: "💧", isDiscovery: false },
     { id: 2, name: "Fire", emoji: "🔥", isDiscovery: false },
@@ -355,8 +374,6 @@
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       myUid = user.uid;
-      
-      // Username holen
       try {
         const userSnap = await get(ref(db, `users/${myUid}/username`));
         myName = userSnap.val() || "User";
@@ -365,7 +382,6 @@
         document.getElementById("user-display").innerText = "User";
       }
 
-      // Nutzerbezogenes Verzeichnis: infcraftitems/${myUid}
       onValue(ref(db, `infcraftitems/${myUid}`), (snap) => {
         const data = snap.val();
         if (data) {
@@ -381,7 +397,6 @@
     }
   });
 
-  // Inventar rendern
   window.renderInventory = function() {
     const filterText = document.getElementById("search-box").value.toLowerCase();
     const sortBy = document.getElementById("sort-select").value;
@@ -411,11 +426,13 @@
       el.draggable = true;
       el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
 
+      // Desktop Drag Start
       el.ondragstart = (e) => {
         e.dataTransfer.setData("application/json", JSON.stringify(item));
       };
 
-      el.onclick = () => spawnElementOnBoard(item, playArea.clientWidth / 2 - 50 + (Math.random()*40-20), playArea.clientHeight / 2 - 20 + (Math.random()*40-20));
+      // Mobile Tap / Klick fügt Element ein
+      el.onclick = () => spawnElementOnBoard(item, playArea.clientWidth / 2 - 50 + (Math.random()*30-15), playArea.clientHeight / 2 - 20 + (Math.random()*30-15));
       
       inventoryList.appendChild(el);
     });
@@ -434,7 +451,7 @@
     e.preventDefault();
   };
 
-  // Drag & Drop vom Inventar ins Feld / auf ein anderes Element
+  // Drag & Drop vom Inventar ins Spielfeld
   window.handleDrop = function(e) {
     e.preventDefault();
     const dataText = e.dataTransfer.getData("application/json");
@@ -455,7 +472,6 @@
     });
 
     if (targetElement) {
-      // Auf existierendes Element gedroppt -> Verschmelzen
       const rect = targetElement.getBoundingClientRect();
       const areaRect = playArea.getBoundingClientRect();
       
@@ -467,7 +483,6 @@
         [targetElement]
       );
     } else {
-      // Auf leeres Feld gedroppt -> Platzieren
       const areaRect = playArea.getBoundingClientRect();
       const x = dropX - areaRect.left - 50;
       const y = dropY - areaRect.top - 15;
@@ -475,55 +490,70 @@
     }
   };
 
-  // Element auf das Feld setzen
   function spawnElementOnBoard(item, x, y, isNew = false) {
     const el = document.createElement("div");
     el.className = `draggable-item ${isNew ? 'new-discovery' : ''}`;
     el.dataset.name = item.name;
     el.dataset.emoji = item.emoji || "✨";
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
+    el.style.left = `${Math.max(0, x)}px`;
+    el.style.top = `${Math.max(0, y)}px`;
     el.innerHTML = `<span>${item.emoji || '✨'}</span><span>${item.name}</span>`;
 
-    makeDraggable(el);
+    makeMovable(el);
     playArea.appendChild(el);
-
     checkOverlap(el);
   }
 
-  function makeDraggable(element) {
-    let offsetX = 0, offsetY = 0, startX = 0, startY = 0;
+  // Robuste Steuerung für Maus und Touch auf dem Spielfeld
+  function makeMovable(element) {
+    let startX = 0, startY = 0;
 
-    element.onmousedown = dragMouseDown;
-
-    function dragMouseDown(e) {
-      e.preventDefault();
-      startX = e.clientX;
-      startY = e.clientY;
+    function moveStart(e) {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      startX = clientX;
+      startY = clientY;
 
       document.querySelectorAll('.draggable-item').forEach(el => el.style.zIndex = 5);
       element.style.zIndex = 50;
 
-      document.onmouseup = closeDragElement;
-      document.onmousemove = elementDrag;
+      if (e.touches) {
+        document.addEventListener('touchmove', moveProcess, { passive: false });
+        document.addEventListener('touchend', moveEnd);
+      } else {
+        document.addEventListener('mousemove', moveProcess);
+        document.addEventListener('mouseup', moveEnd);
+      }
     }
 
-    function elementDrag(e) {
-      e.preventDefault();
-      offsetX = startX - e.clientX;
-      offsetY = startY - e.clientY;
-      startX = e.clientX;
-      startY = e.clientY;
+    function moveProcess(e) {
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-      element.style.top = (element.offsetTop - offsetY) + "px";
-      element.style.left = (element.offsetLeft - offsetX) + "px";
+      const deltaX = clientX - startX;
+      const deltaY = clientY - startY;
+
+      startX = clientX;
+      startY = clientY;
+
+      element.style.left = (element.offsetLeft + deltaX) + "px";
+      element.style.top = (element.offsetTop + deltaY) + "px";
     }
 
-    function closeDragElement() {
-      document.onmouseup = null;
-      document.onmousemove = null;
+    function moveEnd(e) {
+      if (e.touches) {
+        document.removeEventListener('touchmove', moveProcess);
+        document.removeEventListener('touchend', moveEnd);
+      } else {
+        document.removeEventListener('mousemove', moveProcess);
+        document.removeEventListener('mouseup', moveEnd);
+      }
       checkOverlap(element);
     }
+
+    element.addEventListener('mousedown', moveStart);
+    element.addEventListener('touchstart', moveStart, { passive: true });
   }
 
   function checkOverlap(draggedEl) {
@@ -534,7 +564,6 @@
       if (otherEl === draggedEl) return;
 
       const rect2 = otherEl.getBoundingClientRect();
-
       const overlap = !(rect1.right < rect2.left || 
                         rect1.left > rect2.right || 
                         rect1.bottom < rect2.top || 
@@ -599,7 +628,7 @@
         if (!exists) {
           myElements.push(newElem);
           await set(ref(db, `infcraftitems/${myUid}`), myElements);
-          showToast(isDiscovery ? `✨ Erste Entdeckung (Discovery)! ${newElem.emoji} ${newElem.name}` : `Neues Element (#${nextId}): ${newElem.emoji} ${newElem.name}`);
+          showToast(isDiscovery ? `✨ Erste Entdeckung! ${newElem.emoji} ${newElem.name}` : `Neues Element (#${nextId}): ${newElem.emoji} ${newElem.name}`);
         } else {
           showToast(`Ergebnis: ${newElem.emoji} ${newElem.name}`);
         }
