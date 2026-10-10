@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -62,27 +61,28 @@
 <div id="nav-sidebar">
     <div class="nav-section">
         <div class="nav-title">Ordner</div>
-        <div class="nav-item active" id="nav-private" onclick="switchMode('private')">📥 Posteingang (Privat)</div>
+        <div class="nav-item active" id="nav-inbox" onclick="switchMode('inbox')">📥 Posteingang (Alle)</div>
+        <div class="nav-item" id="nav-private" onclick="switchMode('private')">💬 Direktnachrichten</div>
         <div class="nav-item" id="nav-public" onclick="switchMode('public')">📢 Öffentlicher Chat</div>
     </div>
     <button class="logout-btn" onclick="logout()">Abmelden</button>
 </div>
 
-<!-- SPALTE 2: Sub-Liste (Kontakte) -->
+<!-- SPALTE 2: Sub-Liste (Posteingang / Kontakte) -->
 <div id="list-sidebar">
-    <div class="sidebar-header" id="list-title">Direktnachrichten</div>
+    <div class="sidebar-header" id="list-title">Posteingang</div>
     <div class="list-container" id="userList"></div>
 </div>
 
-<!-- SPALTE 3: Hauptinhalt (Die "E-Mail" Ansicht) -->
+<!-- SPALTE 3: Hauptinhalt -->
 <div id="mail-content">
     <div class="mail-header">
-        <div class="mail-subject" id="activeTarget">Wähle eine Konversation</div>
-        <div class="mail-participants" id="chatType">Kein Ordner ausgewählt</div>
+        <div class="mail-subject" id="activeTarget">Zentraler Posteingang</div>
+        <div class="mail-participants" id="chatType">Alle empfangenen Nachrichten im Überblick</div>
     </div>
     
     <div id="messages">
-        <!-- Nachrichten werden hier als "Karten" angehängt -->
+        <!-- Nachrichten / Posteingang-Karten werden hier angezeigt -->
     </div>
     
     <div id="input-area">
@@ -113,33 +113,56 @@
     const auth = getAuth(app);
 
     let myUid, myUsername, myPrivateKey, currentSharedKey, activeChatId, currentMsgQuery;
-    let currentMode = 'private'; // 'private' oder 'public'
+    let currentMode = 'inbox'; // 'inbox', 'private' oder 'public'
+    let usersCache = {};
 
-    // --- AUTH & INITIALISIERUNG ---
+    // --- AUTH & INITIALISIERUNG MIT PUFFER ---
     onAuthStateChanged(auth, async (user) => {
-        if (!user) { window.location.href = "index.html"; return; }
-        myUid = user.uid;
-        const pass = sessionStorage.getItem("vault_pass");
-        if (!pass) { logout(); return; }
+        if (user) {
+            myUid = user.uid;
+            const pass = sessionStorage.getItem("vault_pass");
+            
+            if (!pass) {
+                window.location.href = "index.html";
+                return;
+            }
 
-        try {
-            const saltSnap = await get(ref(db, `security/salts/${myUid}`));
-            const privSnap = await get(ref(db, `security/privateKeys/${myUid}`));
-            
-            if (!privSnap.exists()) throw new Error("Keine Schlüssel gefunden.");
+            try {
+                const saltSnap = await get(ref(db, `security/salts/${myUid}`));
+                const privSnap = await get(ref(db, `security/privateKeys/${myUid}`));
+                
+                if (!privSnap.exists()) throw new Error("Keine Schlüssel gefunden.");
 
-            myPrivateKey = await decryptMyPrivateKey(privSnap.val(), pass, saltSnap.val());
-            
-            const meSnap = await get(ref(db, `users/${myUid}`));
-            myUsername = meSnap.val().username;
-            
-            document.getElementById("overlay").style.display = "none";
-            loadUsers();
-        } catch (e) {
-            alert("Fehler beim Entschlüsseln: " + e.message);
-            logout();
+                myPrivateKey = await decryptMyPrivateKey(privSnap.val(), pass, saltSnap.val());
+                
+                const meSnap = await get(ref(db, `users/${myUid}`));
+                myUsername = meSnap.val().username;
+                
+                await cacheAllUsers();
+
+                document.getElementById("overlay").style.display = "none";
+                loadInbox();
+            } catch (e) {
+                alert("Fehler beim Entschlüsseln: " + e.message);
+                logout();
+            }
+        } else {
+            // Puffer / Verzögerung, damit Firebase Zeit hat, den Status zu ermitteln
+            setTimeout(() => {
+                const isBot = /bot|google|baidu|bing|msn|duckduckbot|teoma|slurp|crawler/i.test(navigator.userAgent);
+                if (!auth.currentUser && !isBot) {
+                    window.location.href = "index.html";
+                }
+            }, 1000);
         }
     });
+
+    async function cacheAllUsers() {
+        const snap = await get(ref(db, "users"));
+        snap.forEach(c => {
+            usersCache[c.key] = c.val().username;
+        });
+    }
 
     async function decryptMyPrivateKey(encObj, pass, saltB64) {
         const salt = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
@@ -158,6 +181,7 @@
     // --- NAVIGATION-STEUERUNG ---
     window.switchMode = (mode) => {
         currentMode = mode;
+        document.getElementById("nav-inbox").classList.toggle("active", mode === 'inbox');
         document.getElementById("nav-private").classList.toggle("active", mode === 'private');
         document.getElementById("nav-public").classList.toggle("active", mode === 'public');
         
@@ -166,7 +190,12 @@
         document.getElementById("mInput").disabled = true;
         document.getElementById("sendBtn").disabled = true;
 
-        if (mode === 'public') {
+        if (mode === 'inbox') {
+            document.getElementById("list-title").innerText = "Posteingang";
+            document.getElementById("activeTarget").innerText = "Zentraler Posteingang";
+            document.getElementById("chatType").innerText = "Alle empfangenen Nachrichten im Überblick";
+            loadInbox();
+        } else if (mode === 'public') {
             document.getElementById("list-title").innerText = "Kanäle";
             document.getElementById("userList").innerHTML = `
                 <div class="user-item active" onclick="openPublicChat()">
@@ -183,24 +212,123 @@
         }
     };
 
+    // --- POSTEINGANG LADEN (ALLE NACHRICHTEN ENTSCHLÜSSELN) ---
+    async function loadInbox() {
+        if (currentMode !== 'inbox') return;
+        const list = document.getElementById("userList");
+        const msgBox = document.getElementById("messages");
+        list.innerHTML = "";
+        msgBox.innerHTML = "";
+
+        list.innerHTML = `<div class="user-item active"><div class="username">📥 Alle Nachrichten</div><div class="preview">Zentrale Übersicht</div></div>`;
+
+        const msgSnap = await get(ref(db, "messages"));
+        if (!msgSnap.exists()) {
+            msgBox.innerHTML = `<div style="padding: 20px; color: #747d8c;">Keine Nachrichten vorhanden.</div>`;
+            return;
+        }
+
+        for (const [otherUid, username] of Object.entries(usersCache)) {
+            if (otherUid === myUid) continue;
+
+            try {
+                const chatId = [myUid, otherUid].sort().join("_");
+                const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(chatId));
+                const token = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                const pubSnap = await get(ref(db, `security/publicKeys/${otherUid}`));
+                if (!pubSnap.exists()) continue;
+
+                const otherPubKey = await crypto.subtle.importKey(
+                    "spki", Uint8Array.from(atob(pubSnap.val()), c => c.charCodeAt(0)), 
+                    { name: "ECDH", namedCurve: "P-256" }, false, []
+                );
+
+                const sharedKey = await crypto.subtle.deriveKey(
+                    { name: "ECDH", public: otherPubKey },
+                    myPrivateKey,
+                    { name: "AES-GCM", length: 256 }, false, ["decrypt"]
+                );
+
+                msgSnap.forEach(child => {
+                    const d = child.val();
+                    if (d.blindToken === token) {
+                        decryptAndRenderInboxMsg(d, sharedKey, otherUid, username);
+                    }
+                });
+            } catch (e) {
+                console.error("Fehler beim Verarbeiten von Chat mit", username, e);
+            }
+        }
+    }
+
+    async function decryptAndRenderInboxMsg(d, sharedKey, otherUid, otherUsername) {
+        try {
+            const rawData = Uint8Array.from(atob(d.data), c => c.charCodeAt(0));
+            const rawIv = Uint8Array.from(atob(d.iv), c => c.charCodeAt(0));
+            
+            const dec = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: rawIv },
+                sharedKey, rawData
+            );
+            const msgData = JSON.parse(new TextDecoder().decode(dec));
+            
+            renderInboxCard(msgData, otherUid, otherUsername);
+        } catch (e) {
+            // Ignorieren falls Key nicht passt
+        }
+    }
+
+    function renderInboxCard(m, otherUid, otherUsername) {
+        const box = document.getElementById("messages");
+        
+        const card = document.createElement("div");
+        card.className = "msg-card " + (m.from === myUsername ? "me" : "other");
+        card.style.cursor = "pointer";
+        card.title = "Klicken, um Direktchat zu öffnen";
+        card.onclick = () => {
+            switchMode('private');
+            openChat(otherUid, otherUsername);
+        };
+        
+        const meta = document.createElement("div");
+        meta.className = "msg-meta";
+        
+        const sender = document.createElement("strong");
+        sender.textContent = `${otherUsername} (${m.from})`;
+        
+        const time = document.createElement("span");
+        time.textContent = new Date(m.ts || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        meta.appendChild(sender);
+        meta.appendChild(time);
+        
+        const body = document.createElement("div");
+        body.className = "msg-body";
+        body.textContent = m.text;
+        
+        card.appendChild(meta);
+        card.appendChild(body);
+        box.appendChild(card);
+    }
+
     // --- KONTAKTE LADEN (FÜR PRIVATEN MODUS) ---
     async function loadUsers() {
         if (currentMode !== 'private') return;
-        const snap = await get(ref(db, "users"));
         const list = document.getElementById("userList");
         list.innerHTML = "";
-        snap.forEach(c => {
-            if (c.key === myUid) return;
+        for (const [uid, username] of Object.entries(usersCache)) {
+            if (uid === myUid) continue;
             const div = document.createElement("div");
             div.className = "user-item";
-            div.id = `user-${c.key}`;
+            div.id = `user-${uid}`;
             div.innerHTML = `
-                <div class="username">${c.val().username}</div>
+                <div class="username">${username}</div>
                 <div class="preview">Klicke, um sicheren Chat zu öffnen</div>
             `;
-            div.onclick = () => openChat(c.key, c.val().username);
+            div.onclick = () => openChat(uid, username);
             list.appendChild(div);
-        });
+        }
     }
 
     // --- CHAT ÖFFNEN: PRIVAT ---
@@ -220,7 +348,6 @@
 
         activeChatId = [myUid, otherUid].sort().join("_");
 
-        // ECDH Schlüsselberechnung
         const pubSnap = await get(ref(db, `security/publicKeys/${otherUid}`));
         const otherPubKey = await crypto.subtle.importKey(
             "spki", Uint8Array.from(atob(pubSnap.val()), c => c.charCodeAt(0)), 
@@ -240,7 +367,6 @@
         onChildAdded(currentMsgQuery, async (s) => {
             const d = s.val();
             try {
-                // Konvertierungshilfe gegen Base64/Umlaut-Fehler
                 const rawData = Uint8Array.from(atob(d.data), c => c.charCodeAt(0));
                 const rawIv = Uint8Array.from(atob(d.iv), c => c.charCodeAt(0));
                 
@@ -262,7 +388,7 @@
         document.getElementById("mInput").disabled = false;
         document.getElementById("sendBtn").disabled = false;
         
-        currentSharedKey = null; // Kein Key für den Public Chat
+        currentSharedKey = null;
         activeChatId = "PUBLIC_GLOBAL_ROOM";
 
         currentMsgQuery = query(ref(db, "public_messages"), orderByChild("ts"));
@@ -278,7 +404,6 @@
         document.getElementById("mInput").value = "";
 
         if (currentMode === 'private' && currentSharedKey) {
-            // Sicherer Versand
             const iv = crypto.getRandomValues(new Uint8Array(12));
             const payload = new TextEncoder().encode(JSON.stringify({ text, from: myUsername, ts: Date.now() }));
             const enc = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, currentSharedKey, payload);
@@ -286,7 +411,6 @@
             const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(activeChatId));
             const token = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-            // Fehlerfreie Binär-zu-Base64 Konvertierung über Binärstrings
             const ivB64 = btoa(String.fromCharCode.apply(null, iv));
             const dataB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(enc)));
 
@@ -296,7 +420,6 @@
                 data: dataB64
             });
         } else if (currentMode === 'public') {
-            // Klartext-Versand für öffentlichen Chat
             await push(ref(db, "public_messages"), {
                 text: text,
                 from: myUsername,
@@ -326,7 +449,7 @@
         
         const body = document.createElement("div");
         body.className = "msg-body";
-        body.textContent = m.text; // .textContent statt .innerHTML verhindert XSS Angriffe!
+        body.textContent = m.text;
         
         card.appendChild(meta);
         card.appendChild(body);
@@ -341,7 +464,6 @@
     };
 
     document.getElementById("sendBtn").onclick = sendMsg;
-    // Da es jetzt ein Textarea ist, sendet Enter + Shift eine neue Zeile, nur Enter sendet die Nachricht
     document.getElementById("mInput").onkeydown = (e) => { 
         if(e.key === "Enter" && !e.shiftKey) { 
             e.preventDefault(); 
