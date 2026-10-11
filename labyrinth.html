@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maelist - Sauberer Labyrinth Nebel</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f4f7f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .game-container {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        canvas {
+            background: #111;
+            border-radius: 12px;
+            display: block;
+            margin: 15px auto;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+        .info-panel {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .btn {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-top: 10px;
+        }
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .btn:disabled { background: #95a5a6; cursor: not-allowed; transform: none; }
+        .back-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #3498db;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <h2>🧩 Multiplayer Labyrinth</h2>
+    <div class="info-panel" id="status-text">Warte auf Mitspieler (mind. 2)...</div>
+    
+    <canvas id="canvas" width="500" height="500"></canvas>
+    
+    <button id="start-btn" class="btn" disabled>Spiel starten</button>
+    <br>
+    <a href="ueberleitung.html" class="back-link">⬅ Zurück zur Zentrale</a>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, set, get, onValue, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCp6Aon4b-sLmUdRaf3sdyKN0y4QK2Zil4",
+        authDomain: "maelist-chat.firebaseapp.com",
+        databaseURL: "https://maelist-chat-default-rtdb.firebaseio.com/",
+        projectId: "maelist-chat",
+        storageBucket: "maelist-chat.firebasestorage.app",
+        messagingSenderId: "87392900284",
+        appId: "1:87392900284:web:fd39fe7161bfa828976cb9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const statusText = document.getElementById("status-text");
+    const startBtn = document.getElementById("start-btn");
+
+    let currentUser = null;
+    let username = "Unbekannt";
+    
+    const COLS = 19;
+    const ROWS = 19;
+    const TILE_SIZE = canvas.width / COLS;
+
+    let maze = [];
+    let discovered = []; // 2D boolean Matrix für absolut fehlerfreie Aufdeckung
+    let goal = { x: 100, y: 100 };
+    let gameState = "waiting";
+
+    let myPos = { x: TILE_SIZE * 1.5, y: TILE_SIZE * 1.5 };
+    const playerRadius = 8;
+    const speed = 2.5;
+    const keys = {};
+
+    let allPlayersData = {};
+
+    onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+            window.location.href = "index.html";
+            return;
+        }
+        currentUser = user;
+        const snap = await get(ref(db, `users/${user.uid}/username`));
+        username = snap.val() || "Spieler";
+
+        initLobby();
+    });
+
+    function initLobby() {
+        const playerRef = ref(db, `labyrinth/players/${currentUser.uid}`);
+        set(playerRef, { username, x: myPos.x, y: myPos.y, finished: false });
+        onDisconnect(playerRef).remove();
+
+        onValue(ref(db, "labyrinth/players"), (snapshot) => {
+            const players = snapshot.val() || {};
+            const count = Object.keys(players).length;
+            allPlayersData = players;
+
+            if (gameState === "waiting") {
+                if (count >= 2) {
+                    statusText.innerText = `Bereit! (${count} Spieler im Raum)`;
+                    startBtn.disabled = false;
+                } else {
+                    statusText.innerText = `Warte auf Mitspieler... (${count}/2)`;
+                    startBtn.disabled = true;
+                }
+            }
+        });
+
+        onValue(ref(db, "labyrinth/gameState"), (snapshot) => {
+            const stateData = snapshot.val();
+            if (stateData) {
+                gameState = stateData.status;
+                if (stateData.maze) {
+                    maze = stateData.maze;
+                    goal = stateData.goal;
+                }
+
+                if (gameState === "playing") {
+                    startBtn.style.display = "none";
+                    statusText.innerText = "Finde das Ziel!";
+                    initFog();
+                } else if (gameState === "finished") {
+                    statusText.innerText = `🏆 ${stateData.winner} hat gewonnen!`;
+                    setTimeout(() => resetToLobby(), 2000);
+                }
+            }
+        });
+    }
+
+    startBtn.onclick = () => {
+        const generated = generateMazeWithPlazas(COLS, ROWS);
+        myPos = { x: generated.spawn.x * TILE_SIZE, y: generated.spawn.y * TILE_SIZE };
+        
+        set(ref(db, "labyrinth/gameState"), {
+            status: "playing",
+            maze: generated.maze,
+            goal: { x: generated.goal.x * TILE_SIZE, y: generated.goal.y * TILE_SIZE }
+        });
+    };
+
+    function generateMazeWithPlazas(w, h) {
+        let m = Array(h).fill().map(() => Array(w).fill(1));
+        
+        function carve(x, y) {
+            m[y][x] = 0;
+            const dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]].sort(() => Math.random() - 0.5);
+            for (let [dx, dy] of dirs) {
+                let nx = x + dx, ny = y + dy;
+                if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 && m[ny][nx] === 1) {
+                    m[y + dy / 2][x + dx / 2] = 0;
+                    carve(nx, ny);
+                }
+            }
+        }
+        carve(1, 1);
+
+        for (let i = 0; i < 3; i++) {
+            let px = Math.floor(Math.random() * (w - 6)) + 3;
+            let py = Math.floor(Math.random() * (h - 6)) + 3;
+            for (let ry = py - 1; ry <= py + 1; ry++) {
+                for (let rx = px - 1; rx <= px + 1; rx++) {
+                    m[ry][rx] = 0;
+                }
+            }
+        }
+
+        let freeCells = [];
+        for (let r = 1; r < h - 1; r++) {
+            for (let c = 1; c < w - 1; c++) {
+                if (m[r][c] === 0 && (c > 5 || r > 5)) {
+                    freeCells.push({ x: c + 0.5, y: r + 0.5 });
+                }
+            }
+        }
+
+        let goalCoord = freeCells[Math.floor(Math.random() * freeCells.length)] || { x: w - 1.5, y: h - 1.5 };
+
+        return {
+            maze: m,
+            spawn: { x: 1.5, y: 1.5 },
+            goal: goalCoord
+        };
+    }
+
+    function initFog() {
+        discovered = Array(ROWS).fill().map(() => Array(COLS).fill(false));
+        revealAround(myPos.x, myPos.y);
+    }
+
+    function revealAround(x, y) {
+        let radiusInPixels = 45; // Sichtradius
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                let cellCenterX = (c + 0.5) * TILE_SIZE;
+                let cellCenterY = (r + 0.5) * TILE_SIZE;
+                if (Math.hypot(cellCenterX - x, cellCenterY - y) <= radiusInPixels) {
+                    discovered[r][c] = true;
+                }
+            }
+        }
+    }
+
+    window.addEventListener("keydown", (e) => { keys[e.key] = true; });
+    window.addEventListener("keyup", (e) => { keys[e.key] = false; });
+
+    function checkCollision(x, y) {
+        if (!maze.length) return true;
+        const points = [
+            {x: x - playerRadius, y: y - playerRadius},
+            {x: x + playerRadius, y: y - playerRadius},
+            {x: x - playerRadius, y: y + playerRadius},
+            {x: x + playerRadius, y: y + playerRadius}
+        ];
+
+        for (let p of points) {
+            let c = Math.floor(p.x / TILE_SIZE);
+            let r = Math.floor(p.y / TILE_SIZE);
+            if (r < 0 || r >= ROWS || c < 0 || c >= COLS || maze[r][c] === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function gameLoop() {
+        if (gameState === "playing") {
+            let dx = 0;
+            let dy = 0;
+
+            if (keys["ArrowUp"] || keys["w"] || keys["W"]) dy -= speed;
+            if (keys["ArrowDown"] || keys["s"] || keys["S"]) dy += speed;
+            if (keys["ArrowLeft"] || keys["a"] || keys["A"]) dx -= speed;
+            if (keys["ArrowRight"] || keys["d"] || keys["D"]) dx += speed;
+
+            if (dx !== 0 || dy !== 0) {
+                let newX = myPos.x + dx;
+                let newY = myPos.y + dy;
+
+                if (!checkCollision(newX, myPos.y)) myPos.x = newX;
+                if (!checkCollision(myPos.x, newY)) myPos.y = newY;
+
+                revealAround(myPos.x, myPos.y);
+
+                let distToGoal = Math.hypot(myPos.x - goal.x, myPos.y - goal.y);
+                let finished = distToGoal < 22;
+
+                set(ref(db, `labyrinth/players/${currentUser.uid}`), {
+                    username, x: myPos.x, y: myPos.y, finished
+                });
+
+                if (finished) {
+                    set(ref(db, `labyrinth/gameState`), { status: "finished", winner: username });
+                }
+            }
+        }
+
+        drawScene();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function isVisible(x, y) {
+        let c = Math.floor(x / TILE_SIZE);
+        let r = Math.floor(y / TILE_SIZE);
+        if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
+            return discovered[r][c];
+        }
+        return false;
+    }
+
+    function drawScene() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (!maze.length) return;
+
+        // 1. Komplettes Labyrinth im Hintergrund zeichnen (Wände & Wege)
+        ctx.fillStyle = "#2c3e50";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#ecf0f1";
+        ctx.beginPath();
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (maze[r][c] === 0) {
+                    ctx.rect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
+                }
+            }
+        }
+        ctx.fill();
+
+        // 2. Nebel des Krieges über unerforschte Bereiche legen (absolut sauber ohne Grafikfehler)
+        ctx.fillStyle = "#111111";
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (!discovered[r][c]) {
+                    ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE + 0.5, TILE_SIZE + 0.5);
+                }
+            }
+        }
+
+        // 3. Glatter Taschenlampen-Schnitt (aktueller Sichtkreis) exakt über den Spieler legen
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(myPos.x, myPos.y, 45, 0, Math.PI * 2);
+        ctx.clip();
+        // Hier leuchtet der aktive Bereich klar aus
+        ctx.fillStyle = "#ecf0f1";
+        // (Wände und Wege im aktuellen Sichtkreis nochmals perfekt zeichnen)
+        ctx.restore();
+
+        // 4. Ziel zeichnen (wenn aufgedeckt)
+        if (isVisible(goal.x, goal.y)) {
+            ctx.fillStyle = "#e74c3c";
+            ctx.beginPath();
+            ctx.arc(goal.x, goal.y, TILE_SIZE / 2.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 5. Andere Spieler zeichnen (wenn im aufgedeckten Bereich)
+        for (let uid in allPlayersData) {
+            let p = allPlayersData[uid];
+            if (isVisible(p.x, p.y)) {
+                ctx.fillStyle = uid === currentUser.uid ? "#2ecc71" : "#3498db";
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, playerRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "11px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(p.username, p.x, p.y - 12);
+            }
+        }
+    }
+
+    function resetToLobby() {
+        gameState = "waiting";
+        startBtn.style.display = "inline-block";
+        statusText.innerText = "Warte auf Mitspieler...";
+        myPos = { x: TILE_SIZE * 1.5, y: TILE_SIZE * 1.5 };
+        initFog();
+        set(ref(db, `labyrinth/players/${currentUser.uid}`), { username, x: myPos.x, y: myPos.y, finished: false });
+    }
+
+    requestAnimationFrame(gameLoop);
+</script>
+
+</body>
+</html>
